@@ -34,9 +34,9 @@ O workflow `.github/workflows/deploy-cloudflare.yml` publica no Pages quando há
 Configuração necessária no repositório que fará o deploy:
 
 1. Usar um repositório sob sua administração (por exemplo, um fork seu). A conta atual tem acesso de escrita ao repositório original, mas não permissão administrativa para registrar nele um runner.
-2. No servidor da VPS, criar um clone dedicado para deploy, desbloquear esse clone pelo fluxo oficial de colaborador e registrar nele o runner GitHub com a etiqueta `mneme-cloudflare`. Não reutilizar a pasta de trabalho do bot.
-3. Definir a variável Actions `MNEME_DEPLOY_CHECKOUT` com o caminho absoluto desse clone e `CLOUDFLARE_ACCOUNT_ID` com o ID da conta Cloudflare.
-4. Cadastrar `CLOUDFLARE_API_TOKEN` como secret Actions, usando um token restrito a publicar Pages e aplicar migrações D1.
-5. Fazer push em `main`; o runner atualiza o clone desbloqueado, aplica migrações pendentes e publica os assets e as Pages Functions.
+2. No fork, abrir **Settings > Actions > Runners > New self-hosted runner** e seguir as instruções apresentadas para Linux. No servidor da VPS, criar um clone dedicado de deploy a partir do fork e desbloqueá-lo pelo fluxo oficial de colaborador. Registrar o runner com a etiqueta `mneme-cloudflare`. Não reutilizar a pasta de trabalho do bot.
+3. Definir a variável Actions `MNEME_DEPLOY_CHECKOUT` com o caminho absoluto desse clone. `CLOUDFLARE_ACCOUNT_ID` já foi cadastrada no fork.
+4. Criar um API Token na Cloudflare com `Cloudflare Pages:Edit` e `D1:Edit`, restritos à sua conta; guardar o valor em **Settings > Secrets and variables > Actions > Secrets** como `CLOUDFLARE_API_TOKEN`. A documentação exige Pages Edit para publicar pelo Pages API e D1 Edit para executar escritas no D1 ([Pages](https://developers.cloudflare.com/pages/configuration/api/), [permissões de API](https://developers.cloudflare.com/fundamentals/api/reference/permissions/)).
+5. Com o runner ativo e as variáveis/secrets configurados, fazer push em `main`; o runner atualiza o clone desbloqueado, aplica migrações pendentes e publica os assets e as Pages Functions.
 
 O runner é necessário porque uma pipeline hospedada pelo GitHub não tem acesso à chave git-crypt. Isso mantém a chave fora dos secrets e dos serviços de build hospedados. O runner e o checkout de deploy precisam permanecer ativos e confiáveis; o runner só deve aceitar workflows do repositório controlado por você.
