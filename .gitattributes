@@ -1,0 +1,12 @@
+# Tudo é criptografado com git-crypt, exceto o que está liberado abaixo.
+# Arquivo novo entra criptografado por padrão: para publicar algo, libere aqui de propósito.
+* filter=git-crypt diff=git-crypt
+
+# Públicos (portfólio e funcionamento do git/GitHub)
+.gitattributes !filter !diff
+.gitignore !filter !diff
+README.md !filter !diff
+LICENSE !filter !diff
+SECURITY.md !filter !diff
+docs/** !filter !diff
+.github/** !filter !diff
