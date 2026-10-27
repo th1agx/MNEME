@@ -10,3 +10,9 @@ LICENSE !filter !diff
 SECURITY.md !filter !diff
 docs/** !filter !diff
 .github/** !filter !diff
+AGENTS.md !filter !diff
+CLAUDE.md !filter !diff
+colaborar/** !filter !diff
+
+# Scripts shell sempre com final de linha LF (CRLF quebra o bash no Windows)
+*.sh text eol=lf

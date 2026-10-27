@@ -31,6 +31,12 @@ git-crypt status -e
 
 Além da chave simétrica (backup do dono), cada colaborador tem acesso pela **própria chave GPG**. O repositório guarda em `.git-crypt/keys/` uma cópia da chave do projeto cifrada para cada colaborador autorizado; só quem tem a chave privada GPG correspondente consegue abrir. Ninguém compartilha arquivo de chave nem senha.
 
+### Atalho: um comando só
+
+Na pasta do repositório clonado (Git Bash no Windows), o colaborador roda `bash colaborar/acesso.sh`. O script confere as ferramentas, cria a chave GPG (a senha é digitada por ele na janela do GPG), gera o arquivo da chave pública, mostra a impressão digital e, depois da autorização, desbloqueia o código. Os passos abaixo são o que o script faz.
+
+Assistentes de código (Claude, Codex) leem `CLAUDE.md` e `AGENTS.md`, que ficam abertos: com o código cifrado, eles não editam nada e orientam a pessoa a rodar o script.
+
 ### Colaborador: criar a chave (uma vez, no computador dele)
 
 1. Instalar o GnuPG e o git-crypt: no Windows o `gpg` já vem no Git for Windows (Git Bash) e o git-crypt segue a seção "Instalar o git-crypt"; macOS `brew install gnupg git-crypt`; Linux `sudo apt install gnupg git-crypt`.

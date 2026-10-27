@@ -2,6 +2,8 @@
 
 Bot de copy trading que acompanha os melhores traders do ranking do FOMO.family, avalia cada operação com um score de risco explicável e, conforme o modo escolhido, sugere, simula ou executa compras e vendas em Solana.
 
+> **Quer colaborar?** Clone numa pasta de caminho curto e rode `bash colaborar/acesso.sh` (Git Bash no Windows). O script cria sua chave e mostra o que me enviar para liberar o acesso.
+
 > **O código-fonte deste repositório é criptografado** com [git-crypt](https://github.com/AGWA/git-crypt). Ficam abertos este README e a pasta [`docs/`](docs/), com arquitetura, decisões de segurança e operação. Sem a chave, os demais arquivos aparecem como dados binários.
 
 ## O que o projeto faz

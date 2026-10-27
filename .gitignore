@@ -4,3 +4,5 @@ data/
 .env.*
 !.env.example
 *.log
+# Gerado pelo colaborar/acesso.sh
+minha-chave-publica.asc
