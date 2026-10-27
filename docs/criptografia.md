@@ -27,60 +27,40 @@ git-crypt status -e
 - **Linux (VPS):** `sudo apt install git-crypt`
 - **Windows:** executável oficial em https://github.com/AGWA/git-crypt/releases (versão 0.7.0, `git-crypt-0.7.0-x86_64.exe`, 5.903.509 bytes, SHA-256 `8c54a3b583cd4fc1483c952480116a9c86f771b02d4403fc6d3627b26cf146e2` conferido no download). Coloque numa pasta do `PATH` com o nome `git-crypt.exe`.
 
-## Acesso por colaborador (GPG)
+## Acesso por colaborador (senha)
 
-Além da chave simétrica (backup do dono), cada colaborador tem acesso pela **própria chave GPG**. O repositório guarda em `.git-crypt/keys/` uma cópia da chave do projeto cifrada para cada colaborador autorizado; só quem tem a chave privada GPG correspondente consegue abrir. Ninguém compartilha arquivo de chave nem senha.
+Além da chave simétrica (backup do dono), cada colaborador abre o código com uma **senha pessoal** que recebe do dono. Ninguém recebe arquivo de chave.
 
-### Atalho: um comando só
-
-Na pasta do repositório clonado (Git Bash no Windows), o colaborador roda `bash colaborar/acesso.sh`. O script confere as ferramentas, cria a chave GPG (a senha é digitada por ele na janela do GPG), gera o arquivo da chave pública, mostra a impressão digital e, depois da autorização, desbloqueia o código. Os passos abaixo são o que o script faz.
+- Em `colaborar/chaves/<nome>.enc` fica uma cópia da chave do projeto cifrada com a senha daquele colaborador (AES-256-CBC, PBKDF2-SHA256 com 600 mil iterações, via `openssl`). Esses arquivos são públicos: sem a senha, não abrem.
+- As senhas são criadas pelo dono e ficam só no `.env` dele (fora do git), uma linha `ACESSO_<NOME>=` por pessoa, com 16 caracteres ou mais: qualquer pessoa pode baixar o `.enc` e tentar senhas sem limite. O dono manda cada senha por um canal privado (WhatsApp, ligação).
+- O colaborador roda `bash colaborar/acesso.sh` (Git Bash no Windows). O script confere o `openssl`, instala o `git-crypt` se faltar (Windows: baixa o executável oficial 0.7.0 e confere o SHA-256 abaixo antes de usar; macOS: `brew`; Linux: `apt`, `dnf` ou `pacman`), avisa se falta o Node 22.9+, pergunta o nome, pede a senha sem mostrar na tela, decifra a chave num arquivo temporário, roda `git-crypt unlock` e apaga o temporário.
 
 Assistentes de código (Claude, Codex) leem `CLAUDE.md` e `AGENTS.md`, que ficam abertos: com o código cifrado, eles não editam nada e orientam a pessoa a rodar o script.
 
-### Colaborador: criar a chave (uma vez, no computador dele)
+Para enviar alterações, o colaborador também precisa ser adicionado no GitHub (*Settings > Collaborators*); só ler não exige isso.
 
-1. Instalar o GnuPG e o git-crypt: no Windows o `gpg` já vem no Git for Windows (Git Bash) e o git-crypt segue a seção "Instalar o git-crypt"; macOS `brew install gnupg git-crypt`; Linux `sudo apt install gnupg git-crypt`.
-2. Gerar a chave. Uma janela pede a senha da chave, que é só dele. Prefira o e-mail `...@users.noreply.github.com` do GitHub para não expor o e-mail pessoal:
+### Dono: adicionar ou trocar um colaborador
 
-```bash
-gpg --quick-generate-key "Nome Sobrenome <email>" default default 2y
-```
-
-3. Publicar a chave **pública** no GitHub (*Settings > SSH and GPG keys > New GPG key*), colando a saída de:
+Com o código aberto no seu computador, coloque a senha no `.env`:
 
 ```bash
-gpg --armor --export email
+ACESSO_NOME=senha-forte-com-16-ou-mais-caracteres
 ```
 
-4. Mandar ao dono a **impressão digital** por um canal diferente (ligação, mensagem), para confirmar que a chave é mesmo dele:
+Depois gere os arquivos e publique:
 
 ```bash
-gpg --fingerprint email
+npm run acessos
+git add colaborar/chaves && git commit -m "Acessos de colaboradores" && git push
 ```
 
-### Dono: autorizar o colaborador
-
-```bash
-curl -s https://github.com/USUARIO.gpg | gpg --import
-gpg --fingerprint USUARIO_OU_EMAIL      # conferir com a impressão digital recebida
-git-crypt add-gpg-user --trusted IMPRESSAO_DIGITAL
-git push
-```
-
-O `add-gpg-user` cria um commit com a chave do projeto cifrada para o colaborador. Esse arquivo pode ser público: só a chave privada dele abre.
-
-### Colaborador: abrir o código
-
-```bash
-git clone https://github.com/th1agx/MNEME.git && cd MNEME
-git-crypt unlock          # pede a senha da chave GPG dele
-```
-
-Para enviar alterações, ele também precisa ser adicionado como colaborador do repositório no GitHub (*Settings > Collaborators*); só ler não exige isso.
+O script tira a chave do próprio repositório (`git-crypt export-key`), grava `colaborar/chaves/nome.enc` para cada linha `ACESSO_` e apaga o arquivo de quem saiu do `.env`. O nome (minúsculo) é o que a pessoa digita no `acesso.sh`. Ninguém precisa de GPG: a senha é digitada no terminal.
 
 ### Remover um colaborador
 
-O git-crypt não revoga acesso: quem já abriu o código continua com o que leu, e a chave antiga abre todos os commits já feitos. Para cortar o acesso daqui para frente, siga a **Rotação** abaixo e autorize de novo só quem deve continuar.
+Tirar a linha do `.env` e rodar `npm run acessos` apaga o `.enc`, o que impede um clone novo de abrir, mas não revoga: a senha continua abrindo o `.enc` que ficou no histórico, quem já abriu o código continua com o que leu, e a chave antiga abre todos os commits já feitos. Para cortar o acesso daqui para frente, siga a **Rotação** abaixo e gere senhas novas só para quem deve continuar.
+
+O acesso por GPG (`git-crypt add-gpg-user`) continua funcionando para a chave do dono em `.git-crypt/keys/`.
 
 ## Gestão da chave
 

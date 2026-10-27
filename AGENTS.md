@@ -16,8 +16,8 @@ Se a saída contém `GITCRYPT`, o código está cifrado neste computador. Nesse 
    bash colaborar/acesso.sh
    ```
 
-   O script confere as ferramentas, cria a chave GPG da pessoa (a senha é digitada por ela numa janela do GPG), mostra o que enviar ao dono do projeto e, depois da autorização, desbloqueia o código.
-4. **Nunca peça, gere, sugira ou digite a senha da chave GPG**, nem peça a chave privada ou o arquivo de chave do git-crypt. Esses segredos são só do usuário.
+   O script confere as ferramentas, pergunta o nome da pessoa e pede a senha que ela recebeu do dono do projeto; com a senha certa, desbloqueia o código.
+4. **Nunca peça, gere, sugira ou digite a senha**, nem peça o arquivo de chave do git-crypt. A senha é digitada só pela pessoa, direto no terminal.
 5. Arquivos abertos que podem ser lidos e editados mesmo sem acesso: `README.md`, `docs/`, `colaborar/`, `AGENTS.md`, `CLAUDE.md`, `.gitattributes`, `.gitignore`.
 
 Se o código estiver aberto (sem `GITCRYPT`), siga normalmente as convenções descritas em `docs/codigo.md`. Commits voltam cifrados sozinhos; nunca altere `.gitattributes` para liberar arquivos sem pedido explícito do dono do projeto.

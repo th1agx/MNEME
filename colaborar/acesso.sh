@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# MNEME: acesso de colaborador ao código cifrado (git-crypt + GPG).
+# MNEME: acesso de colaborador ao código cifrado (git-crypt + senha pessoal).
 #
 # Rode na pasta do repositório clonado:   bash colaborar/acesso.sh
 # Windows: use o Git Bash. macOS/Linux: terminal normal.
 #
-# Este script é público e não contém segredos. A senha da sua chave GPG é
-# digitada só por você, na janela do GPG; o script nunca a vê.
+# Este script é público e não contém segredos. Cada colaborador tem uma cópia
+# da chave do projeto em colaborar/chaves/<nome>.enc, cifrada com a senha que
+# recebeu do dono (AES-256 + PBKDF2 com 600 mil iterações). A senha é digitada
+# só aqui e nunca é gravada; a chave aberta fica num arquivo temporário apagado
+# logo após o desbloqueio.
 
 set -euo pipefail
 
@@ -25,89 +28,104 @@ if [ -f src/main.ts ] && ! cifrado; then
 fi
 
 # ---------------------------------------------------------------- 1. ferramentas
-passo "1/4  Conferindo ferramentas"
-falta=0
-if ! command -v gpg >/dev/null; then
-  vermelho "GPG não encontrado."
+passo "1/3  Conferindo ferramentas"
+
+# Executável oficial do git-crypt para Windows, conferido pelo SHA-256 (docs/criptografia.md).
+WIN_URL="https://github.com/AGWA/git-crypt/releases/download/0.7.0/git-crypt-0.7.0-x86_64.exe"
+WIN_SHA="8c54a3b583cd4fc1483c952480116a9c86f771b02d4403fc6d3627b26cf146e2"
+
+instalar_git_crypt() {
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      destino="$HOME/bin"; mkdir -p "$destino"
+      echo "Baixando o git-crypt oficial (GitHub AGWA/git-crypt 0.7.0)..."
+      curl -fsSL -o "$destino/git-crypt.exe.tmp" "$WIN_URL" || { vermelho "Falha no download."; return 1; }
+      if [ "$(sha256sum "$destino/git-crypt.exe.tmp" | cut -d' ' -f1)" != "$WIN_SHA" ]; then
+        rm -f "$destino/git-crypt.exe.tmp"
+        vermelho "O arquivo baixado não confere com o SHA-256 esperado. Nada foi instalado."
+        return 1
+      fi
+      mv "$destino/git-crypt.exe.tmp" "$destino/git-crypt.exe"
+      export PATH="$destino:$PATH"
+      grep -qs 'HOME/bin' "$HOME/.bashrc" || echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.bashrc"
+      ;;
+    Darwin)
+      command -v brew >/dev/null || {
+        vermelho "Falta o Homebrew. Instale pelo comando em https://brew.sh (pede a senha do Mac) e rode de novo."
+        return 1
+      }
+      brew install git-crypt
+      ;;
+    Linux)
+      amarelo "Vai pedir a senha de administrador do Linux para instalar."
+      if command -v apt-get >/dev/null; then sudo apt-get install -y git-crypt
+      elif command -v dnf >/dev/null; then sudo dnf install -y git-crypt
+      elif command -v pacman >/dev/null; then sudo pacman -S --noconfirm git-crypt
+      else vermelho "Instale o git-crypt pelo gerenciador de pacotes da sua distribuição."; return 1
+      fi
+      ;;
+    *) vermelho "Sistema não reconhecido. Instale o git-crypt: https://github.com/AGWA/git-crypt"; return 1 ;;
+  esac
+  command -v git-crypt >/dev/null
+}
+
+if ! command -v openssl >/dev/null; then
+  vermelho "openssl não encontrado."
   echo "  Windows: instale o Git for Windows (git-scm.com) e rode este script pelo Git Bash."
-  echo "  macOS:   brew install gnupg      Linux: sudo apt install gnupg"
-  falta=1
-fi
-if ! command -v git-crypt >/dev/null; then
-  vermelho "git-crypt não encontrado."
-  echo "  Windows: baixe git-crypt-0.7.0-x86_64.exe em https://github.com/AGWA/git-crypt/releases,"
-  echo "           renomeie para git-crypt.exe e coloque na pasta: $(dirname "$(command -v git)")"
-  echo "  macOS:   brew install git-crypt  Linux: sudo apt install git-crypt"
-  falta=1
-fi
-[ "$falta" = 0 ] || { amarelo "Instale o que falta e rode de novo."; exit 1; }
-verde "gpg e git-crypt instalados."
-
-# ---------------------------------------------------------------- 2. chave GPG
-passo "2/4  Sua chave GPG"
-minhas_chaves() { gpg --batch --with-colons --list-secret-keys 2>/dev/null | awk -F: '/^fpr:/ {print $10}'; }
-
-if [ -z "$(minhas_chaves)" ]; then
-  echo "Você ainda não tem chave GPG neste computador. Vamos criar uma (vale 2 anos)."
-  read -r -p "  Seu nome: " nome
-  echo "  E-mail: use de preferência o e-mail privado do GitHub (Settings > Emails,"
-  echo "  algo como 12345+usuario@users.noreply.github.com) para não expor o pessoal."
-  read -r -p "  E-mail: " email
-  echo
-  amarelo "Vai abrir uma janela pedindo uma SENHA para a chave. Ela é só sua: guarde no gerenciador de senhas."
-  gpg --quick-generate-key "$nome <$email>" default default 2y
-fi
-
-# Usa a chave principal mais recente.
-fpr="$(gpg --batch --with-colons --list-secret-keys 2>/dev/null | awk -F: '/^sec:/ {getline; print $10}' | tail -1)"
-uid="$(gpg --batch --with-colons --list-secret-keys "$fpr" 2>/dev/null | awk -F: '/^uid:/ {print $10; exit}')"
-verde "Chave: $uid"
-
-# ---------------------------------------------------------------- 3. autorização
-passo "3/4  Autorização do dono do projeto"
-git pull --quiet 2>/dev/null || true
-autorizado=0
-for f in $(minhas_chaves); do
-  [ -f ".git-crypt/keys/default/0/$f.gpg" ] && autorizado=1
-done
-
-if [ "$autorizado" = 0 ]; then
-  arquivo="minha-chave-publica.asc"
-  gpg --armor --export "$fpr" > "$arquivo"
-  echo "Sua chave ainda não foi autorizada. Faça isto:"
-  echo
-  echo "  a) Publique sua chave PÚBLICA no GitHub: https://github.com/settings/gpg/new"
-  echo "     Cole o conteúdo do arquivo $arquivo (criado agora nesta pasta)."
-  echo
-  echo "  b) Mande ao dono do projeto, por WhatsApp ou ligação (não por e-mail):"
-  echo "       - seu usuário do GitHub"
-  echo "       - esta impressão digital:"
-  echo
-  gpg --fingerprint "$fpr" | sed -n '2p' | sed 's/^ */       /'
-  echo
-  amarelo "Quando ele confirmar a autorização, rode este script de novo."
-  exit 0
-fi
-verde "Sua chave está autorizada."
-
-# ---------------------------------------------------------------- 4. desbloqueio
-passo "4/4  Abrindo o código"
-# Windows abre no máximo 260 caracteres de caminho; o git-crypt precisa abrir
-# .git-crypt/keys/default/0/<impressão digital>.gpg dentro desta pasta.
-if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]; then
-  total=$(( ${#PWD} + 72 ))
-  if [ "$total" -gt 255 ]; then
-    vermelho "A pasta tem um caminho longo demais para o Windows ($total de 260 caracteres)."
-    amarelo "Clone numa pasta curta e rode o script lá:  cd /c/dev && git clone https://github.com/th1agx/MNEME.git"
-    exit 1
-  fi
-fi
-amarelo "Digite a senha da sua chave GPG na janela que vai abrir."
-git-crypt unlock
-if cifrado; then
-  vermelho "Ainda cifrado. Confira a senha e rode de novo."
+  echo "  Linux:   sudo apt install openssl"
   exit 1
 fi
-rm -f minha-chave-publica.asc
-verde "Pronto: código aberto. Commits que você fizer voltam cifrados automaticamente."
-echo "Próximo passo: leia docs/operacao.md."
+if ! command -v git-crypt >/dev/null; then
+  amarelo "git-crypt não encontrado. Instalando..."
+  instalar_git_crypt || { amarelo "Resolva o que apareceu acima e rode de novo."; exit 1; }
+fi
+verde "openssl e git-crypt instalados."
+
+# Node só é preciso para rodar o projeto, não para abrir o código: aqui só avisa.
+node_ok=0
+if command -v node >/dev/null; then
+  IFS=. read -r maior menor _ <<< "$(node -v | tr -d v)"
+  { [ "$maior" -gt 22 ] || { [ "$maior" -eq 22 ] && [ "$menor" -ge 9 ]; }; } && node_ok=1
+fi
+[ "$node_ok" = 1 ] || amarelo "Aviso: para rodar o MNEME você vai precisar do Node 22.9 ou mais novo (https://nodejs.org, versão LTS)."
+
+# ---------------------------------------------------------------- 2. quem é
+passo "2/3  Quem é você"
+git pull --quiet 2>/dev/null || true
+nomes="$(ls colaborar/chaves/*.enc 2>/dev/null | sed 's#.*/##; s#\.enc$##' | tr '\n' ' ')"
+[ -n "$nomes" ] || { vermelho "Nenhum colaborador cadastrado ainda. Fale com o dono do projeto."; exit 1; }
+echo "Colaboradores: $nomes"
+read -r -p "  Seu nome: " nome
+nome="$(printf '%s' "$nome" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+arquivo="colaborar/chaves/$nome.enc"
+[ -f "$arquivo" ] || { vermelho "Não há acesso para \"$nome\". Confira o nome ou fale com o dono do projeto."; exit 1; }
+
+# ---------------------------------------------------------------- 3. desbloqueio
+passo "3/3  Abrindo o código"
+chave="$(mktemp)"
+trap 'rm -f "$chave"' EXIT
+for tentativa in 1 2 3; do
+  read -r -s -p "  Senha (não aparece enquanto digita): " senha; echo
+  if printf '%s' "$senha" | openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 \
+       -pass stdin -in "$arquivo" -out "$chave" 2>/dev/null \
+     && head -c 12 "$chave" | grep -q "GITCRYPTKEY"; then
+    unset senha
+    git-crypt unlock "$chave"
+    rm -f "$chave"
+    if cifrado; then
+      vermelho "Ainda cifrado. Rode de novo ou fale com o dono do projeto."
+      exit 1
+    fi
+    verde "Pronto: código aberto. Commits que você fizer voltam cifrados automaticamente."
+    if [ "$node_ok" = 1 ]; then
+      echo "Próximo passo: npm install e leia docs/operacao.md."
+    else
+      echo "Próximo passo: instale o Node 22.9+ (https://nodejs.org), rode npm install e leia docs/operacao.md."
+    fi
+    exit 0
+  fi
+  vermelho "Senha incorreta."
+done
+unset senha
+amarelo "Três tentativas erradas. Confira a senha com o dono do projeto e rode de novo."
+exit 1

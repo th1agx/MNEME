@@ -13,6 +13,7 @@ docs/** !filter !diff
 AGENTS.md !filter !diff
 CLAUDE.md !filter !diff
 colaborar/** !filter !diff
+colaborar/chaves/*.enc binary
 
 # Scripts shell sempre com final de linha LF (CRLF quebra o bash no Windows)
 *.sh text eol=lf
