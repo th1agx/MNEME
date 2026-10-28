@@ -22,6 +22,8 @@ functions/** !filter !diff
 migrations/** !filter !diff
 wrangler.jsonc !filter !diff
 scripts/prepare-pages.sh !filter !diff
+package.json !filter !diff
+tsconfig.json !filter !diff
 
 # Scripts shell sempre com final de linha LF (CRLF quebra o bash no Windows)
 colaborar/*.sh text eol=lf

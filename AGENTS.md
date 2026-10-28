@@ -20,7 +20,7 @@ Se a saída contém `GITCRYPT`, o código está cifrado neste computador. Nesse 
 4. **Nunca peça, gere, sugira ou digite a senha**, nem peça o arquivo de chave do git-crypt. A senha é digitada só pela pessoa, direto no terminal.
 5. Arquivos abertos que podem ser lidos e editados mesmo sem acesso: `README.md`, `docs/`, `colaborar/`, `AGENTS.md`, `CLAUDE.md`, `.gitattributes`, `.gitignore`.
 
-Para publicar o painel no Cloudflare Pages, estes caminhos são exceções públicas intencionais em `.gitattributes`: `public/**`, `functions/**`, `migrations/**`, `wrangler.jsonc` e `scripts/prepare-pages.sh`. O workflow em `.github/workflows/` também é público. O restante continua cifrado por padrão. Nunca coloque credenciais, chaves privadas ou origens privadas nesses caminhos; mantenha o código do bot em `src/` cifrado.
+Para publicar o painel no Cloudflare Pages, estes caminhos são exceções públicas intencionais em `.gitattributes`: `public/**`, `functions/**`, `migrations/**`, `wrangler.jsonc`, `scripts/prepare-pages.sh`, `package.json` e `tsconfig.json`. O workflow em `.github/workflows/` também é público. O restante continua cifrado por padrão. Nunca coloque credenciais, chaves privadas ou origens privadas nesses caminhos; mantenha o código do bot em `src/` cifrado.
 
 Se o código estiver aberto (sem `GITCRYPT`), siga normalmente as convenções descritas em `docs/codigo.md`. Commits voltam cifrados sozinhos; nunca altere `.gitattributes` para liberar arquivos sem pedido explícito do dono do projeto.
 

@@ -73,7 +73,7 @@ Assim, primeiro conectar `MNEME_API_ORIGIN` faz o painel mostrar os dados atuais
 
 O workflow `.github/workflows/deploy-cloudflare.yml` usa um runner hospedado pelo GitHub. Não precisa de uma VPS para publicar o Pages. O repositório continua cifrado por padrão; só os arquivos necessários ao deploy ficam em texto aberto e, como o repositório é público, qualquer pessoa pode lê-los.
 
-Os caminhos públicos são `public/**`, `functions/**`, `migrations/**`, `wrangler.jsonc` e `scripts/prepare-pages.sh`, além do workflow em `.github/workflows/`. Eles contêm a interface, o proxy do Pages, o esquema do D1 e a configuração de publicação. O código do bot em `src/` e os demais arquivos permanecem cifrados. Nunca coloque credenciais ou chaves privadas nos caminhos públicos.
+Os caminhos públicos são `public/**`, `functions/**`, `migrations/**`, `wrangler.jsonc`, `scripts/prepare-pages.sh`, `package.json` e `tsconfig.json`, além do workflow em `.github/workflows/`. Eles contêm a interface, o proxy do Pages, o esquema do D1 e a configuração necessária para compilar e publicar. O código do bot em `src/` e os demais arquivos permanecem cifrados. Nunca coloque credenciais ou chaves privadas nos caminhos públicos.
 
 Em cada push para `main` que altere esses caminhos, o workflow prepara uma cópia temporária de `public/`, minifica e ofusca os JavaScript, aplica migrações D1 pendentes e publica Pages/Functions no projeto `mneme` (`mneme-1b8.pages.dev`). Também pode ser iniciado manualmente em **Actions > Deploy MNEME to Cloudflare > Run workflow**.
 
