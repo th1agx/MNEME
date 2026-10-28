@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-label="MNEME: copy trading com score explicável">
+  <style>
+    text { font-family: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-variant-numeric: tabular-nums; }
+    .muted { fill: #848e9c; }
+    .faint { fill: #5e6673; }
+    .text { fill: #eaecef; }
+    .up { fill: #0ecb81; }
+    .down { fill: #f6465d; }
+    .warn { fill: #f0b90b; }
+
+    /* Ticker */
+    .tape { animation: tape 26s linear infinite; }
+    @keyframes tape { from { transform: translateX(0); } to { transform: translateX(-1200px); } }
+
+    /* Pulso de "ao vivo" */
+    .live { animation: live 1.6s ease-in-out infinite; transform-origin: 86px 290px; }
+    @keyframes live { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+
+    /* Boleta: chega, pontua, executa, repete (ciclo de 8 s) */
+    .ticket { animation: ticket 8s ease-out infinite; }
+    @keyframes ticket {
+      0% { opacity: 0; transform: translateY(14px); }
+      6%, 88% { opacity: 1; transform: translateY(0); }
+      96%, 100% { opacity: 0; transform: translateY(-6px); }
+    }
+    .flash { animation: flash 8s ease-out infinite; }
+    @keyframes flash { 0%, 4% { opacity: 0; } 8% { opacity: .55; } 22%, 100% { opacity: 0; } }
+    .bar { transform-box: fill-box; transform-origin: 0 50%; animation: fill 8s cubic-bezier(.2,.7,.2,1) infinite; }
+    .b1 { animation-delay: .25s; } .b2 { animation-delay: .4s; } .b3 { animation-delay: .55s; }
+    .b4 { animation-delay: .7s; } .b5 { animation-delay: .85s; } .b6 { animation-delay: 1s; } .b7 { animation-delay: 1.15s; }
+    @keyframes fill { 0%, 6% { transform: scaleX(0); } 26%, 100% { transform: scaleX(1); } }
+    .score { animation: show 8s steps(1) infinite; }
+    @keyframes show { 0%, 24% { opacity: 0; } 25%, 100% { opacity: 1; } }
+    .done { animation: done 8s ease-out infinite; }
+    @keyframes done { 0%, 38% { opacity: 0; } 44%, 100% { opacity: 1; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tape, .live, .ticket, .flash, .bar, .score, .done { animation: none; }
+    }
+  </style>
+
+  <rect width="1200" height="400" rx="10" fill="#0b0e11"/>
+  <rect x=".5" y=".5" width="1199" height="399" rx="10" fill="none" stroke="#2b3139"/>
+
+  <!-- Marca -->
+  <g transform="translate(72 96)">
+    <path d="M0 52 L0 0 L18 30 L36 0 L36 52" fill="none" stroke="#0ecb81" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+    <text x="58" y="48" class="text" font-size="54" font-weight="600" letter-spacing="6">MNEME</text>
+  </g>
+  <text x="72" y="196" class="text" font-size="26" font-weight="500">Copy trading com score explicável.</text>
+  <text x="72" y="232" class="muted" font-size="17">Acompanha os traders do Top, pontua cada operação de 0 a 100</text>
+  <text x="72" y="256" class="muted" font-size="17">e sugere, simula ou executa em Solana, dentro de limites rígidos.</text>
+
+  <g>
+    <circle class="live up" cx="86" cy="290" r="5"/>
+    <text x="100" y="295" class="muted" font-size="14">ao vivo · atraso máximo 10 s · exatamente uma ordem por sinal</text>
+  </g>
+
+  <!-- Boleta -->
+  <g class="ticket">
+    <rect x="740" y="58" width="390" height="252" rx="6" fill="#161a1e" stroke="#2b3139"/>
+    <rect class="flash" x="740" y="58" width="390" height="252" rx="6" fill="#0ecb81"/>
+    <text x="764" y="92" class="muted" font-size="13">Último sinal</text>
+    <text x="1106" y="92" class="faint" font-size="12" text-anchor="end">há 2 s</text>
+
+    <rect x="764" y="108" width="62" height="24" rx="4" fill="#0ecb81" fill-opacity=".14"/>
+    <text x="795" y="125" class="up" font-size="13" font-weight="600" text-anchor="middle">Compra</text>
+    <text x="838" y="126" class="text" font-size="20" font-weight="600">TOKEN</text>
+    <text x="912" y="126" class="faint" font-size="12">solana</text>
+    <g class="score">
+      <text x="1106" y="126" class="up" font-size="20" font-weight="600" text-anchor="end">78</text>
+      <text x="1080" y="126" class="faint" font-size="12" text-anchor="end">score</text>
+    </g>
+
+    <!-- Fatores do score -->
+    <g font-size="11">
+      <text x="764" y="158" class="muted">Ranking</text>            <rect x="880" y="150" width="226" height="6" rx="3" fill="#1e2329"/><rect class="bar b1" x="880" y="150" width="226" height="6" rx="3" fill="#0ecb81"/>
+      <text x="764" y="176" class="muted">Histórico</text>          <rect x="880" y="168" width="226" height="6" rx="3" fill="#1e2329"/><rect class="bar b2" x="880" y="168" width="140" height="6" rx="3" fill="#0ecb81"/>
+      <text x="764" y="194" class="muted">Consenso</text>           <rect x="880" y="186" width="226" height="6" rx="3" fill="#1e2329"/><rect class="bar b3" x="880" y="186" width="150" height="6" rx="3" fill="#0ecb81"/>
+      <text x="764" y="212" class="muted">Velocidade</text>         <rect x="880" y="204" width="226" height="6" rx="3" fill="#1e2329"/><rect class="bar b4" x="880" y="204" width="206" height="6" rx="3" fill="#0ecb81"/>
+      <text x="764" y="230" class="muted">Liquidez</text>           <rect x="880" y="222" width="226" height="6" rx="3" fill="#1e2329"/><rect class="bar b5" x="880" y="222" width="190" height="6" rx="3" fill="#0ecb81"/>
+      <text x="764" y="248" class="muted">Preço já disparou?</text> <rect x="880" y="240" width="226" height="6" rx="3" fill="#1e2329"/><rect class="bar b6" x="880" y="240" width="170" height="6" rx="3" fill="#f0b90b"/>
+      <text x="764" y="266" class="muted">Convicção</text>          <rect x="880" y="258" width="226" height="6" rx="3" fill="#1e2329"/><rect class="bar b7" x="880" y="258" width="80" height="6" rx="3" fill="#0ecb81"/>
+    </g>
+
+    <g class="done">
+      <line x1="764" y1="280" x2="1106" y2="280" stroke="#2b3139"/>
+      <text x="764" y="300" class="muted" font-size="12">trader_a (1º) · atraso 2,1 s</text>
+      <text x="1106" y="300" class="up" font-size="14" font-weight="600" text-anchor="end">Comprado US$ 25,00</text>
+    </g>
+  </g>
+
+  <!-- Ticker -->
+  <line x1="0" y1="340" x2="1200" y2="340" stroke="#2b3139"/>
+  <svg x="0" y="340" width="1200" height="60">
+    <g class="tape" font-size="14">
+      <g id="t">
+        <text x="24" y="36"><tspan class="text" font-weight="600">TOKEN</tspan><tspan class="up" dx="8">Compra</tspan><tspan class="muted" dx="8">trader_a · US$ 4,2 mil</tspan></text>
+        <text x="324" y="36"><tspan class="text" font-weight="600">ALFA</tspan><tspan class="down" dx="8">Venda</tspan><tspan class="muted" dx="8">trader_c · US$ 1,8 mil</tspan></text>
+        <text x="604" y="36"><tspan class="text" font-weight="600">BETA</tspan><tspan class="warn" dx="8">Recusado</tspan><tspan class="muted" dx="8">atraso 14 s &gt; 10 s</tspan></text>
+        <text x="904" y="36"><tspan class="text" font-weight="600">GAMA</tspan><tspan class="up" dx="8">Compra</tspan><tspan class="muted" dx="8">trader_b · score 81</tspan></text>
+      </g>
+      <use href="#t" x="1200"/>
+    </g>
+  </svg>
+</svg>

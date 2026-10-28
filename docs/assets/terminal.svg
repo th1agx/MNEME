@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="316" viewBox="0 0 1200 316" role="img" aria-label="Terminal: acesso de colaborador e bot rodando em modo demo">
+  <style>
+    text { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 15px; }
+    .p { fill: #0ecb81; } .t { fill: #eaecef; } .m { fill: #848e9c; } .ok { fill: #0ecb81; } .w { fill: #f0b90b; }
+    /* Ciclo de 14 s: cada linha aparece no seu tempo e tudo some no fim. */
+    .l { opacity: 0; animation: 14s steps(1) infinite; }
+    .l1 { animation-name: a1; } .l2 { animation-name: a2; } .l3 { animation-name: a3; } .l4 { animation-name: a4; }
+    .l5 { animation-name: a5; } .l6 { animation-name: a6; } .l7 { animation-name: a7; } .l8 { animation-name: a8; }
+    @keyframes a1 { 0% { opacity: 1; } 96% { opacity: 0; } }
+    @keyframes a2 { 0% { opacity: 0; } 14% { opacity: 1; } 96% { opacity: 0; } }
+    @keyframes a3 { 0% { opacity: 0; } 20% { opacity: 1; } 96% { opacity: 0; } }
+    @keyframes a4 { 0% { opacity: 0; } 27% { opacity: 1; } 96% { opacity: 0; } }
+    @keyframes a5 { 0% { opacity: 0; } 34% { opacity: 1; } 96% { opacity: 0; } }
+    @keyframes a6 { 0% { opacity: 0; } 50% { opacity: 1; } 96% { opacity: 0; } }
+    @keyframes a7 { 0% { opacity: 0; } 62% { opacity: 1; } 96% { opacity: 0; } }
+    @keyframes a8 { 0% { opacity: 0; } 72% { opacity: 1; } 96% { opacity: 0; } }
+    /* Digitação dos comandos */
+    .type1 { animation: type1 14s steps(26) infinite; }
+    @keyframes type1 { 0% { width: 0; } 10%, 100% { width: 270px; } }
+    .type2 { animation: type2 14s steps(30) infinite; }
+    @keyframes type2 { 0%, 38% { width: 0; } 48%, 100% { width: 300px; } }
+    .cur { animation: cur 1s steps(1) infinite; }
+    @keyframes cur { 50% { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) {
+      .l { animation: none; opacity: 1; } .type1, .type2, .cur { animation: none; }
+    }
+  </style>
+  <defs>
+    <clipPath id="c1"><rect class="type1" x="62" y="76" width="270" height="24"/></clipPath>
+    <clipPath id="c2"><rect class="type2" x="62" y="196" width="300" height="24"/></clipPath>
+  </defs>
+
+  <rect width="1200" height="316" rx="10" fill="#0b0e11"/>
+  <rect x=".5" y=".5" width="1199" height="315" rx="10" fill="none" stroke="#2b3139"/>
+  <circle cx="30" cy="26" r="6" fill="#f6465d"/><circle cx="50" cy="26" r="6" fill="#f0b90b"/><circle cx="70" cy="26" r="6" fill="#0ecb81"/>
+  <text x="600" y="31" text-anchor="middle" class="m" style="font-size:13px">MNEME</text>
+  <line x1="0" y1="50" x2="1200" y2="50" stroke="#2b3139"/>
+
+  <g class="l l1"><text x="40" y="94" class="p">$</text><text x="62" y="94" class="t" clip-path="url(#c1)">bash colaborar/acesso.sh</text></g>
+  <text class="l l2" x="40" y="122"><tspan class="ok">✔</tspan><tspan class="m" dx="10">openssl e git-crypt instalados.</tspan></text>
+  <text class="l l3" x="40" y="146"><tspan class="m">  Seu nome:</tspan><tspan class="t" dx="8">isaac</tspan><tspan class="m" dx="24">Senha:</tspan><tspan class="t" dx="8">••••••••••••••••</tspan></text>
+  <text class="l l4" x="40" y="170"><tspan class="ok">✔</tspan><tspan class="t" dx="10">Pronto: código aberto.</tspan><tspan class="m" dx="10">Commits voltam cifrados sozinhos.</tspan></text>
+
+  <g class="l l5"><text x="40" y="214" class="p">$</text><text x="62" y="214" class="t" clip-path="url(#c2)">npm install &amp;&amp; npm run demo</text></g>
+  <text class="l l6 m" x="40" y="242">MNEME em http://localhost:4740 (demo, dados fictícios, modo paper).</text>
+  <text class="l l7" x="40" y="266"><tspan class="ok">[trade]</tspan><tspan class="t" dx="10">Comprado (simulado) TOKEN: US$ 25,00.</tspan><tspan class="m" dx="10">Copiando trader_a, score 78.</tspan></text>
+  <text class="l l8" x="40" y="290"><tspan class="w">[sinal]</tspan><tspan class="t" dx="10">Recusado BETA:</tspan><tspan class="m" dx="10">chegou 14 s depois do trader (limite 10 s).</tspan><tspan class="cur t" dx="6">▍</tspan></text>
+</svg>
