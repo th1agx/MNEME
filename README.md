@@ -247,6 +247,7 @@ O painel abre em `http://localhost:4740`. Para dados reais, preencha o `.env` a 
 | [Código](docs/codigo.md) | Pastas, SOLID na prática, robustez e segurança da execução |
 | [Operação](docs/operacao.md) | Como rodar, modos e roteiro de conexão |
 | [Deploy](docs/deploy.md) | Servidor 24 h, Cloudflare, Telegram e backup |
+| [Inteligência e busca](docs/inteligencia-e-busca.md) | Fontes, enriquecimento de dados e resumos automáticos com IA |
 | [Design](docs/design.md) | Linguagem visual do painel |
 | [Criptografia](docs/criptografia.md) | Repositório cifrado e acesso de colaboradores |
 

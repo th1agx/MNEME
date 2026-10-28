@@ -48,6 +48,12 @@ Tudo abaixo é feito uma vez, na ordem. Nenhum passo envia ordem real até o 6.
 5. **Servidor, acesso e avisos:** suba numa VPS com Docker, publique o painel pela Cloudflare (Tunnel + Access) e configure o Telegram, que também aceita comandos como `/status` e `/vender` (docs/deploy.md).
 6. **Dinheiro real:** `LIVE_TRADING=on`, valores pequenos (US$ 5 a 10 por ordem), acompanhar as primeiras transações no Solscan.
 
+## Resumos automáticos com IA
+
+Opcionalmente, configure `THESIS_AI=on` e `ANTHROPIC_API_KEY` no `.env` da VPS. Quando o feed trouxer uma tese de um trader acompanhado, o Claude resume o texto, identifica a postura e os riscos citados, atualiza o painel e envia um aviso ao chat definido por `TELEGRAM_CHAT_ID` se o Telegram estiver configurado. A notificação é informativa: não altera score, entrada, tamanho ou saída de posição. Cada tese analisada pode gerar cobrança da Anthropic; configure limites de gasto na conta e monitore o uso antes de deixar ligado continuamente.
+
+Use o bot e o chat privado de operação já existentes. Não envie resumos internos para grupos de assinantes: a entrega paga ainda não tem cadastro, cobrança nem isolamento de comandos. Para o plano de enriquecimento e busca de fontes, veja [inteligência e busca](inteligencia-e-busca.md).
+
 ## Testes
 
 ```bash
