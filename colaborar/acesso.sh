@@ -75,6 +75,31 @@ if ! command -v openssl >/dev/null; then
   echo "  Linux:   sudo apt install openssl"
   exit 1
 fi
+
+# Mesma cifra do gerador (scripts/acessos.sh). No Mac, o openssl do sistema é o
+# LibreSSL; se ele não suportar estes parâmetros, usa o do Homebrew.
+CIFRA=(-aes-256-cbc -pbkdf2 -iter 600000 -md sha256)
+OPENSSL=openssl
+openssl_ok() {
+  local volta
+  volta="$(printf 'teste' | "$1" enc -aes-256-cbc -pbkdf2 -iter 1000 -md sha256 -salt -pass pass:teste 2>/dev/null \
+    | "$1" enc -d -aes-256-cbc -pbkdf2 -iter 1000 -md sha256 -pass pass:teste 2>/dev/null)" || return 1
+  [ "$volta" = "teste" ]
+}
+if ! openssl_ok "$OPENSSL"; then
+  brew_ssl=""
+  command -v brew >/dev/null && brew_ssl="$(brew --prefix openssl@3 2>/dev/null)/bin/openssl"
+  if [ -n "$brew_ssl" ] && [ -x "$brew_ssl" ] && openssl_ok "$brew_ssl"; then
+    OPENSSL="$brew_ssl"
+  else
+    vermelho "O openssl deste computador ($(openssl version 2>/dev/null)) não suporta a cifra do projeto."
+    case "$(uname -s)" in
+      Darwin) echo "  Instale um openssl atual com: brew install openssl@3   e rode de novo." ;;
+      *)      echo "  Use o Git Bash do Git for Windows (Windows) ou atualize o openssl (Linux)." ;;
+    esac
+    exit 1
+  fi
+fi
 if ! command -v git-crypt >/dev/null; then
   amarelo "git-crypt não encontrado. Instalando..."
   instalar_git_crypt || { amarelo "Resolva o que apareceu acima e rode de novo."; exit 1; }
@@ -104,11 +129,16 @@ arquivo="colaborar/chaves/$nome.enc"
 passo "3/3  Abrindo o código"
 chave="$(mktemp)"
 trap 'rm -f "$chave"' EXIT
+echo "  Dica: no Git Bash, colar é Shift+Insert ou clique direito (Ctrl+V não cola e estraga a senha)."
 for tentativa in 1 2 3; do
-  read -r -s -p "  Senha (não aparece enquanto digita): " senha; echo
-  if printf '%s' "$senha" | openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 \
-       -pass stdin -in "$arquivo" -out "$chave" 2>/dev/null \
-     && head -c 12 "$chave" | grep -q "GITCRYPTKEY"; then
+  # IFS= mantém a senha exatamente como digitada (sem cortar espaços nas pontas).
+  IFS= read -r -s -p "  Senha (não aparece enquanto digita): " senha; echo
+  if [[ "$senha" =~ [[:cntrl:]] ]]; then
+    vermelho "A senha tem um caractere de controle (provavelmente um Ctrl+V). Digite ou cole com Shift+Insert."
+    continue
+  fi
+  erro="$(printf '%s' "$senha" | "$OPENSSL" enc -d "${CIFRA[@]}" -pass stdin -in "$arquivo" -out "$chave" 2>&1 >/dev/null)" || true
+  if [ -s "$chave" ] && head -c 12 "$chave" | grep -q "GITCRYPTKEY"; then
     unset senha
     git-crypt unlock "$chave"
     rm -f "$chave"
@@ -124,8 +154,15 @@ for tentativa in 1 2 3; do
     fi
     exit 0
   fi
-  vermelho "Senha incorreta."
+  : > "$chave"
+  if [ -n "$erro" ] && ! printf '%s' "$erro" | grep -qi "bad decrypt"; then
+    vermelho "Erro do openssl (não é a senha): $(printf '%s' "$erro" | head -2 | tr '\n' ' ')"
+    amarelo "Mande essa mensagem ao dono do projeto."
+    exit 1
+  fi
+  vermelho "Senha incorreta (você digitou ${#senha} caracteres)."
 done
 unset senha
-amarelo "Três tentativas erradas. Confira a senha com o dono do projeto e rode de novo."
+amarelo "Três tentativas erradas. Confira com o dono do projeto se a quantidade de caracteres bate,"
+amarelo "digite a senha à mão e atenção a letras parecidas: l, I e 1; O e 0."
 exit 1
