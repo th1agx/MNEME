@@ -2,7 +2,7 @@
 
 ## Estado atual
 
-O MNEME já recebe eventos e teses do feed FOMO pela VPS, recupera eventos após uma queda, consulta preço/liquidez/variação de 5 minutos no DexScreener e produz score explicável com regras determinísticas. Opcionalmente, `ClaudeThesisAnalyzer` resume teses. Com `THESIS_AI=on`, o resumo agora também é enviado ao chat operacional do Telegram configurado.
+O MNEME já recebe eventos e teses do feed do provedor de sinais pela VPS, recupera eventos após uma queda, consulta preço/liquidez/variação de 5 minutos no DexScreener e produz score explicável com regras determinísticas. Opcionalmente, `ClaudeThesisAnalyzer` resume teses. Com `THESIS_AI=on`, o resumo agora também é enviado ao chat operacional do Telegram configurado.
 
 O processo de negociação continua na VPS e usa JSON/JSONL como fonte de verdade. O Pages encaminha chamadas do painel à API da VPS. O esquema D1 está pronto para histórico/relatórios, mas ainda não recebe eventos. KV está reservado para cache; o código não o usa. Turso não está integrado. Portanto, criar esses bancos não amplia a busca nem faz a IA enxergar dados automaticamente.
 
@@ -10,13 +10,13 @@ O processo de negociação continua na VPS e usa JSON/JSONL como fonte de verdad
 
 | Fonte | O que acrescenta | Decisão inicial |
 |---|---|---|
-| FOMO, já ligado ao bot | Ranking, trades, teses e identidade social usados pelo produto | Manter como fonte primária dos eventos sociais. Persistir snapshots com janela e horário; não tratar o PnL divulgado pelo ranking como verdade contábil própria. |
+| provedor de sinais, já ligado ao bot | Ranking, trades, teses e identidade social usados pelo produto | Manter como fonte primária dos eventos sociais. Persistir snapshots com janela e horário; não tratar o PnL divulgado pelo ranking como verdade contábil própria. |
 | DEX Screener, já usado | Pools, preço, liquidez, volume, variação, FDV/market cap e links do token | Manter como fonte de mercado de primeira linha. O endpoint de tokens aceita até 30 endereços; a API documenta limites de 300 req/min para pools/tokens e 60 req/min para perfis/boosts. Boosts e anúncios são promoção, não prova de qualidade. [API reference](https://docs.dexscreener.com/api/reference) |
 | Helius, candidata para Solana on-chain | DAS/Token API para metadados, ownership, supply e contas de token; Parsed Events para interpretar transações | É o primeiro provedor novo que vale testar, só para tokens que os traders acompanhados tocaram. O plano Free atual informa 1 milhão de créditos e 10 req/s; chamadas DAS custam 10 créditos. O plano Developer listado custa US$ 49/mês; começar no Free e medir chamadas antes de pagar. [Token APIs](https://www.helius.dev/solana-token-apis) · [Preços e limites](https://www.helius.dev/pricing) |
 | GoPlus, candidata para risco | Sinais de risco de token e contratos; há endpoint específico para Solana | Usar inicialmente como aviso com fonte e horário, nunca como garantia ou veto automático: a documentação marca a API Solana como Beta. [Solana Token Security](https://docs.gopluslabs.io/reference/solanatokensecurityusingget) |
 | Notícias e sentimento | Busca pública, redes sociais e matérias sobre projeto/token | Não contratar outra fonte já. Em tokens novos, a cobertura de notícias pode ser fraca e símbolos colidem. Primeiro medir quais perguntas continuam sem resposta usando endereço do token, links e teses já existentes. Se ficar necessário, comparar custo/licença/cobertura de uma fonte de busca antes de ativá-la. |
 
-Esta combinação começa com uma fonte por categoria e reduz sobreposição: FOMO para o que traders disseram/fizeram; DEX Screener para mercado; Helius para estado on-chain; GoPlus como triagem secundária. Helius e GoPlus não devem substituir o cálculo determinístico do MNEME. Uma ausência de risco retornada por um fornecedor não significa que o token seja seguro.
+Esta combinação começa com uma fonte por categoria e reduz sobreposição: provedor de sinais para o que traders disseram/fizeram; DEX Screener para mercado; Helius para estado on-chain; GoPlus como triagem secundária. Helius e GoPlus não devem substituir o cálculo determinístico do MNEME. Uma ausência de risco retornada por um fornecedor não significa que o token seja seguro.
 
 ## Tabelas no D1
 
@@ -59,7 +59,7 @@ Se futuramente houver payloads grandes (artigos, arquivos ou dumps), primeiro me
 
 ## Como os dados chegam e são entregues
 
-1. O feed FOMO entra na VPS; o bot normaliza, deduplica por `eventId`, calcula score e aplica regras. Ordens e monitor continuam independentes de Cloudflare.
+1. O feed do provedor de sinais entra na VPS; o bot normaliza, deduplica por `eventId`, calcula score e aplica regras. Ordens e monitor continuam independentes de Cloudflare.
 2. Para um evento acompanhado, a VPS pede dados complementares por endereço: Dex Screener; Helius on-chain; GoPlus como avaliação secundária. Cada busca tem timeout, cache e falha isolada.
 3. O bot envia um envelope idempotente para uma rota interna autenticada do Worker. O Worker grava o espelho histórico no D1 em lote e atualiza somente caches válidos no KV. Esse envio ainda precisa ser implementado/configurado; a migração não inicia ingestão sozinha.
 4. A IA recebe o evento e evidências com origem/horário, produz JSON validado com resumo, fatos, contrapontos, links e incertezas. Nunca recebe autoridade para mudar score ou operar.
@@ -72,7 +72,7 @@ Antes de ligar a ingestão, proteger o endpoint com um segredo aleatório compar
 
 ```mermaid
 flowchart LR
-    F[FOMO: ranking, alertas e teses] --> B[Bot na VPS: normalização e histórico]
+    F[provedor de sinais: ranking, alertas e teses] --> B[Bot na VPS: normalização e histórico]
     D[DexScreener: mercado e liquidez] --> B
     S[Fontes adicionais escolhidas] --> E[Enriquecimento com fonte e horário]
     B --> E
@@ -82,7 +82,7 @@ flowchart LR
     B --> R[Regras determinísticas de risco e execução]
 ```
 
-O FOMO permanece a fonte dos movimentos dos traders; fontes adicionais complementam o contexto. A IA deve resumir fatos coletados, mostrar fonte e horário e destacar o que não conseguiu verificar. Ela não deve calcular o score, escolher tamanho, executar, pausar ou fechar ordens.
+O provedor de sinais permanece a fonte dos movimentos dos traders; fontes adicionais complementam o contexto. A IA deve resumir fatos coletados, mostrar fonte e horário e destacar o que não conseguiu verificar. Ela não deve calcular o score, escolher tamanho, executar, pausar ou fechar ordens.
 
 ## Próximas melhorias
 
@@ -96,10 +96,10 @@ As próximas fontes externas devem ser escolhidas após observar quais perguntas
 
 ## Contas e credenciais
 
-- **FOMO:** reutilizar a conta/chave já usada pelo bot na VPS (`SIGNALS_API_KEY`, `SIGNALS_REST_URL`, `SIGNALS_WS_URL`). Nunca colocar esses valores no Pages ou no navegador.
+- **provedor de sinais:** reutilizar a conta/chave já usada pelo bot na VPS (`SIGNALS_API_KEY`, `SIGNALS_REST_URL`, `SIGNALS_WS_URL`). Nunca colocar esses valores no Pages ou no navegador.
 - **IA:** reutilizar a conta Anthropic já compatível com `ClaudeThesisAnalyzer`, usando `ANTHROPIC_API_KEY` apenas no servidor. Configurar orçamento/limites na conta. Começar com resumos de teses; busca web e análise de dados adicionais ficam para depois da escolha de fontes.
 - **Telegram interno:** reutilizar o bot e o chat privado de operação configurados por `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID`. A entrega para assinantes precisa de outro fluxo e controles de acesso; não compartilhar o chat administrativo.
-- **Cloudflare:** manter Pages/Functions para o painel e proxy, D1 para histórico/relatórios e KV para cache. A chave FOMO, a chave Anthropic e o token do Telegram não pertencem ao bundle público nem ao repositório.
+- **Cloudflare:** manter Pages/Functions para o painel e proxy, D1 para histórico/relatórios e KV para cache. A chave do provedor de sinais, a chave Anthropic e o token do Telegram não pertencem ao bundle público nem ao repositório.
 - **Turso:** adiar até haver uma categoria de dados específica que justifique esse banco e um adaptador implementado. Não duplicar ali os mesmos dados operacionais do bot e do D1.
 
 ## Ativação do resumo automático atual

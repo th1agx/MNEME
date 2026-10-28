@@ -39,7 +39,7 @@ Até `MNEME_API_ORIGIN` ser configurada, as rotas `/api/*` respondem 503 de prop
 
 O fluxo de leitura do painel é `navegador → Pages/Worker → API HTTPS do bot na VPS`. O Worker não consulta D1 para montar o painel. O fluxo de escrita de configurações e comandos também termina no bot, que persiste os dados operacionais em `data/`.
 
-O fluxo do produto é `FOMOAPI → coletor e motor de sinais na VPS → painel interno + distribuição no Telegram`. A coleta da FOMO já está no bot: o WebSocket recebe os alertas, o código normaliza e calcula os sinais, e a API entrega o estado ao painel. A chave FOMO fica na VPS; não deve ir para Pages nem para o navegador.
+O fluxo do produto é o ranking dos traders do Top → coletor e motor de sinais na VPS → painel interno + distribuição no Telegram. O provedor de sinais fica configurado na VPS; a API do bot alimenta o painel.
 
 Rotas já implementadas no bot e encaminhadas pelo Worker:
 
