@@ -63,5 +63,4 @@ jobs:
           npx --yes wrangler@4.129.0 d1 migrations apply mneme-operational --remote --config wrangler.jsonc
           npx --yes wrangler@4.129.0 pages deploy "$stage_dir/public" \
             --project-name mneme \
-            --branch main \
-            --config wrangler.jsonc
+            --branch main
