@@ -16,4 +16,4 @@ colaborar/** !filter !diff
 colaborar/chaves/*.enc binary
 
 # Scripts shell sempre com final de linha LF (CRLF quebra o bash no Windows)
-*.sh text eol=lf
+colaborar/*.sh text eol=lf
