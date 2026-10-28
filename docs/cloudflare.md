@@ -10,7 +10,7 @@
 
 ## Recursos criados
 
-- Pages: `mneme-1b8` — `https://mneme-1b8.pages.dev`
+- Pages: projeto `mneme` — `https://mneme-1b8.pages.dev`
 - Worker Functions: configuração em `wrangler.jsonc` e código em `functions/api/`
 - D1: `mneme-operational`; migração `migrations/0001_operational.sql`
 - KV: `mneme-cache`
@@ -75,7 +75,7 @@ Esta conta foi configurada por Wrangler a partir do checkout local desbloqueado.
 
 ## Autodeploy por Git
 
-O workflow `.github/workflows/deploy-cloudflare.yml` publica no Pages quando há push em `main` que altere a interface, as Functions, as migrações ou a configuração do Wrangler. Ele prepara uma cópia temporária de `public/`, minifica e ofusca os JavaScript e envia essa cópia para o projeto `mneme-1b8`. Os arquivos no repositório não são reescritos pelo processo.
+O workflow `.github/workflows/deploy-cloudflare.yml` publica no Pages quando há push em `main` que altere a interface, as Functions, as migrações ou a configuração do Wrangler. Ele prepara uma cópia temporária de `public/`, minifica e ofusca os JavaScript e envia essa cópia para o projeto `mneme` (`mneme-1b8.pages.dev`). Os arquivos no repositório não são reescritos pelo processo.
 
 Como o checkout hospedado pelo GitHub contém arquivos cifrados, o workflow usa um **runner self-hosted** em um ambiente confiável e um clone de deploy separado já desbloqueado com git-crypt. A chave não deve ser colocada nos secrets do GitHub. Para ativar no repositório original:
 
