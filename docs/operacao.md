@@ -19,6 +19,16 @@ npm start           # dados reais (precisa de SIGNALS_API_KEY, SIGNALS_REST_URL 
 
 Painel em http://localhost:4740 e configurações em http://localhost:4740/configuracoes.
 
+### Gráfico de mercado e ordens
+
+O painel abre em SOL/USDT com 180 velas OHLCV reais da Binance Spot. A moeda e o intervalo (1 minuto a 1 dia) são selecionados no gráfico; há visualização em velas ou linha e atualização a cada 10 segundos enquanto a aba estiver visível. A última vela pode estar em formação. Use o cursor ou as setas do teclado para consultar abertura, máxima, mínima e fechamento.
+
+As cotações usam a API pública de dados de mercado, sem conta ou chave Binance. Elas são reais inclusive quando o MNEME está em demonstração. Se a API falhar, o painel informa a falha e o horário do último histórico recebido; não substitui as velas por dados fictícios.
+
+No Cloudflare Pages, a rota `/api/market/candles` consulta o mercado diretamente e o gráfico funciona mesmo antes de conectar a VPS. Carteira e ordens continuam dependendo do estado do bot; enquanto não há conexão, o painel informa que está aguardando o bot.
+
+Os marcadores C/V identificam o horário das ordens executadas pelo bot e abrem seus detalhes. As faixas de volume distinguem a Binance (USDT) do bot (USD); preço de referência e preço de execução podem divergir. Ordens que falharam aparecem no histórico, sem marcador de execução. O histórico permite filtrar compras, vendas, falhas ou apenas a moeda selecionada e mostra as últimas ordens disponíveis no estado do painel. Em demonstração, as operações do bot são fictícias e aparecem identificadas como simuladas; tokens sem mercado suportado permanecem no histórico.
+
 ## Modos
 
 | Modo | O que faz |

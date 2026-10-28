@@ -29,9 +29,51 @@
 <main id="painel" tabindex="-1">
 <div class="page-heading">
   <div><h1>Visão geral</h1><p>Sinais, fluxo e carteira em um só lugar.</p></div>
-  <nav class="section-nav" aria-label="Seções do painel"><a href="#sinais">Sinais</a><a href="#carteira">Carteira</a><a href="#historico">Histórico</a></nav>
+  <nav class="section-nav" aria-label="Seções do painel"><a href="#mercado">Mercado</a><a href="#sinais">Sinais</a><a href="#carteira">Carteira</a><a href="#historico">Histórico</a></nav>
 </div>
 <section class="overview" id="overview" aria-label="Resumo da carteira"><p class="empty">Carregando carteira…</p></section>
+<section class="market-desk wide" id="mercado" aria-label="Gráfico de mercado e ordens do bot">
+  <div class="pane market-pane">
+    <div class="market-heading">
+      <div><label class="muted" for="chartSymbol">Moeda</label>
+        <select id="chartSymbol" aria-label="Moeda do gráfico">
+          <option value="SOLUSDT">SOL / USDT</option><option value="BTCUSDT">BTC / USDT</option><option value="ETHUSDT">ETH / USDT</option>
+          <option value="BNBUSDT">BNB / USDT</option><option value="XRPUSDT">XRP / USDT</option><option value="DOGEUSDT">DOGE / USDT</option>
+          <option value="ADAUSDT">ADA / USDT</option><option value="AVAXUSDT">AVAX / USDT</option><option value="LINKUSDT">LINK / USDT</option><option value="SUIUSDT">SUI / USDT</option>
+        </select><small class="muted">Binance Spot · mercado real</small>
+      </div>
+      <div class="market-quote"><b id="chartPrice">— USDT</b><span id="chartChange" class="muted">Carregando mercado…</span></div>
+      <dl class="market-extremes"><div><dt>Máxima do período</dt><dd id="chartHigh">—</dd></div><div><dt>Mínima do período</dt><dd id="chartLow">—</dd></div></dl>
+    </div>
+    <div class="chart-toolbar">
+      <label for="chartInterval">Intervalo <select id="chartInterval">
+        <option value="1m">1 min</option><option value="3m">3 min</option><option value="5m">5 min</option><option value="15m">15 min</option><option value="30m">30 min</option>
+        <option value="1h">1 h</option><option value="2h">2 h</option><option value="4h">4 h</option><option value="6h">6 h</option><option value="12h">12 h</option><option value="1d">1 dia</option>
+      </select></label>
+      <div class="tabs" id="chartTypes" role="group" aria-label="Tipo de gráfico"><button type="button" data-chart-type="candles" aria-pressed="true">Velas</button><button type="button" data-chart-type="line" aria-pressed="false">Linha</button></div>
+      <button class="btn small chart-toggle" id="chartOrdersToggle" type="button" aria-pressed="true">Mostrar ordens</button>
+    </div>
+    <div class="chart-ohlc" id="chartOhlc" aria-live="off">Aguardando velas reais…</div>
+    <div class="chart-stage" id="chartStage" aria-busy="true">
+      <svg id="marketChart" class="market-chart" role="group" aria-roledescription="gráfico de preços" aria-label="Gráfico de velas SOL / USDT da Binance, preços e volume reais" tabindex="0"></svg>
+      <div class="chart-message" id="chartMessage" role="status">Carregando 180 velas da Binance…</div>
+    </div>
+    <div class="chart-footer"><span id="chartUpdated" role="status">Atualização a cada 10 segundos</span><span><b class="up">▲ C</b> Compra <b class="down">▼ V</b> Venda · ordens do bot</span></div>
+    <p class="chart-context" id="chartContext">Preços em USDT da Binance; execução do bot em USD.</p>
+  </div>
+  <aside class="pane market-side">
+    <h2>Moedas acompanhadas <small>mercado real</small></h2>
+    <div id="chartWatch" class="chart-watch"></div>
+    <h2 class="coin-orders-heading">Ordens da moeda <small id="chartOrderCount">0</small></h2>
+    <div id="chartCoinOrders" class="coin-orders"><p class="empty">Nenhuma ordem para esta moeda.</p></div>
+    <div id="chartOrderDetail" class="chart-order-detail" hidden></div>
+  </aside>
+</section>
+<section class="pane wide" id="ordens">
+  <h2>Histórico de ordens <small id="orderContext">Operações do bot</small></h2>
+  <div class="order-toolbar"><div class="tabs" id="orderTabs" role="group" aria-label="Filtrar ordens"><button type="button" data-order-filter="all" aria-pressed="true">Todas</button><button type="button" data-order-filter="buy" aria-pressed="false">Compras</button><button type="button" data-order-filter="sell" aria-pressed="false">Vendas</button><button type="button" data-order-filter="failed" aria-pressed="false">Falhas</button></div><label class="muted"><input id="ordersSelectedCoin" type="checkbox"> Só a moeda do gráfico</label></div>
+  <div class="table-wrap"><table><thead><tr><th>Hora</th><th>Lado</th><th>Moeda</th><th>Execução</th><th class="num">Preço (USD)</th><th class="num">Quantidade</th><th class="num">Valor (USD)</th><th>Situação</th><th>Detalhes</th></tr></thead><tbody id="orderHistory"></tbody></table></div>
+</section>
 <div class="desk">
   <div class="main">
     <section class="pane signal" id="signal" aria-live="polite"></section>
@@ -111,6 +153,7 @@
 </main>
 <footer>MNEME decide por regras fixas que você controla em Configurações. Ranking e resultados passados não garantem resultado futuro.</footer>
 <script src="/assets/common.js"></script>
+<script type="module" src="/assets/market-chart.js"></script>
 <script src="/assets/dashboard.js"></script>
 </body>
 </html>
