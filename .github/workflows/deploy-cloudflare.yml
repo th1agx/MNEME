@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mneme-cloudflare-production
+  group: mneme-cloudflare-pages-hosted
   cancel-in-progress: false
 
 jobs:
