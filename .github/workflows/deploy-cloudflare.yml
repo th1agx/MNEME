@@ -23,19 +23,25 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, mneme-cloudflare]
+    timeout-minutes: 20
     env:
       MNEME_DEPLOY_CHECKOUT: ${{ vars.MNEME_DEPLOY_CHECKOUT }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      # Aceita o ID da conta como variável ou como secret.
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - name: Check deployment checkout
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$MNEME_DEPLOY_CHECKOUT"
-          test -d "$MNEME_DEPLOY_CHECKOUT/.git"
-          test -n "$CLOUDFLARE_ACCOUNT_ID"
-          test -n "$CLOUDFLARE_API_TOKEN"
+          falta() { echo "::error::$1"; exit 1; }
+          [ -n "$MNEME_DEPLOY_CHECKOUT" ] || falta "Defina a variável MNEME_DEPLOY_CHECKOUT (caminho do clone de deploy na VPS)."
+          [ -d "$MNEME_DEPLOY_CHECKOUT/.git" ] || falta "MNEME_DEPLOY_CHECKOUT não aponta para um clone do repositório."
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || falta "Defina CLOUDFLARE_ACCOUNT_ID como variável ou secret."
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || falta "Defina o secret CLOUDFLARE_API_TOKEN."
+          if head -c 9 "$MNEME_DEPLOY_CHECKOUT/src/main.ts" | grep -q GITCRYPT; then
+            falta "O clone de deploy está cifrado: desbloqueie com bash colaborar/acesso.sh na VPS."
+          fi
           if [ -n "$(git -C "$MNEME_DEPLOY_CHECKOUT" status --porcelain)" ]; then
             echo "Deployment checkout must be clean; refusing to overwrite local changes."
             exit 1
