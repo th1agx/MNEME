@@ -8,6 +8,7 @@ on:
       - "functions/**"
       - "migrations/**"
       - "wrangler.jsonc"
+      - "scripts/prepare-pages.sh"
       - ".github/workflows/deploy-cloudflare.yml"
   workflow_dispatch:
 
@@ -52,8 +53,15 @@ jobs:
         run: |
           set -euo pipefail
           cd "$MNEME_DEPLOY_CHECKOUT"
+          stage_dir="$(mktemp -d)"
+          trap 'rm -rf "$stage_dir"' EXIT
+          cp -R public "$stage_dir/public"
+          npm exec --yes \
+            --package=esbuild@0.28.2 \
+            --package=javascript-obfuscator@5.4.2 \
+            -- bash scripts/prepare-pages.sh "$stage_dir/public"
           npx --yes wrangler@4.129.0 d1 migrations apply mneme-operational --remote --config wrangler.jsonc
-          npx --yes wrangler@4.129.0 pages deploy public \
-            --project-name mneme-dashboard \
+          npx --yes wrangler@4.129.0 pages deploy "$stage_dir/public" \
+            --project-name mneme-1b8 \
             --branch main \
             --config wrangler.jsonc
