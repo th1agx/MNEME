@@ -27,6 +27,8 @@ As cotações usam a API pública de dados de mercado, sem conta ou chave Binanc
 
 No Cloudflare Pages, a rota `/api/market/candles` consulta o mercado diretamente e o gráfico funciona mesmo antes de conectar a VPS. Carteira e ordens continuam dependendo do estado do bot; enquanto não há conexão, o painel informa que está aguardando o bot.
 
+Se a rota de mercado retornar erro de servidor ou não puder ser alcançada, o navegador consulta a mesma API pública da Binance diretamente, sem enviar cookies ou credenciais. O histórico continua validado e real. A rota do servidor é tentada novamente após um minuto; recusas de autenticação, validação e limite de uso não acionam essa alternativa. A lista de moedas usa a mesma conexão do gráfico.
+
 Os marcadores C/V identificam o horário das ordens executadas pelo bot e abrem seus detalhes. As faixas de volume distinguem a Binance (USDT) do bot (USD); preço de referência e preço de execução podem divergir. Ordens que falharam aparecem no histórico, sem marcador de execução. O histórico permite filtrar compras, vendas, falhas ou apenas a moeda selecionada e mostra as últimas ordens disponíveis no estado do painel. Em demonstração, as operações do bot são fictícias e aparecem identificadas como simuladas; tokens sem mercado suportado permanecem no histórico.
 
 ## Modos

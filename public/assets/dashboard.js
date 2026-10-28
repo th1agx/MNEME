@@ -437,5 +437,9 @@ window.addEventListener("resize", () => { if (state) renderFlow(state); });
 const es = new EventSource("/api/stream");
 es.onmessage = (m) => render(JSON.parse(m.data));
 es.onerror = () => {
-  $("notices").innerHTML = `<div class="notice bad">Sem contato com o servidor do MNEME. Confira se o terminal com <code>npm.cmd run demo</code> ainda está aberto.</div>`;
+  $("notices").innerHTML = `<div class="notice warn">Carteira, sinais e ordens aguardam conexão com o bot. O gráfico de mercado tem conexão própria.</div>`;
+  if (!state) {
+    $("overview").innerHTML = `<p class="empty">Carteira aguardando conexão com o bot.</p>`;
+    $("status").textContent = "Bot desconectado";
+  }
 };
