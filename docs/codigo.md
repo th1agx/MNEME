@@ -19,7 +19,7 @@ src/
     positionMonitor.ts Preço a mercado e regras de saída
     leaderboardService.ts, settingsService.ts, dashboardQuery.ts…
   infrastructure/    Adaptadores concretos das portas.
-    fomo/              fomoapi.io (REST + WebSocket)
+    signals/           Provedor de sinais (REST + WebSocket)
     market/            DexScreener (preço, liquidez, variação)
     execution/         PaperExecutor e JupiterExecutor (Solana)
     persistence/       Repositórios em arquivo (JSON/JSONL)
@@ -71,10 +71,10 @@ public/              Views: index.html (painel), settings.html, assets/.
 
 ## O que ainda não foi verificado com dados reais
 
-- Formato real do feed e do `/v2/alerts` da fomoapi.io (o `npm run check:fomo` confere).
+- Atraso de ponta a ponta com o provedor em tempo real (o `npm run check:feed` mede).
 - Envio de uma transação real pelo Jupiter. Já verificado com dados reais: cotação, decimais do token, preço no DexScreener e a resposta de saldo insuficiente.
 - Build da imagem Docker.
 
 ## Testes
 
-`npm test` cobre o domínio (score, políticas, consenso, calibração, validação), o fluxo completo com executor simulado e os adaptadores (fomoapi, DexScreener e Jupiter com respostas simuladas, incluindo assinatura real da transação).
+`npm test` cobre o domínio (score, políticas, consenso, calibração, validação), o fluxo completo com executor simulado e os adaptadores (provedor de sinais, DexScreener e Jupiter com respostas simuladas, incluindo assinatura real da transação).

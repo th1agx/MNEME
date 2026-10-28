@@ -1,8 +1,8 @@
 # MNEME: operação
 
-Bot de copy trading do Top do FOMO.family. Acompanha os melhores traders do ranking (via [fomoapi.io](https://fomoapi.io/docs)), analisa cada compra com um score de risco e, conforme o modo escolhido, só sugere, opera numa carteira simulada ou compra e vende de verdade em Solana pelo [Jupiter](https://jup.ag).
+Bot de copy trading do Top de um ranking. Recebe as operações dos traders pelo provedor de sinais, analisa cada compra com um score de risco e, conforme o modo escolhido, só sugere, opera numa carteira simulada ou compra e vende de verdade em Solana pelo [Jupiter](https://jup.ag).
 
-- Visão e plano: [arquitetura.md](arquitetura.md)
+- System design: [system-design.md](system-design.md)
 - Código e segurança: [codigo.md](codigo.md)
 - Design: [design.md](design.md)
 - Servidor 24 h, Telegram e backup: [deploy.md](deploy.md)
@@ -14,7 +14,7 @@ Requer Node 22.9+. No Windows PowerShell use `npm.cmd` no lugar de `npm`.
 ```bash
 npm install
 npm run demo        # dados fictícios, sem chave
-npm start           # dados reais (precisa de FOMOAPI_KEY no .env)
+npm start           # dados reais (precisa de SIGNALS_API_KEY, SIGNALS_REST_URL e SIGNALS_WS_URL no .env)
 ```
 
 Painel em http://localhost:4740 e configurações em http://localhost:4740/configuracoes.
@@ -41,7 +41,7 @@ Para liberar dinheiro real: crie uma carteira Solana nova só para o bot, coloqu
 
 Tudo abaixo é feito uma vez, na ordem. Nenhum passo envia ordem real até o 6.
 
-1. **FOMO:** crie a chave Free em fomoapi.io, coloque `FOMOAPI_KEY` no `.env` e rode `npm run check:fomo`. Ele lê o ranking e os alertas, escuta o feed por 2 minutos e diz se o formato bate com o MNEME (redes, `userId`, campos). Relatório em `data/live/check-fomo.json`.
+1. **Provedor de sinais:** preencha `SIGNALS_API_KEY`, `SIGNALS_REST_URL` e `SIGNALS_WS_URL` no `.env` e rode `npm run check:feed`. Ele lê o ranking e os alertas recentes, escuta o feed por 2 minutos e diz se o formato bate com o MNEME (redes, `userId`, campos) e qual o atraso dos alertas ao vivo. Relatório em `data/live/check-feed.json`.
 2. **Rodar em sugestões:** `npm start`, modo *Só sugestões* em Configurações. Conferir sinais chegando com atraso de poucos segundos.
 3. **Simulado:** alguns dias no modo *Simulado*, acompanhando o painel "Acerto por score" para escolher o score mínimo.
 4. **Carteira:** crie uma carteira Solana nova, coloque pouco SOL, preencha `SOLANA_PRIVATE_KEY` e rode `npm run check:wallet` (lê saldo, preço e pede uma cotação ao Jupiter, sem enviar transação).
