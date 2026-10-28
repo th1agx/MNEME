@@ -71,18 +71,15 @@ Assim, primeiro conectar `MNEME_API_ORIGIN` faz o painel mostrar os dados atuais
 
 ## Desenvolvimento e publicação
 
-Esta conta foi configurada por Wrangler a partir do checkout local desbloqueado. O repositório criptografa arquivos novos por padrão; por isso, um build hospedado pelo GitHub que clone o repositório sem a chave git-crypt não consegue compilar `wrangler.jsonc` nem `functions/api/`. Não alterar `.gitattributes` para contornar isso sem solicitação explícita do dono do projeto. A automação usa um runner self-hosted no ambiente desbloqueado, conforme abaixo.
+O workflow `.github/workflows/deploy-cloudflare.yml` usa um runner hospedado pelo GitHub. Não precisa de uma VPS para publicar o Pages. O repositório continua cifrado por padrão; só os arquivos necessários ao deploy ficam em texto aberto e, como o repositório é público, qualquer pessoa pode lê-los.
 
-## Autodeploy por Git
+Os caminhos públicos são `public/**`, `functions/**`, `migrations/**`, `wrangler.jsonc` e `scripts/prepare-pages.sh`, além do workflow em `.github/workflows/`. Eles contêm a interface, o proxy do Pages, o esquema do D1 e a configuração de publicação. O código do bot em `src/` e os demais arquivos permanecem cifrados. Nunca coloque credenciais ou chaves privadas nos caminhos públicos.
 
-O workflow `.github/workflows/deploy-cloudflare.yml` publica no Pages quando há push em `main` que altere a interface, as Functions, as migrações ou a configuração do Wrangler. Ele prepara uma cópia temporária de `public/`, minifica e ofusca os JavaScript e envia essa cópia para o projeto `mneme` (`mneme-1b8.pages.dev`). Os arquivos no repositório não são reescritos pelo processo.
+Em cada push para `main` que altere esses caminhos, o workflow prepara uma cópia temporária de `public/`, minifica e ofusca os JavaScript, aplica migrações D1 pendentes e publica Pages/Functions no projeto `mneme` (`mneme-1b8.pages.dev`). Também pode ser iniciado manualmente em **Actions > Deploy MNEME to Cloudflare > Run workflow**.
 
-Como o checkout hospedado pelo GitHub contém arquivos cifrados, o workflow usa um **runner self-hosted** em um ambiente confiável e um clone de deploy separado já desbloqueado com git-crypt. A chave não deve ser colocada nos secrets do GitHub. Para ativar no repositório original:
+Configure no GitHub, em **Settings > Secrets and variables > Actions**:
 
-1. Um administrador do repositório abre **Settings > Actions > Runners > New self-hosted runner** e registra, na VPS, um runner Linux com a etiqueta `mneme-cloudflare`. O runner deve aceitar apenas workflows desse repositório; não use a pasta de trabalho do bot como clone de deploy.
-2. Na VPS, crie um clone de deploy separado do repositório original e desbloqueie-o pelo fluxo oficial de colaborador. Mantenha esse clone atualizado e com uma árvore de trabalho limpa.
-3. Em **Settings > Secrets and variables > Actions > Variables**, configure `MNEME_DEPLOY_CHECKOUT` com o caminho absoluto do clone e `CLOUDFLARE_ACCOUNT_ID` com o ID da conta.
-4. Crie na Cloudflare um API Token com `Cloudflare Pages:Edit` e `D1:Edit`, restrito à conta, e salve em **Settings > Secrets and variables > Actions > Secrets** como `CLOUDFLARE_API_TOKEN` ([permissões de Pages](https://developers.cloudflare.com/pages/configuration/api/), [permissões de API](https://developers.cloudflare.com/fundamentals/api/reference/permissions/)).
-5. Depois de ativo, cada push para `main` que altere os caminhos monitorados executa as migrações D1 pendentes e publica Pages/Functions. Também é possível iniciar manualmente em **Actions > Deploy MNEME to Cloudflare > Run workflow**.
+- Variável `CLOUDFLARE_ACCOUNT_ID` com o ID da conta.
+- Secret `CLOUDFLARE_API_TOKEN` com permissões `Cloudflare Pages:Edit` e `D1:Edit`, restrito à conta ([permissões de Pages](https://developers.cloudflare.com/pages/configuration/api/), [permissões de API](https://developers.cloudflare.com/fundamentals/api/reference/permissions/)).
 
-Sem permissão administrativa no repositório original, não é possível registrar o runner ou definir essas configurações. Um administrador precisa completar os passos acima uma vez; depois, os deploys são automáticos.
+As chaves da API do bot não vão para o workflow nem para o navegador. `MNEME_API_ORIGIN`, `CF_ACCESS_CLIENT_ID` e `CF_ACCESS_CLIENT_SECRET` são configurações de runtime do Pages; cadastre o Client ID e o Client Secret como secrets nas configurações de produção do projeto Pages. Não inclua esses valores no Git.

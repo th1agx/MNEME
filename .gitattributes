@@ -15,5 +15,13 @@ CLAUDE.md !filter !diff
 colaborar/** !filter !diff
 colaborar/chaves/*.enc binary
 
+# Código publicado no Cloudflare Pages. Esses arquivos ficam públicos no GitHub.
+# Nunca incluir credenciais, chaves privadas ou a origem privada do provedor de sinais.
+public/** !filter !diff
+functions/** !filter !diff
+migrations/** !filter !diff
+wrangler.jsonc !filter !diff
+scripts/prepare-pages.sh !filter !diff
+
 # Scripts shell sempre com final de linha LF (CRLF quebra o bash no Windows)
 colaborar/*.sh text eol=lf

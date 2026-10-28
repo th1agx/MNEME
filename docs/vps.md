@@ -77,50 +77,12 @@ sudo -iu mneme bash -c "cd MNEME && docker compose --profile cloudflare up -d --
 
 Detalhes do `.env`, Telegram e Cloudflare Tunnel: [deploy.md](deploy.md).
 
-## 5. Runner do GitHub Actions (usuário `gha`)
+## 5. Publicação do painel
 
-```bash
-sudo adduser --system --group --home /opt/mneme-deploy --shell /bin/bash gha
-sudo -iu gha
-```
+O Pages é publicado pelo runner hospedado do GitHub; a VPS do bot não precisa de runner nem de um clone de deploy separado. No GitHub, configure `CLOUDFLARE_ACCOUNT_ID` como variável e `CLOUDFLARE_API_TOKEN` como secret em **Settings > Secrets and variables > Actions**. O token precisa de `Cloudflare Pages:Edit` e `D1:Edit`, restritos à conta.
 
-No GitHub: **th1agx/MNEME → Settings → Actions → Runners → New self-hosted runner → Linux**. Rode, como `gha`, os comandos que a página mostrar (download e `./config.sh`). No `config.sh`:
+## 6. Ligar o site à API do bot
 
-- nome do runner: `mneme-vps`
-- rótulo adicional: **`mneme-cloudflare`**
-
-Depois volte para o `admin` e instale como serviço:
-
-```bash
-exit
-cd /opt/mneme-deploy/actions-runner
-sudo ./svc.sh install gha && sudo ./svc.sh start
-```
-
-## 6. Clone de deploy (usuário `gha`)
-
-```bash
-sudo -iu gha
-git clone https://github.com/th1agx/MNEME.git /opt/mneme-deploy/MNEME
-cd /opt/mneme-deploy/MNEME
-bash colaborar/acesso.sh
-git status                        # precisa estar limpo
-exit
-```
-
-No GitHub, em **Settings → Secrets and variables → Actions → Variables**, crie `MNEME_DEPLOY_CHECKOUT` = `/opt/mneme-deploy/MNEME`. O `CLOUDFLARE_ACCOUNT_ID` pode ficar como secret ou variável; o workflow aceita os dois.
-
-Confira o runner como **Idle** em *Settings → Actions → Runners* e rode *Actions → Deploy MNEME to Cloudflare → Run workflow*.
-
-## 7. Proteção do runner num repositório público
-
-Runner próprio em repositório público só é seguro se código de estranhos não rodar nele:
-
-- **Settings → Actions → General → Fork pull request workflows from outside collaborators:** *Require approval for all outside collaborators*.
-- Nunca use `pull_request` em jobs com `runs-on: self-hosted`; o deploy só roda em `push` na `main` e manualmente.
-- O usuário `gha` não tem `sudo` nem acesso a `/opt/mneme`; confira com `sudo -u gha cat /opt/mneme/MNEME/.env` (deve dar *Permission denied*).
-
-## 8. Ligar o site à API do bot
 
 O site no Pages encaminha `/api/*` para a API do bot. A API fica atrás do Cloudflare Access, e o Pages entra com um token de serviço:
 

@@ -8,6 +8,7 @@ on:
       - "functions/**"
       - "migrations/**"
       - "wrangler.jsonc"
+      - ".gitattributes"
       - "scripts/prepare-pages.sh"
       - ".github/workflows/deploy-cloudflare.yml"
   workflow_dispatch:
@@ -22,43 +23,30 @@ concurrency:
 jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, mneme-cloudflare]
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      MNEME_DEPLOY_CHECKOUT: ${{ vars.MNEME_DEPLOY_CHECKOUT }}
       # Aceita o ID da conta como variável ou como secret.
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
-      - name: Check deployment checkout
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check Cloudflare credentials
         shell: bash
         run: |
           set -euo pipefail
           falta() { echo "::error::$1"; exit 1; }
-          [ -n "$MNEME_DEPLOY_CHECKOUT" ] || falta "Defina a variável MNEME_DEPLOY_CHECKOUT (caminho do clone de deploy na VPS)."
-          [ -d "$MNEME_DEPLOY_CHECKOUT/.git" ] || falta "MNEME_DEPLOY_CHECKOUT não aponta para um clone do repositório."
           [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || falta "Defina CLOUDFLARE_ACCOUNT_ID como variável ou secret."
           [ -n "$CLOUDFLARE_API_TOKEN" ] || falta "Defina o secret CLOUDFLARE_API_TOKEN."
-          if head -c 9 "$MNEME_DEPLOY_CHECKOUT/src/main.ts" | grep -q GITCRYPT; then
-            falta "O clone de deploy está cifrado: desbloqueie com bash colaborar/acesso.sh na VPS."
-          fi
-          if [ -n "$(git -C "$MNEME_DEPLOY_CHECKOUT" status --porcelain)" ]; then
-            echo "Deployment checkout must be clean; refusing to overwrite local changes."
-            exit 1
-          fi
-
-      - name: Update unlocked checkout
-        shell: bash
-        run: |
-          set -euo pipefail
-          git -C "$MNEME_DEPLOY_CHECKOUT" fetch --prune origin main
-          git -C "$MNEME_DEPLOY_CHECKOUT" reset --hard FETCH_HEAD
 
       - name: Apply D1 migrations and publish Pages + Worker
         shell: bash
         run: |
           set -euo pipefail
-          cd "$MNEME_DEPLOY_CHECKOUT"
           stage_dir="$(mktemp -d)"
           trap 'rm -rf "$stage_dir"' EXIT
           cp -R public "$stage_dir/public"
