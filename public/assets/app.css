@@ -125,7 +125,7 @@ b { font-weight: 500; }
 /* Barra superior */
 .app-bar { display: flex; align-items: center; gap: 24px; min-height: 60px; padding: 10px 24px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .logo { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; letter-spacing: .01em; }
-.logo svg { width: 18px; height: 18px; }
+.logo img { display: block; width: auto; height: 28px; }
 .status { display: flex; align-items: center; gap: 20px; color: var(--muted); white-space: nowrap; overflow: hidden; }
 .status b { color: var(--text); }
 .tag { padding: 1px 6px; border-radius: var(--r); background: var(--raise); color: var(--muted); }
