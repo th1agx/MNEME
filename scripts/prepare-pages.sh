@@ -11,7 +11,7 @@ shopt -s nullglob
 files=("$public_dir"/assets/*.js)
 
 for file in "${files[@]}"; do
-  minified="$(mktemp)"
+  minified="$(mktemp --suffix=.js)"
   trap 'rm -f "$minified"' EXIT
   esbuild "$file" --minify --outfile="$minified" >/dev/null
   javascript-obfuscator "$minified" \
