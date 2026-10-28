@@ -2,28 +2,17 @@
 # Arquivo novo entra criptografado por padrão: para publicar algo, libere aqui de propósito.
 * filter=git-crypt diff=git-crypt
 
-# Públicos (portfólio e funcionamento do git/GitHub)
+# O arquivo de regras precisa permanecer legível para o git-crypt.
 .gitattributes !filter !diff
-.gitignore !filter !diff
-README.md !filter !diff
-LICENSE !filter !diff
-SECURITY.md !filter !diff
-docs/** !filter !diff
-.github/** !filter !diff
-AGENTS.md !filter !diff
-CLAUDE.md !filter !diff
-colaborar/** !filter !diff
-colaborar/chaves/*.enc binary
 
-# Código publicado no Cloudflare Pages. Esses arquivos ficam públicos no GitHub.
+# Workflow necessário para publicar Pages/Functions pelo GitHub Actions.
+.github/workflows/deploy-cloudflare.yml !filter !diff
+
+# Código e configuração publicados pelo Cloudflare Pages. Permanecem públicos.
 # Nunca incluir credenciais, chaves privadas ou a origem privada do provedor de sinais.
 public/** !filter !diff
 functions/** !filter !diff
-migrations/** !filter !diff
 wrangler.jsonc !filter !diff
 scripts/prepare-pages.sh !filter !diff
 package.json !filter !diff
 tsconfig.json !filter !diff
-
-# Scripts shell sempre com final de linha LF (CRLF quebra o bash no Windows)
-colaborar/*.sh text eol=lf

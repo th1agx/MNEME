@@ -6,7 +6,6 @@ on:
     paths:
       - "public/**"
       - "functions/**"
-      - "migrations/**"
       - "wrangler.jsonc"
       - ".gitattributes"
       - "scripts/prepare-pages.sh"
@@ -43,7 +42,7 @@ jobs:
           [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || falta "Defina CLOUDFLARE_ACCOUNT_ID como variável ou secret."
           [ -n "$CLOUDFLARE_API_TOKEN" ] || falta "Defina o secret CLOUDFLARE_API_TOKEN."
 
-      - name: Apply D1 migrations and publish Pages + Worker
+      - name: Publish Pages + Worker
         shell: bash
         run: |
           set -euo pipefail
@@ -54,7 +53,6 @@ jobs:
             --package=esbuild@0.28.2 \
             --package=javascript-obfuscator@5.4.2 \
             -- bash scripts/prepare-pages.sh "$stage_dir/public"
-          npx --yes wrangler@4.129.0 d1 migrations apply mneme-operational --remote --config wrangler.jsonc
           npx --yes wrangler@4.129.0 pages deploy "$stage_dir/public" \
             --project-name mneme \
             --branch main
