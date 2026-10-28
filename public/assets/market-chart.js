@@ -1,4 +1,7 @@
 import { MARKET_SYMBOLS, baseSymbol, chartOrders, orderMarkers, filterOrders, orderMarket } from "./chart-data.js";
+import { createMarketClient } from "./market-client.js";
+
+const loadMarket = createMarketClient();
 
 const el = (id) => document.getElementById(id);
 const safe = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -189,9 +192,7 @@ async function fetchCandles() {
   const timeout = setTimeout(() => controller.abort(), 12_000);
   el("chartStage").setAttribute("aria-busy", "true");
   try {
-    const response = await fetch(`/api/market/candles?${new URLSearchParams({ symbol, interval })}`, { signal: controller.signal });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error ?? "Mercado indisponível.");
+    const data = await loadMarket(requestedSymbol, requestedInterval, controller.signal);
     if (serial !== requestSerial) return;
     if (data.symbol !== requestedSymbol || data.interval !== requestedInterval || !data.candles?.length) throw new Error("Histórico de mercado inválido.");
     series = data;
@@ -245,8 +246,8 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) void
 async function refreshWatch() {
   await Promise.all(["SOLUSDT", "BTCUSDT", "ETHUSDT"].filter((s) => s !== symbol).map(async (s) => {
     try {
-      const response = await fetch(`/api/market/candles?symbol=${s}&interval=1m`, { signal: AbortSignal.timeout(12_000) });
-      if (response.ok) { const data = await response.json(); if (data.candles?.length) quotes.set(s, data); }
+      const data = await loadMarket(s, "1m", AbortSignal.timeout(12_000));
+      quotes.set(s, data);
     } catch { /* Sem cotação, a lista mantém o último valor e seu horário. */ }
   }));
   renderWatch();
