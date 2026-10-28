@@ -19,3 +19,11 @@ wrangler.jsonc !filter !diff
 scripts/prepare-pages.sh !filter !diff
 package.json !filter !diff
 tsconfig.json !filter !diff
+
+# Acesso de colaboradores: o script precisa estar legível para abrir o resto.
+# As chaves já são cifradas pela senha de cada um (AES-256 + PBKDF2).
+colaborar/acesso.sh !filter !diff text eol=lf
+colaborar/chaves/*.enc !filter !diff binary
+
+# Imagens exibidas no README.
+docs/assets/*.svg !filter !diff
