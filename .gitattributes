@@ -5,6 +5,9 @@
 # O arquivo de regras precisa permanecer legível para o git-crypt.
 .gitattributes !filter !diff
 
+# Vitrine pública do projeto no GitHub.
+README.md !filter !diff
+
 # Workflow necessário para publicar Pages/Functions pelo GitHub Actions.
 .github/workflows/deploy-cloudflare.yml !filter !diff
 
