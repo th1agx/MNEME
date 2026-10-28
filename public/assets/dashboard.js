@@ -413,6 +413,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) clea
 
 function render(s) {
   state = s;
+  window.dispatchEvent(new CustomEvent("mneme:state", { detail: s }));
   renderStatus(s);
   renderNotices(s);
   renderTape(s);
