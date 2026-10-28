@@ -1,6 +1,7 @@
 # Tudo é criptografado com git-crypt, exceto o que está liberado abaixo.
 # Arquivo novo entra criptografado por padrão: para publicar algo, libere aqui de propósito.
 * filter=git-crypt diff=git-crypt
+* linguist-detectable=false
 
 # O arquivo de regras precisa permanecer legível para o git-crypt.
 .gitattributes !filter !diff
