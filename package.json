@@ -15,6 +15,7 @@
     "check:feed": "node --env-file-if-exists=.env --import tsx scripts/check-feed.ts",
     "check:wallet": "node --env-file-if-exists=.env --import tsx scripts/check-wallet.ts",
     "telegram:setup": "node --env-file-if-exists=.env --import tsx scripts/telegram-setup.ts",
+    "telegram:webhook:setup": "node --env-file-if-exists=.env --import tsx scripts/register-telegram-webhook.ts",
     "acessos": "bash scripts/acessos.sh"
   },
   "repository": {
