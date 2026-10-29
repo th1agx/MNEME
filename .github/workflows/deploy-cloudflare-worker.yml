@@ -9,6 +9,8 @@ on:
       - "wrangler.bot.jsonc"
       - ".gitattributes"
       - ".github/workflows/deploy-cloudflare-worker.yml"
+  schedule:
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -20,7 +22,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -87,5 +89,34 @@ jobs:
           if command -v git-crypt >/dev/null 2>&1; then
             git-crypt lock --force || true
           fi
+
+  run-bot-automation:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+    steps:
+      - name: Check whether scheduled automation is configured
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$TELEGRAM_WEBHOOK_SECRET" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Add TELEGRAM_WEBHOOK_SECRET as a repository secret to enable scheduled Worker calls."
+          fi
+      - name: Poll the feed and process group access
+        if: steps.gate.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 40 \
+            -X POST \
+            -H "X-Mneme-Webhook-Secret: $TELEGRAM_WEBHOOK_SECRET" \
+            https://mneme-telegram-bot.henriquesouza.workers.dev/admin/run-automation \
+            | jq -e '.ok == true' >/dev/null
 
 
