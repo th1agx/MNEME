@@ -26,17 +26,10 @@ jobs:
     env:
       WRANGLER_SEND_METRICS: "false"
     steps:
-      - name: Checkout encrypted deployment files only
+      - name: Checkout repository for git-crypt unlock
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-          sparse-checkout: |
-            /.gitattributes
-            /.github/workflows/deploy-cloudflare-worker.yml
-            /migrations/
-            /workers/bot/
-            /wrangler.bot.jsonc
-          sparse-checkout-cone-mode: false
 
       - name: Check required secrets
         shell: bash
@@ -91,5 +84,5 @@ jobs:
         shell: bash
         run: |
           if command -v git-crypt >/dev/null 2>&1; then
-            git-crypt lock || true
+            git-crypt lock --force || true
           fi
