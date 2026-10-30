@@ -430,3 +430,5 @@ footer { max-width: 1680px; margin: 0 auto; padding: 16px 24px 24px; }
 
 #feed-operations .table-wrap { max-height: 420px; overflow: auto; }
 #feed-operations thead { position: sticky; top: 0; background: var(--panel, #171b1e); z-index: 1; }
+
+[hidden] { display: none !important; }

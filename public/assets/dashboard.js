@@ -447,7 +447,13 @@ window.addEventListener("resize", () => { if (state) renderFlow(state); });
 
 const es = new EventSource("/api/stream");
 es.onmessage = (m) => render(JSON.parse(m.data));
+let cloudFeedStarted = false;
 es.onerror = () => {
+  if (!state && !cloudFeedStarted) {
+    cloudFeedStarted = true;
+    es.close();
+    startCloudFeed();
+  }
   $("notices").innerHTML = `<div class="notice warn">Carteira, sinais e ordens aguardam conexão com o bot. O gráfico de mercado tem conexão própria.</div>`;
   if (!state) {
     $("overview").innerHTML = `<p class="empty">Carteira aguardando conexão com o bot.</p>`;
