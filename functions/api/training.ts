@@ -25,6 +25,8 @@ interface PositionRow {
   entry_price_usd: number;
   mark_price_usd: number | null;
   updated_at: string;
+  entry_pattern: string | null;
+  entry_score: number | null;
 }
 
 interface OrderRow {
@@ -44,6 +46,17 @@ interface OrderRow {
   reason: string | null;
   signal_at: string;
   executed_at: string;
+  pattern_type: string | null;
+  pattern_score: number | null;
+  signal_count: number | null;
+  signal_volume_usd: number | null;
+  entry_pattern: string | null;
+}
+
+interface PatternObservationRow {
+  chain: string; token_symbol: string; pattern_type: string; score: number; action: "buy" | "sell" | "watch";
+  reason: string; signal_count: number; distinct_buyers: number; distinct_sellers: number;
+  buy_volume_usd: number; sell_volume_usd: number; observed_at: string;
 }
 
 const jsonHeaders = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
@@ -57,7 +70,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
       env.MNEME_DB.prepare("SELECT * FROM paper_training_positions WHERE trader_id = ? ORDER BY updated_at DESC LIMIT 2000").bind(trainingWalletId).all<PositionRow>(),
       env.MNEME_DB.prepare("SELECT * FROM paper_training_orders WHERE trader_id = ? AND status != 'processing' ORDER BY executed_at DESC LIMIT 100").bind(trainingWalletId).all<OrderRow>(),
     ]);
-    const [dailyResult, incidentResult] = await Promise.all([
+    const [dailyResult, incidentResult, patternResult, patternPerformanceResult] = await Promise.all([
       env.MNEME_DB.prepare(`SELECT * FROM paper_training_daily_metrics
         WHERE trader_id = ? AND day_utc = ?`).bind(trainingWalletId, new Date().toISOString().slice(0, 10)).all<{
           trader_id: string; day_utc: string; opening_equity_usd: number; current_equity_usd: number;
@@ -67,6 +80,16 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         FROM paper_training_incidents WHERE trader_id = ? ORDER BY occurred_at DESC LIMIT 50`).bind(trainingWalletId).all<{
           trader_handle: string; incident_type: string; summary: string; diagnostics_json: string; occurred_at: string;
         }>(),
+      env.MNEME_DB.prepare(`SELECT chain, token_symbol, pattern_type, score, action, reason, signal_count,
+        distinct_buyers, distinct_sellers, buy_volume_usd, sell_volume_usd, observed_at
+        FROM paper_training_pattern_observations ORDER BY observed_at DESC LIMIT 50`).all<PatternObservationRow>(),
+      env.MNEME_DB.prepare(`SELECT entry_pattern AS pattern, COUNT(*) AS closed_trades,
+        SUM(CASE WHEN realized_pnl_usd > 0 THEN 1 ELSE 0 END) AS wins,
+        COALESCE(SUM(realized_pnl_usd), 0) AS realized_pnl_usd,
+        COALESCE(AVG(realized_pnl_usd), 0) AS average_pnl_usd
+        FROM paper_training_orders WHERE trader_id = ? AND side = 'sell' AND status = 'filled'
+          AND realized_pnl_usd IS NOT NULL AND entry_pattern IS NOT NULL GROUP BY entry_pattern`)
+        .bind(trainingWalletId).all<{ pattern: string; closed_trades: number; wins: number; realized_pnl_usd: number; average_pnl_usd: number }>(),
     ]);
     const dailyByTrader = new Map(dailyResult.results.map((row) => [row.trader_id, row]));
 
@@ -117,8 +140,12 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
 
     return Response.json({
       mode: "paper",
-      strategy: "Uma carteira paper do MNEME processa sinais elegiveis do Top; sem ordens reais.",
-      execution: { feeRate: 0.001, slippageRate: 0.005, buySizing: "2% do valor do sinal, entre US$ 20 e US$ 200", initialWalletUsd: 200_000, dailyTargetPct: 30, dailyTargetIsGoalOnly: true },
+      strategy: "Uma carteira paper agrega sinais recentes, confirma padroes de fluxo e opera so acima dos limites definidos; sem ordens reais.",
+      execution: { feeRate: 0.001, slippageRate: 0.005, initialWalletUsd: 200_000, dailyTargetPct: 30, dailyTargetIsGoalOnly: true,
+        patternWindowMinutes: 5, largeSignalUsd: 5_000, crowdMinimumTraders: 3, crowdMinimumVolumeUsd: 2_500,
+        minimumLiquidityUsd: 10_000, buyCooldownMinutes: 15, maxAssetExposurePct: 2, maxPortfolioExposurePct: 25,
+        buySizingByScore: "0.5% entre 70-74; 1% entre 75-84; 1.5% a partir de 85",
+        scoreMeaning: "forca heuristica das regras, nao probabilidade de lucro" },
       paperCapital: { walletCount: walletResult.results.length, totalAllocatedUsd: walletResult.results.reduce((sum, wallet) => sum + wallet.initial_usd, 0) },
       generatedAt: new Date().toISOString(),
       wallets,
@@ -131,6 +158,8 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         markPriceUsd: position.mark_price_usd,
         costUsd: position.cost_usd,
         unrealizedPnlUsd: position.quantity * (position.mark_price_usd ?? position.entry_price_usd) - position.cost_usd,
+        entryPattern: position.entry_pattern,
+        entryScore: position.entry_score,
         updatedAt: position.updated_at,
       })),
       orders: orderResult.results.map((order) => ({
@@ -144,6 +173,11 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         notionalUsd: order.notional_usd,
         feeUsd: order.fee_usd,
         realizedPnlUsd: order.realized_pnl_usd,
+        patternType: order.pattern_type,
+        patternScore: order.pattern_score,
+        signalCount: order.signal_count,
+        signalVolumeUsd: order.signal_volume_usd,
+        entryPattern: order.entry_pattern,
         reason: order.reason,
         executedAt: order.executed_at,
       })),
@@ -152,6 +186,17 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         try { diagnostics = JSON.parse(incident.diagnostics_json); } catch { diagnostics = null; }
         return { trader: incident.trader_handle, type: incident.incident_type, summary: incident.summary, diagnostics, occurredAt: incident.occurred_at };
       }),
+      patterns: patternResult.results.map((row) => ({
+        chain: row.chain, symbol: row.token_symbol, pattern: row.pattern_type, score: row.score,
+        action: row.action, reason: row.reason, signalCount: row.signal_count,
+        buyers: row.distinct_buyers, sellers: row.distinct_sellers,
+        buyVolumeUsd: row.buy_volume_usd, sellVolumeUsd: row.sell_volume_usd, observedAt: row.observed_at,
+      })),
+      patternPerformance: patternPerformanceResult.results.map((row) => ({
+        pattern: row.pattern, closedTrades: row.closed_trades, wins: row.wins,
+        winRatePct: row.closed_trades ? row.wins / row.closed_trades * 100 : null,
+        realizedPnlUsd: row.realized_pnl_usd, averagePnlUsd: row.average_pnl_usd,
+      })),
     }, { headers: jsonHeaders });
   } catch {
     return Response.json({ error: "O banco do Treino Bot ainda não está pronto." }, { status: 503, headers: jsonHeaders });

@@ -19,14 +19,23 @@
 </header>
 <main class="training-main">
   <div class="page-heading">
-    <div><h1>Treino Bot</h1><p>Carteiras simuladas independentes, com preços observados e sem envio de ordens reais.</p></div>
+    <div><h1>Treino Bot</h1><p>Uma carteira simulada analisa padrões do fluxo, com preços observados e sem envio de ordens reais.</p></div>
     <span class="training-mode">SIMULAÇÃO</span>
   </div>
   <div id="trainingStatus" class="training-status" role="status">Carregando resultados…</div>
   <section id="trainingSummary" class="training-summary" aria-label="Resumo do treino"></section>
   <section class="pane wide training-section">
-    <div class="training-heading"><div><h2>Desempenho do bot <small>carteira paper única</small></h2><p class="muted">Uma carteira simulada de US$ 200.000 processa os sinais elegíveis do Top. O objetivo diário de 30% é apenas uma referência, sem garantia de retorno.</p></div><label class="training-search">Filtrar <input id="walletSearch" type="search" placeholder="MNEME Bot"></label></div>
+    <div class="training-heading"><div><h2>Desempenho do bot <small>carteira paper única</small></h2><p class="muted">Uma carteira simulada de US$ 200.000 analisa alertas recentes do feed. O objetivo diário de 30% é apenas uma referência, sem garantia de retorno.</p></div><label class="training-search">Filtrar <input id="walletSearch" type="search" placeholder="MNEME Bot"></label></div>
     <div class="table-wrap"><table><thead><tr><th>#</th><th>Conta</th><th class="num">Resultado total</th><th class="num">Realizado</th><th class="num">Em aberto</th><th class="num">Retorno</th><th class="num">Hoje</th><th>Meta diária 30%</th><th>Estado</th><th class="num">Acerto</th><th class="num">Fechadas</th><th class="num">Abertas</th></tr></thead><tbody id="walletRows"><tr><td colspan="12" class="empty">Carregando…</td></tr></tbody></table></div>
+  </section>
+  <section class="pane wide training-section">
+    <h2>Qualidade por padrão <small>resultados após venda</small></h2>
+    <p class="muted">A taxa de acerto só aparece com operações fechadas; o score abaixo mede força das regras, não probabilidade de lucro.</p>
+    <div class="table-wrap"><table><thead><tr><th>Padrão de entrada</th><th class="num">Fechadas</th><th class="num">Acerto observado</th><th class="num">PnL realizado</th><th class="num">Média por saída</th></tr></thead><tbody id="patternPerformanceRows"><tr><td colspan="5" class="empty">Ainda não há saídas fechadas para comparar.</td></tr></tbody></table></div>
+  </section>
+  <section class="pane wide training-section">
+    <h2>Padrões recentes <small id="patternCount">0</small></h2>
+    <div class="table-wrap"><table><thead><tr><th>Horário</th><th>Ativo</th><th>Padrão</th><th>Decisão</th><th class="num">Força</th><th class="num">Compradores</th><th class="num">Vendedores</th><th class="num">Compra 5 min</th><th class="num">Venda 5 min</th></tr></thead><tbody id="patternRows"><tr><td colspan="9" class="empty">Aguardando alertas para classificar.</td></tr></tbody></table></div>
   </section>
   <section class="pane wide training-section">
     <h2>Investigações <small id="incidentCount">0</small></h2>
@@ -38,9 +47,9 @@
   </section>
   <section class="pane wide training-section">
     <h2>Movimentações <small id="orderCount">0 recentes</small></h2>
-    <div class="table-wrap"><table><thead><tr><th>Executada</th><th>Trader</th><th>Lado</th><th>Ativo</th><th>Rede</th><th class="num">Preço</th><th class="num">Valor</th><th class="num">Taxa</th><th>Resultado</th><th>Situação</th></tr></thead><tbody id="orderRows"><tr><td colspan="10" class="empty">Aguardando movimentações.</td></tr></tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>Executada</th><th>Trader</th><th>Lado</th><th>Ativo</th><th>Rede</th><th class="num">Preço</th><th class="num">Valor</th><th class="num">Taxa</th><th>Padrão</th><th>Resultado</th><th>Situação</th></tr></thead><tbody id="orderRows"><tr><td colspan="11" class="empty">Aguardando movimentações.</td></tr></tbody></table></div>
   </section>
-  <p class="training-note">O treino usa sinais elegíveis de traders do Top para uma única carteira de US$ 200.000. Compra e venda aplicam slippage de 0,5% e taxa de 0,1%. Patrimônio não positivo pausa novas compras e gera diagnóstico; não há reposição automática. A meta diária não garante desempenho. Nenhuma ordem real é enviada.</p>
+  <p class="training-note">Regras paper: compra individual a partir de US$ 5.000 ou pelo menos 3 compradores distintos com volume agregado de US$ 2.500 em 5 min e pressão compradora; venda individual de US$ 5.000, pressão de 3 vendedores ou venda em lote de 3 ativos pelo mesmo trader. Exige liquidez observada de US$ 10.000. Compras usam score 70+ e tamanho de 0,5% a 1,5% do saldo inicial, com limite de 2% por ativo, 25% de exposição total e intervalo de 15 min por ativo. Score é força heurística, não probabilidade de lucro. Slippage simulado: 0,5%; taxa: 0,1%. Nenhuma ordem real é enviada.</p>
 </main>
 <script src="/assets/training.js"></script>
 </body>

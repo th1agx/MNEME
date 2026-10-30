@@ -2,6 +2,11 @@ const money = (value) => new Intl.NumberFormat("pt-BR", { style: "currency", cur
 const pct = (value) => value == null ? "-" : `${Number(value).toFixed(2).replace(".", ",")}%`;
 const safe = (value) => String(value ?? "-").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const tone = (value) => Number(value) > 0 ? "positive" : Number(value) < 0 ? "negative" : "";
+const patternName = (value) => ({
+  large_buy: "Compra de alto valor", crowd_buy: "Compra em grupo", large_and_crowd_buy: "Alto valor + grupo",
+  large_sell: "Venda de alto valor", crowd_sell: "Venda em grupo", sell_batch: "Venda em lote",
+  mixed_flow: "Fluxo conflitante", unconfirmed: "Sem confirmacao",
+}[value] ?? value ?? "-");
 let current = null;
 
 function render(data) {
@@ -27,6 +32,21 @@ function render(data) {
     <td>${item.haltedAt ? `<span class="halted" title="${safe(item.haltReason)}">Pausada</span>` : "Ativa"}</td>
     <td class="num">${pct(item.winRatePct)}</td><td class="num">${item.closedTrades}</td><td class="num">${item.openPositions}</td></tr>`).join("") : `<tr><td colspan="12" class="empty">${wallets.length ? "Nenhum resultado para este filtro." : "A carteira aparece quando o Worker iniciar."}</td></tr>`;
 
+  const performance = data.patternPerformance ?? [];
+  document.querySelector("#patternPerformanceRows").innerHTML = performance.length ? performance.map((row) => `<tr>
+    <td>${safe(patternName(row.pattern))}</td><td class="num">${row.closedTrades}</td><td class="num">${pct(row.winRatePct)}</td>
+    <td class="num ${tone(row.realizedPnlUsd)}">${money(row.realizedPnlUsd)}</td><td class="num ${tone(row.averagePnlUsd)}">${money(row.averagePnlUsd)}</td></tr>`).join("")
+    : `<tr><td colspan="5" class="empty">Ainda nao ha saidas fechadas para comparar.</td></tr>`;
+
+  const patterns = data.patterns ?? [];
+  document.querySelector("#patternCount").textContent = patterns.length;
+  document.querySelector("#patternRows").innerHTML = patterns.length ? patterns.map((pattern) => `<tr>
+    <td>${new Date(pattern.observedAt).toLocaleString("pt-BR")}</td><td><b>${safe(pattern.symbol)}</b><small>${safe(pattern.chain)}</small></td>
+    <td>${safe(patternName(pattern.pattern))}</td><td class="${pattern.action === "buy" ? "positive" : pattern.action === "sell" ? "negative" : ""}">${pattern.action === "buy" ? "Compra paper" : pattern.action === "sell" ? "Venda paper" : "Observar"}<small>${safe(pattern.reason)}</small></td>
+    <td class="num">${Number(pattern.score) || 0}/100</td><td class="num">${pattern.buyers}</td><td class="num">${pattern.sellers}</td>
+    <td class="num">${money(pattern.buyVolumeUsd)}</td><td class="num">${money(pattern.sellVolumeUsd)}</td></tr>`).join("")
+    : `<tr><td colspan="9" class="empty">Aguardando alertas para classificar.</td></tr>`;
+
   const incidents = data.incidents ?? [];
   document.querySelector("#incidentCount").textContent = incidents.length;
   document.querySelector("#incidentRows").innerHTML = incidents.length ? incidents.map((incident) => {
@@ -50,8 +70,9 @@ function render(data) {
     <td class="${order.side === "buy" ? "positive" : "negative"}">${order.side === "buy" ? "Compra" : "Venda"}</td>
     <td><b>${safe(order.symbol)}</b></td><td>${safe(order.chain)}</td><td class="num">${money(order.priceUsd)}</td>
     <td class="num">${money(order.notionalUsd)}</td><td class="num">${money(order.feeUsd)}</td>
+    <td>${safe(patternName(order.patternType))}<small>forca ${Number(order.patternScore) || 0}/100</small></td>
     <td class="${tone(order.realizedPnlUsd)}">${order.realizedPnlUsd == null ? "-" : money(order.realizedPnlUsd)}</td>
-    <td>${order.status === "filled" ? "Executada" : safe(order.reason ?? "Ignorada")}</td></tr>`).join("") : `<tr><td colspan="10" class="empty">Nenhuma movimentacao registrada.</td></tr>`;
+    <td>${order.status === "filled" ? "Executada" : safe(order.reason ?? "Ignorada")}</td></tr>`).join("") : `<tr><td colspan="11" class="empty">Nenhuma movimentacao registrada.</td></tr>`;
   document.querySelector("#trainingStatus").textContent = `Atualizado ${new Date(data.generatedAt).toLocaleTimeString("pt-BR")} · atualiza a cada 15 segundos`;
   document.querySelector("#trainingStatus").classList.remove("error");
 }
