@@ -150,10 +150,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 40 \
+          response="$(curl --fail --silent --show-error --max-time 40 \
             -X POST \
             -H "X-Mneme-Webhook-Secret: $TELEGRAM_WEBHOOK_SECRET" \
-            https://mneme-telegram-bot.henriquesouza.workers.dev/admin/test-group-feed \
-            | jq -e '.ok == true and .simulated == true and .sent == 3' >/dev/null
+            https://mneme-telegram-bot.henriquesouza.workers.dev/admin/test-group-feed)"
+          printf '%s\n' "$response" | jq '{ok, simulated, sent}'
+          printf '%s\n' "$response" | jq -e '.ok == true and .simulated == true and .sent == 3' >/dev/null
 
 
