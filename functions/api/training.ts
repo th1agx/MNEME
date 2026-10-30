@@ -11,6 +11,8 @@ interface WalletRow {
   fees_usd: number;
   last_rank: number | null;
   updated_at: string;
+  halted_at: string | null;
+  halt_reason: string | null;
 }
 
 interface PositionRow {
@@ -45,15 +47,28 @@ interface OrderRow {
 }
 
 const jsonHeaders = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
+const trainingWalletId = "mneme-paper-bot";
 
 export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request }) => {
   if (request.method !== "GET") return Response.json({ error: "Método não permitido." }, { status: 405, headers: jsonHeaders });
   try {
     const [walletResult, positionResult, orderResult] = await Promise.all([
-      env.MNEME_DB.prepare("SELECT * FROM paper_training_wallets ORDER BY realized_pnl_usd DESC").all<WalletRow>(),
-      env.MNEME_DB.prepare("SELECT * FROM paper_training_positions ORDER BY updated_at DESC LIMIT 2000").all<PositionRow>(),
-      env.MNEME_DB.prepare("SELECT * FROM paper_training_orders WHERE status != 'processing' ORDER BY executed_at DESC LIMIT 100").all<OrderRow>(),
+      env.MNEME_DB.prepare("SELECT * FROM paper_training_wallets WHERE trader_id = ?").bind(trainingWalletId).all<WalletRow>(),
+      env.MNEME_DB.prepare("SELECT * FROM paper_training_positions WHERE trader_id = ? ORDER BY updated_at DESC LIMIT 2000").bind(trainingWalletId).all<PositionRow>(),
+      env.MNEME_DB.prepare("SELECT * FROM paper_training_orders WHERE trader_id = ? AND status != 'processing' ORDER BY executed_at DESC LIMIT 100").bind(trainingWalletId).all<OrderRow>(),
     ]);
+    const [dailyResult, incidentResult] = await Promise.all([
+      env.MNEME_DB.prepare(`SELECT * FROM paper_training_daily_metrics
+        WHERE trader_id = ? AND day_utc = ?`).bind(trainingWalletId, new Date().toISOString().slice(0, 10)).all<{
+          trader_id: string; day_utc: string; opening_equity_usd: number; current_equity_usd: number;
+          pnl_usd: number; return_pct: number; target_reached: number; updated_at: string;
+        }>(),
+      env.MNEME_DB.prepare(`SELECT trader_handle, incident_type, summary, diagnostics_json, occurred_at
+        FROM paper_training_incidents WHERE trader_id = ? ORDER BY occurred_at DESC LIMIT 50`).bind(trainingWalletId).all<{
+          trader_handle: string; incident_type: string; summary: string; diagnostics_json: string; occurred_at: string;
+        }>(),
+    ]);
+    const dailyByTrader = new Map(dailyResult.results.map((row) => [row.trader_id, row]));
 
     const positionsByTrader = new Map<string, PositionRow[]>();
     for (const position of positionResult.results) {
@@ -64,7 +79,8 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
     const statsByTrader = new Map(walletResult.results.map((wallet) => [wallet.trader_id, { closedTrades: 0, wins: 0 }]));
     const statsResult = await env.MNEME_DB.prepare(`SELECT trader_id, COUNT(*) AS closed_trades,
       SUM(CASE WHEN realized_pnl_usd > 0 THEN 1 ELSE 0 END) AS wins
-      FROM paper_training_orders WHERE side = 'sell' AND status = 'filled' AND realized_pnl_usd IS NOT NULL GROUP BY trader_id`)
+      FROM paper_training_orders WHERE trader_id = ? AND side = 'sell' AND status = 'filled' AND realized_pnl_usd IS NOT NULL GROUP BY trader_id`)
+      .bind(trainingWalletId)
       .all<{ trader_id: string; closed_trades: number; wins: number }>();
     for (const row of statsResult.results) statsByTrader.set(row.trader_id, { closedTrades: row.closed_trades, wins: row.wins });
 
@@ -73,6 +89,8 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
       const marketValue = positions.reduce((sum, position) => sum + position.quantity * (position.mark_price_usd ?? position.entry_price_usd), 0);
       const unrealized = positions.reduce((sum, position) => sum + position.quantity * (position.mark_price_usd ?? position.entry_price_usd) - position.cost_usd, 0);
       const stats = statsByTrader.get(wallet.trader_id) ?? { closedTrades: 0, wins: 0 };
+      const daily = dailyByTrader.get(wallet.trader_id);
+      const equity = wallet.cash_usd + marketValue;
       return {
         trader: wallet.trader_handle,
         sourceRank: wallet.last_rank,
@@ -83,6 +101,13 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         unrealizedPnlUsd: unrealized,
         totalPnlUsd: wallet.realized_pnl_usd + unrealized,
         returnPct: wallet.initial_usd > 0 ? ((wallet.cash_usd + marketValue - wallet.initial_usd) / wallet.initial_usd) * 100 : 0,
+        equityUsd: equity,
+        dailyPnlUsd: daily?.pnl_usd ?? 0,
+        dailyReturnPct: daily?.return_pct ?? 0,
+        dailyTargetReached: daily?.target_reached === 1,
+        dailyTargetProgressPct: daily ? Math.max(0, Math.min(100, daily.return_pct / 30 * 100)) : 0,
+        haltedAt: wallet.halted_at,
+        haltReason: wallet.halt_reason,
         winRatePct: stats.closedTrades ? (stats.wins / stats.closedTrades) * 100 : null,
         closedTrades: stats.closedTrades,
         openPositions: positions.length,
@@ -92,8 +117,9 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
 
     return Response.json({
       mode: "paper",
-      strategy: "Cópia individual de sinais dos traders acompanhados; sem ordens reais.",
-      execution: { feeRate: 0.001, slippageRate: 0.005, buySizing: "2% do valor do sinal, entre US$ 20 e US$ 200", initialWalletUsd: 10_000 },
+      strategy: "Uma carteira paper do MNEME processa sinais elegiveis do Top; sem ordens reais.",
+      execution: { feeRate: 0.001, slippageRate: 0.005, buySizing: "2% do valor do sinal, entre US$ 20 e US$ 200", initialWalletUsd: 200_000, dailyTargetPct: 30, dailyTargetIsGoalOnly: true },
+      paperCapital: { walletCount: walletResult.results.length, totalAllocatedUsd: walletResult.results.reduce((sum, wallet) => sum + wallet.initial_usd, 0) },
       generatedAt: new Date().toISOString(),
       wallets,
       positions: positionResult.results.map((position) => ({
@@ -121,6 +147,11 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         reason: order.reason,
         executedAt: order.executed_at,
       })),
+      incidents: incidentResult.results.map((incident) => {
+        let diagnostics: unknown = null;
+        try { diagnostics = JSON.parse(incident.diagnostics_json); } catch { diagnostics = null; }
+        return { trader: incident.trader_handle, type: incident.incident_type, summary: incident.summary, diagnostics, occurredAt: incident.occurred_at };
+      }),
     }, { headers: jsonHeaders });
   } catch {
     return Response.json({ error: "O banco do Treino Bot ainda não está pronto." }, { status: 503, headers: jsonHeaders });
