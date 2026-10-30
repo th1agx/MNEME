@@ -66,6 +66,7 @@ jobs:
           test "$(head -c 9 migrations/0008_paper_training.sql)" != "GITCRYPT"
           test "$(head -c 9 migrations/0009_training_capital_metrics.sql)" != "GITCRYPT"
           test "$(head -c 9 migrations/0010_training_signal_patterns.sql)" != "GITCRYPT"
+          test "$(head -c 9 migrations/0011_paper_strategy_comparison.sql)" != "GITCRYPT"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

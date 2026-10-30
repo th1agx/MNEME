@@ -23,16 +23,23 @@
     <span class="training-mode">SIMULAÇÃO</span>
   </div>
   <div id="trainingStatus" class="training-status" role="status">Carregando resultados…</div>
+  <section id="botComparison" class="bot-comparison" aria-label="Comparação dos bots"></section>
+  <div id="botTabs" class="bot-tabs" role="tablist" aria-label="Selecionar bot"></div>
   <section id="trainingSummary" class="training-summary" aria-label="Resumo do treino"></section>
   <section id="trainingExplanation" class="training-explanation" aria-label="Como entender os valores"></section>
   <section class="pane wide training-section">
-    <div class="training-heading"><div><h2>Desempenho do bot <small>carteira paper única</small></h2><p class="muted">Uma carteira simulada de US$ 200.000 analisa alertas recentes do feed. O objetivo diário de 30% é apenas uma referência, sem garantia de retorno.</p></div><label class="training-search">Filtrar <input id="walletSearch" type="search" placeholder="MNEME Bot"></label></div>
+    <div class="training-heading"><div><h2>Comparação das carteiras <small>mesmos alertas, regras diferentes</small></h2><p class="muted">Cada bot começa com US$ 200.000 paper e mantém saldo, posições e histórico separados. Nenhum envia ordens reais.</p></div><label class="training-search">Filtrar <input id="walletSearch" type="search" placeholder="MNEME"></label></div>
     <div class="table-wrap"><table><thead><tr><th>#</th><th>Conta</th><th class="num">Resultado total</th><th class="num">Realizado</th><th class="num">Em aberto</th><th class="num">Retorno</th><th class="num">Hoje</th><th>Meta diária 30%</th><th>Estado</th><th class="num">Acerto</th><th class="num">Fechadas</th><th class="num">Abertas</th></tr></thead><tbody id="walletRows"><tr><td colspan="12" class="empty">Carregando…</td></tr></tbody></table></div>
   </section>
   <section class="pane wide training-section">
     <h2>Qualidade por padrão <small>resultados após venda</small></h2>
     <p class="muted">A taxa de acerto só aparece com operações fechadas; o score abaixo mede força das regras, não probabilidade de lucro.</p>
     <div class="table-wrap"><table><thead><tr><th>Padrão de entrada</th><th class="num">Fechadas</th><th class="num">Acerto observado</th><th class="num">PnL realizado</th><th class="num">Média por saída</th></tr></thead><tbody id="patternPerformanceRows"><tr><td colspan="5" class="empty">Ainda não há saídas fechadas para comparar.</td></tr></tbody></table></div>
+  </section>
+  <section class="pane wide training-section">
+    <h2>Memória diária <small>resultados guardados para comparação</small></h2>
+    <p class="muted">O D1 guarda o histórico de cada carteira e as operações que produziram esses resultados. Os dados do dia atualizam durante o pregão; o registro permite avaliar e ajustar as regras depois, mas os bots não se reprogramam sozinhos.</p>
+    <div class="table-wrap"><table><thead><tr><th>Dia (UTC)</th><th>Bot</th><th class="num">Patrimônio registrado</th><th class="num">Resultado do dia</th><th class="num">Retorno do dia</th></tr></thead><tbody id="historyRows"><tr><td colspan="5" class="empty">Aguardando o primeiro registro diário.</td></tr></tbody></table></div>
   </section>
   <section class="pane wide training-section">
     <h2>Padrões recentes <small id="patternCount">0</small></h2>

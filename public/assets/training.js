@@ -10,12 +10,26 @@ const patternName = (value) => ({
   mixed_flow: "Fluxo conflitante", unconfirmed: "Sem confirmacao",
 }[value] ?? value ?? "-");
 let current = null;
+let selectedBotId = "mneme-paper-conservative";
 
 function render(data) {
   current = data;
   const wallets = data.wallets ?? [];
-  const wallet = wallets[0];
-  const positions = data.positions ?? [];
+  if (!wallets.some((item) => item.botId === selectedBotId) && wallets[0]) selectedBotId = wallets[0].botId;
+  const wallet = wallets.find((item) => item.botId === selectedBotId);
+  const bots = data.bots ?? [];
+  const botName = (id) => bots.find((bot) => bot.id === id)?.name ?? id;
+  const rankedWallets = [...wallets].sort((a, b) => b.totalPnlUsd - a.totalPnlUsd);
+  const leaderBotId = rankedWallets.length > 1 && rankedWallets[0].totalPnlUsd !== rankedWallets[1].totalPnlUsd ? rankedWallets[0].botId : null;
+  document.querySelector("#botComparison").innerHTML = wallets.map((item) => `<button class="bot-card ${item.botId === selectedBotId ? "selected" : ""}" type="button" data-bot-id="${safe(item.botId)}" aria-pressed="${item.botId === selectedBotId}">
+    <span class="bot-card-title">${safe(botName(item.botId))}</span><strong class="${tone(item.totalPnlUsd)}">${money(item.totalPnlUsd)}</strong><small>resultado acumulado (realizado + em aberto) · ${pct(item.returnPct)}</small>
+    <span class="bot-card-stats"><span>Patrimônio <b>${money(item.equityUsd)}</b></span><span>Hoje <b class="${tone(item.dailyPnlUsd)}">${money(item.dailyPnlUsd)}</b></span><span>Em aberto <b class="${tone(item.unrealizedPnlUsd)}">${money(item.unrealizedPnlUsd)}</b></span></span>
+    <small>${item.botId === leaderBotId ? "Maior resultado acumulado agora · " : leaderBotId === null ? "Empate no resultado acumulado · " : ""}${item.closedTrades} vendas fechadas · ${item.openPositions} posições abertas · ${item.haltedAt ? "pausado" : "ativo"}</small></button>`).join("");
+  document.querySelector("#botTabs").innerHTML = wallets.map((item) => `<button type="button" role="tab" data-bot-id="${safe(item.botId)}" aria-selected="${item.botId === selectedBotId}" class="bot-tab ${item.botId === selectedBotId ? "selected" : ""}">${safe(botName(item.botId))}</button>`).join("");
+  const positions = (data.positions ?? []).filter((item) => item.botId === selectedBotId);
+  const orders = (data.orders ?? []).filter((item) => item.botId === selectedBotId);
+  const incidents = (data.incidents ?? []).filter((item) => item.botId === selectedBotId);
+  const patterns = (data.patterns ?? []).filter((item) => item.botId === selectedBotId);
   const summary = [
     ["Capital inicial (simulado)", money(wallet?.initialUsd ?? data.paperCapital?.totalAllocatedUsd)],
     ["Saldo disponível para compras", money(wallet?.cashUsd)],
@@ -26,7 +40,9 @@ function render(data) {
   ];
   document.querySelector("#trainingSummary").innerHTML = summary.map(([label, value]) => `<div class="training-kpi"><span>${safe(label)}</span><b>${safe(value)}</b></div>`).join("");
   const positionLines = positions.map((position) => `${safe(position.symbol)}: custo de ${money(position.costUsd)}; valor agora de ${money(position.costUsd + position.unrealizedPnlUsd)}; variação aberta de ${money(position.unrealizedPnlUsd)}.`).join(" ");
-  document.querySelector("#trainingExplanation").innerHTML = `<b>Como ler:</b> o lucro em aberto é uma estimativa: valor atual das posições menos o custo de compra, incluindo taxas. Ele ainda pode subir ou cair e só é realizado quando há venda. O patrimônio soma o saldo disponível ao valor atual das posições. ${positionLines || "Ainda não há posições abertas."}<span>Resultado de hoje: <b>${money(wallet?.dailyPnlUsd)}</b> (${pct(wallet?.dailyReturnPct)}). A meta de 30% é só uma referência, não uma previsão.</span>`;
+  const profile = bots.find((bot) => bot.id === selectedBotId);
+  const profileRules = profile ? `Regras desta carteira: compra individual a partir de ${money(profile.largeSignalUsd)} ou grupo de ${profile.crowdMinimumTraders}+ traders com ${money(profile.crowdMinimumVolumeUsd)}; limite de ${profile.maxAssetExposurePct}% por ativo e ${profile.maxPortfolioExposurePct}% total; intervalo de ${profile.buyCooldownMinutes} min por ativo.` : "";
+  document.querySelector("#trainingExplanation").innerHTML = `<b>${safe(botName(selectedBotId))}:</b> ${profileRules} Mesmo fluxo de alertas e cotações do outro bot, com regras e carteira separadas. O patrimônio soma saldo disponível e posições. O resultado em aberto é estimado e só vira realizado na venda. ${positionLines || "Ainda não há posições abertas."}<span>Resultado de hoje: <b>${money(wallet?.dailyPnlUsd)}</b> (${pct(wallet?.dailyReturnPct)}). Valores de simulação; o score é uma heurística, não probabilidade de lucro.</span>`;
 
   const headerLabels = {
     "#": "#", "Conta": "Conta", "Resultado total": "Lucro/prejuízo total", "Realizado": "Já realizado (vendas)", "Em aberto": "Ainda em aberto",
@@ -40,21 +56,20 @@ function render(data) {
 
   const query = document.querySelector("#walletSearch").value.trim().toLowerCase();
   const visible = wallets.filter((item) => item.trader.toLowerCase().includes(query));
-  document.querySelector("#walletRows").innerHTML = visible.length ? visible.map((item) => `<tr>
-    <td>1</td><td>${safe(item.trader)}</td><td class="num ${tone(item.totalPnlUsd)}">${money(item.totalPnlUsd)}</td>
+  document.querySelector("#walletRows").innerHTML = visible.length ? visible.map((item, index) => `<tr>
+    <td>${index + 1}</td><td>${safe(item.trader)}</td><td class="num ${tone(item.totalPnlUsd)}">${money(item.totalPnlUsd)}</td>
     <td class="num ${tone(item.realizedPnlUsd)}">${money(item.realizedPnlUsd)}</td><td class="num ${tone(item.unrealizedPnlUsd)}">${money(item.unrealizedPnlUsd)}</td>
     <td class="num ${tone(item.returnPct)}">${pct(item.returnPct)}</td><td class="num ${tone(item.dailyPnlUsd)}">${money(item.dailyPnlUsd)}<small>${pct(item.dailyReturnPct)}</small></td>
     <td><div class="goal-meter"><span style="width:${Math.max(0, Math.min(100, Number(item.dailyTargetProgressPct) || 0))}%"></span></div><small>${item.dailyTargetReached ? "Atingida hoje" : `${pct(item.dailyReturnPct)} de 30%`}</small></td>
     <td>${item.haltedAt ? `<span class="halted" title="${safe(item.haltReason)}">Pausada</span>` : "Ativa"}</td>
     <td class="num">${pct(item.winRatePct)}</td><td class="num">${item.closedTrades}</td><td class="num">${item.openPositions}</td></tr>`).join("") : `<tr><td colspan="12" class="empty">${wallets.length ? "Nenhum resultado para este filtro." : "A carteira aparece quando o Worker iniciar."}</td></tr>`;
 
-  const performance = data.patternPerformance ?? [];
+  const performance = (data.patternPerformance ?? []).filter((row) => row.botId === selectedBotId);
   document.querySelector("#patternPerformanceRows").innerHTML = performance.length ? performance.map((row) => `<tr>
     <td>${safe(patternName(row.pattern))}</td><td class="num">${row.closedTrades}</td><td class="num">${pct(row.winRatePct)}</td>
     <td class="num ${tone(row.realizedPnlUsd)}">${money(row.realizedPnlUsd)}</td><td class="num ${tone(row.averagePnlUsd)}">${money(row.averagePnlUsd)}</td></tr>`).join("")
     : `<tr><td colspan="5" class="empty">Ainda nao ha saidas fechadas para comparar.</td></tr>`;
 
-  const patterns = data.patterns ?? [];
   document.querySelector("#patternCount").textContent = patterns.length;
   document.querySelector("#patternRows").innerHTML = patterns.length ? patterns.map((pattern) => `<tr>
     <td>${new Date(pattern.observedAt).toLocaleString("pt-BR")}</td><td><b>${safe(pattern.symbol)}</b><small>${safe(pattern.chain)}</small></td>
@@ -63,7 +78,6 @@ function render(data) {
     <td class="num">${money(pattern.buyVolumeUsd)}</td><td class="num">${money(pattern.sellVolumeUsd)}</td></tr>`).join("")
     : `<tr><td colspan="9" class="empty">Aguardando alertas para classificar.</td></tr>`;
 
-  const incidents = data.incidents ?? [];
   document.querySelector("#incidentCount").textContent = incidents.length;
   document.querySelector("#incidentRows").innerHTML = incidents.length ? incidents.map((incident) => {
     const details = incident.diagnostics ?? {};
@@ -84,7 +98,6 @@ function render(data) {
       <td class="num ${tone(returnPct)}">${pct(returnPct)}</td></tr>`;
   }).join("") : `<tr><td colspan="10" class="empty">Nenhuma posicao aberta.</td></tr>`;
 
-  const orders = data.orders ?? [];
   document.querySelector("#orderCount").textContent = `${orders.length} recentes`;
   document.querySelector("#orderRows").innerHTML = orders.length ? orders.map((order) => `<tr>
     <td>${new Date(order.executedAt).toLocaleString("pt-BR")}</td><td>${safe(order.trader)}</td>
@@ -94,6 +107,10 @@ function render(data) {
     <td>${safe(patternName(order.patternType))}<small>forca ${Number(order.patternScore) || 0}/100</small></td>
     <td class="${tone(order.realizedPnlUsd)}">${order.realizedPnlUsd == null ? "-" : money(order.realizedPnlUsd)}</td>
     <td>${order.status === "filled" ? "Executada" : safe(order.reason ?? "Ignorada")}</td></tr>`).join("") : `<tr><td colspan="11" class="empty">Nenhuma movimentacao registrada.</td></tr>`;
+  const history = data.dailyHistory ?? [];
+  document.querySelector("#historyRows").innerHTML = history.length ? history.map((row) => `<tr><td>${safe(row.day)}</td><td>${safe(botName(row.botId))}</td>
+    <td class="num">${money(row.equityUsd)}</td><td class="num ${tone(row.pnlUsd)}">${money(row.pnlUsd)}</td><td class="num ${tone(row.returnPct)}">${pct(row.returnPct)}</td></tr>`).join("")
+    : `<tr><td colspan="5" class="empty">O histórico diário será registrado pelo Worker.</td></tr>`;
   document.querySelector("#trainingStatus").textContent = `Atualizado ${new Date(data.generatedAt).toLocaleTimeString("pt-BR")} · atualiza a cada 15 segundos`;
   document.querySelector("#trainingStatus").classList.remove("error");
 }
@@ -112,5 +129,17 @@ async function refresh() {
 }
 
 document.querySelector("#walletSearch").addEventListener("input", () => { if (current) render(current); });
+document.querySelector("#botTabs").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-bot-id]");
+  if (!button || !current) return;
+  selectedBotId = button.dataset.botId;
+  render(current);
+});
+document.querySelector("#botComparison").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-bot-id]");
+  if (!button || !current) return;
+  selectedBotId = button.dataset.botId;
+  render(current);
+});
 void refresh();
 setInterval(refresh, 15_000);
