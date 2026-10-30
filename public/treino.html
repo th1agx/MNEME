@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>MNEME | Treino Bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/brand/icon-32.png">
+<link rel="stylesheet" href="/assets/app.css">
+<link rel="stylesheet" href="/assets/training.css">
+</head>
+<body>
+<header class="app-bar">
+  <a class="logo" href="/" aria-label="MNEME, voltar ao painel"><img src="/assets/brand/mneme-horizontal.png" alt="MNEME" width="116" height="28"></a>
+  <nav class="nav" aria-label="Navegação principal"><a href="/">Painel</a><a href="/configuracoes">Configurações</a><a href="/treino" aria-current="page">Treino Bot</a></nav>
+</header>
+<main class="training-main">
+  <div class="page-heading">
+    <div><h1>Treino Bot</h1><p>Carteiras fictícias independentes para acompanhar como cada trader teria se saído nos ativos do feed.</p></div>
+    <span class="training-mode">SIMULAÇÃO</span>
+  </div>
+  <div id="trainingStatus" class="training-status" role="status">Carregando resultados…</div>
+  <section id="trainingSummary" class="training-summary" aria-label="Resumo do treino"></section>
+  <section class="pane wide training-section">
+    <div class="training-heading"><div><h2>Ranking interno <small>ordenado pelo resultado total simulado</small></h2><p class="muted">Cada trader tem sua própria carteira inicial fictícia de US$ 10.000.</p></div><label class="training-search">Filtrar <input id="walletSearch" type="search" placeholder="Trader"></label></div>
+    <div class="table-wrap"><table><thead><tr><th>#</th><th>Trader</th><th class="num">Resultado total</th><th class="num">Realizado</th><th class="num">Em aberto</th><th class="num">Retorno</th><th class="num">Acerto</th><th class="num">Fechadas</th><th class="num">Abertas</th></tr></thead><tbody id="walletRows"><tr><td colspan="9" class="empty">Carregando…</td></tr></tbody></table></div>
+  </section>
+  <section class="pane wide training-section">
+    <h2>Posições abertas <small id="positionCount">0</small></h2>
+    <div class="table-wrap"><table><thead><tr><th>Trader</th><th>Ativo</th><th>Rede</th><th class="num">Entrada</th><th class="num">Preço marcado</th><th class="num">Investido</th><th class="num">Resultado</th></tr></thead><tbody id="positionRows"><tr><td colspan="7" class="empty">Nenhuma posição aberta.</td></tr></tbody></table></div>
+  </section>
+  <section class="pane wide training-section">
+    <h2>Movimentações <small id="orderCount">0 recentes</small></h2>
+    <div class="table-wrap"><table><thead><tr><th>Executada</th><th>Trader</th><th>Lado</th><th>Ativo</th><th>Rede</th><th class="num">Preço</th><th class="num">Valor</th><th class="num">Taxa</th><th>Resultado</th><th>Situação</th></tr></thead><tbody id="orderRows"><tr><td colspan="10" class="empty">Aguardando movimentações.</td></tr></tbody></table></div>
+  </section>
+  <p class="training-note">O treino copia sinais elegíveis com preço observado na execução simulada. Compra e venda aplicam slippage de 0,5% e taxa de 0,1%. Os resultados passados do ranking não garantem desempenho futuro. Nenhuma ordem real é enviada.</p>
+</main>
+<script src="/assets/training.js"></script>
+</body>
+</html>

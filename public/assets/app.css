@@ -261,6 +261,7 @@ tr.fresh td { animation: row 1.4s ease-out; }
 .nav a { color: var(--muted); text-decoration: none; padding: 6px 10px; border-radius: var(--r); }
 .nav a:hover { color: var(--text); background: var(--raise); }
 .nav a[aria-current="page"] { color: var(--text); background: var(--raise); }
+.nav a.training-link { padding: 4px 7px; border: 1px solid var(--line); font-size: 10px; }
 .mode { padding: 2px 8px; border-radius: var(--r); font-weight: 500; }
 .mode.suggest { background: var(--raise); color: var(--muted); }
 .mode.paper { background: rgba(240, 185, 11, .12); color: var(--warn); }

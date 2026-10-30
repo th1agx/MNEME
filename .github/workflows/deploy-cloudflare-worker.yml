@@ -9,8 +9,6 @@ on:
       - "wrangler.bot.jsonc"
       - ".gitattributes"
       - ".github/workflows/deploy-cloudflare-worker.yml"
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -22,7 +20,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'schedule'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -65,6 +63,7 @@ jobs:
           test "$(head -c 9 migrations/0003_bot_runtime.sql)" != "GITCRYPT"
           test "$(head -c 9 migrations/0004_bot_access_and_group.sql)" != "GITCRYPT"
           test "$(head -c 9 migrations/0007_mercadopago_orders.sql)" != "GITCRYPT"
+          test "$(head -c 9 migrations/0008_paper_training.sql)" != "GITCRYPT"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -91,28 +90,6 @@ jobs:
             git-crypt lock --force || true
           fi
 
-  run-bot-automation:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    env:
-      TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
-    steps:
-      - name: Check scheduled automation secret
-        shell: bash
-        run: |
-          set -euo pipefail
-          [ -n "$TELEGRAM_WEBHOOK_SECRET" ] || { echo "::error::Configure TELEGRAM_WEBHOOK_SECRET as a repository secret."; exit 1; }
-      - name: Poll the real feed and process group access
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --silent --show-error --max-time 40 \
-            -X POST \
-            -H "X-Mneme-Webhook-Secret: $TELEGRAM_WEBHOOK_SECRET" \
-            https://mneme-telegram-bot.henriquesouza.workers.dev/admin/run-automation \
-            | jq -e '.ok == true' >/dev/null
-
   poll-feed-after-deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: deploy
@@ -132,29 +109,5 @@ jobs:
             https://mneme-telegram-bot.henriquesouza.workers.dev/admin/run-automation)"
           printf '%s\n' "$response" | jq '{ok, jobs: {groupSignals: .jobs.groupSignals, membership: .jobs.membership}}'
           printf '%s\n' "$response" | jq -e '.ok == true' >/dev/null
-
-  test-group-feed-simulation:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.event.head_commit.message == 'Testa mensagens simuladas do grupo'
-    needs: deploy
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    env:
-      TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
-    steps:
-      - name: Check test authorization secret
-        shell: bash
-        run: |
-          set -euo pipefail
-          [ -n "$TELEGRAM_WEBHOOK_SECRET" ] || { echo "::error::Configure TELEGRAM_WEBHOOK_SECRET as a repository secret."; exit 1; }
-      - name: Send clearly labeled simulated group messages
-        shell: bash
-        run: |
-          set -euo pipefail
-          response="$(curl --fail --silent --show-error --max-time 40 \
-            -X POST \
-            -H "X-Mneme-Webhook-Secret: $TELEGRAM_WEBHOOK_SECRET" \
-            https://mneme-telegram-bot.henriquesouza.workers.dev/admin/test-group-feed)"
-          printf '%s\n' "$response" | jq '{ok, simulated, sent}'
-          printf '%s\n' "$response" | jq -e '.ok == true and .simulated == true and .sent == 3' >/dev/null
 
 
