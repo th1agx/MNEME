@@ -1,4 +1,5 @@
 const money = (value) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD" }).format(Number(value) || 0);
+const unitPrice = (value) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD", maximumFractionDigits: 8 }).format(Number(value) || 0);
 const pct = (value) => value == null ? "-" : `${Number(value).toFixed(2).replace(".", ",")}%`;
 const safe = (value) => String(value ?? "-").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const tone = (value) => Number(value) > 0 ? "positive" : Number(value) < 0 ? "negative" : "";
@@ -13,14 +14,28 @@ function render(data) {
   current = data;
   const wallets = data.wallets ?? [];
   const wallet = wallets[0];
+  const positions = data.positions ?? [];
   const summary = [
-    ["Carteira paper", wallets.length],
-    ["Capital simulado", money(data.paperCapital?.totalAllocatedUsd)],
-    ["Patrimonio atual", money(wallet?.equityUsd)],
-    ["Resultado hoje", money(wallet?.dailyPnlUsd)],
-    ["Meta diaria", "30% (referencia)"],
+    ["Capital inicial (simulado)", money(wallet?.initialUsd ?? data.paperCapital?.totalAllocatedUsd)],
+    ["Saldo disponível para compras", money(wallet?.cashUsd)],
+    ["Valor atual das posições", money(wallet?.marketValueUsd)],
+    ["Patrimônio total (saldo + posições)", money(wallet?.equityUsd)],
+    ["Ganho/perda ainda em aberto", money(wallet?.unrealizedPnlUsd)],
+    ["Lucro/prejuízo já realizado", money(wallet?.realizedPnlUsd)],
   ];
   document.querySelector("#trainingSummary").innerHTML = summary.map(([label, value]) => `<div class="training-kpi"><span>${safe(label)}</span><b>${safe(value)}</b></div>`).join("");
+  const positionLines = positions.map((position) => `${safe(position.symbol)}: custo de ${money(position.costUsd)}; valor agora de ${money(position.costUsd + position.unrealizedPnlUsd)}; variação aberta de ${money(position.unrealizedPnlUsd)}.`).join(" ");
+  document.querySelector("#trainingExplanation").innerHTML = `<b>Como ler:</b> o lucro em aberto é uma estimativa: valor atual das posições menos o custo de compra, incluindo taxas. Ele ainda pode subir ou cair e só é realizado quando há venda. O patrimônio soma o saldo disponível ao valor atual das posições. ${positionLines || "Ainda não há posições abertas."}<span>Resultado de hoje: <b>${money(wallet?.dailyPnlUsd)}</b> (${pct(wallet?.dailyReturnPct)}). A meta de 30% é só uma referência, não uma previsão.</span>`;
+
+  const headerLabels = {
+    "#": "#", "Conta": "Conta", "Resultado total": "Lucro/prejuízo total", "Realizado": "Já realizado (vendas)", "Em aberto": "Ainda em aberto",
+    "Retorno": "Retorno sobre capital", "Hoje": "Resultado de hoje", "Meta diária 30%": "Meta diária (referência)", "Estado": "Estado",
+    "Acerto": "Vendas com lucro", "Fechadas": "Vendas fechadas", "Abertas": "Posições abertas",
+  };
+  document.querySelectorAll("#walletRows").forEach((body) => body.closest("table").querySelectorAll("thead th").forEach((th) => { if (headerLabels[th.textContent.trim()]) th.textContent = headerLabels[th.textContent.trim()]; }));
+  const setHeaders = (bodyId, labels) => document.querySelector(`#${bodyId}`).closest("table").querySelectorAll("thead th").forEach((th, index) => { if (labels[index]) th.textContent = labels[index]; });
+  setHeaders("positionRows", ["Conta", "Ativo", "Rede", "Preço médio de compra", "Preço usado agora", "Custo total (inclui taxa)", "Ganho/perda em aberto"]);
+  setHeaders("orderRows", ["Executada", "Conta", "Lado", "Ativo", "Rede", "Preço por unidade", "Valor da ordem", "Taxa", "Padrão detectado", "Lucro/prejuízo desta venda", "Situação"]);
 
   const query = document.querySelector("#walletSearch").value.trim().toLowerCase();
   const visible = wallets.filter((item) => item.trader.toLowerCase().includes(query));
@@ -56,11 +71,10 @@ function render(data) {
     return `<tr><td>${new Date(incident.occurredAt).toLocaleString("pt-BR")}</td><td>${safe(incident.trader)}</td><td>${safe(incident.summary)}</td><td>${safe(summary)}</td></tr>`;
   }).join("") : `<tr><td colspan="4" class="empty">Nenhuma carteira zerada.</td></tr>`;
 
-  const positions = data.positions ?? [];
   document.querySelector("#positionCount").textContent = positions.length;
   document.querySelector("#positionRows").innerHTML = positions.length ? positions.map((position) => `<tr>
     <td>${safe(position.trader)}</td><td><b>${safe(position.symbol)}</b></td><td>${safe(position.chain)}</td>
-    <td class="num">${money(position.entryPriceUsd)}</td><td class="num">${money(position.markPriceUsd)}</td><td class="num">${money(position.costUsd)}</td>
+    <td class="num">${unitPrice(position.entryPriceUsd)}</td><td class="num">${unitPrice(position.markPriceUsd)}</td><td class="num">${money(position.costUsd)}</td>
     <td class="num ${tone(position.unrealizedPnlUsd)}">${money(position.unrealizedPnlUsd)}</td></tr>`).join("") : `<tr><td colspan="7" class="empty">Nenhuma posicao aberta.</td></tr>`;
 
   const orders = data.orders ?? [];
@@ -68,7 +82,7 @@ function render(data) {
   document.querySelector("#orderRows").innerHTML = orders.length ? orders.map((order) => `<tr>
     <td>${new Date(order.executedAt).toLocaleString("pt-BR")}</td><td>${safe(order.trader)}</td>
     <td class="${order.side === "buy" ? "positive" : "negative"}">${order.side === "buy" ? "Compra" : "Venda"}</td>
-    <td><b>${safe(order.symbol)}</b></td><td>${safe(order.chain)}</td><td class="num">${money(order.priceUsd)}</td>
+    <td><b>${safe(order.symbol)}</b></td><td>${safe(order.chain)}</td><td class="num">${unitPrice(order.priceUsd)}</td>
     <td class="num">${money(order.notionalUsd)}</td><td class="num">${money(order.feeUsd)}</td>
     <td>${safe(patternName(order.patternType))}<small>forca ${Number(order.patternScore) || 0}/100</small></td>
     <td class="${tone(order.realizedPnlUsd)}">${order.realizedPnlUsd == null ? "-" : money(order.realizedPnlUsd)}</td>
