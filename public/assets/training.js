@@ -1,5 +1,6 @@
 const money = (value) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD" }).format(Number(value) || 0);
 const unitPrice = (value) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD", maximumFractionDigits: 8 }).format(Number(value) || 0);
+const quantity = (value) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 6 }).format(Number(value) || 0);
 const pct = (value) => value == null ? "-" : `${Number(value).toFixed(2).replace(".", ",")}%`;
 const safe = (value) => String(value ?? "-").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const tone = (value) => Number(value) > 0 ? "positive" : Number(value) < 0 ? "negative" : "";
@@ -34,7 +35,7 @@ function render(data) {
   };
   document.querySelectorAll("#walletRows").forEach((body) => body.closest("table").querySelectorAll("thead th").forEach((th) => { if (headerLabels[th.textContent.trim()]) th.textContent = headerLabels[th.textContent.trim()]; }));
   const setHeaders = (bodyId, labels) => document.querySelector(`#${bodyId}`).closest("table").querySelectorAll("thead th").forEach((th, index) => { if (labels[index]) th.textContent = labels[index]; });
-  setHeaders("positionRows", ["Conta", "Ativo", "Rede", "Preço médio de compra", "Preço usado agora", "Custo total (inclui taxa)", "Ganho/perda em aberto"]);
+  setHeaders("positionRows", ["Conta", "Ativo", "Rede", "Quantidade atual", "Preço médio de compra", "Preço usado agora", "Custo total (inclui taxa)", "Valor atual da posição", "Ganho/perda em aberto", "Variação da posição"]);
   setHeaders("orderRows", ["Executada", "Conta", "Lado", "Ativo", "Rede", "Preço por unidade", "Valor da ordem", "Taxa", "Padrão detectado", "Lucro/prejuízo desta venda", "Situação"]);
 
   const query = document.querySelector("#walletSearch").value.trim().toLowerCase();
@@ -72,10 +73,16 @@ function render(data) {
   }).join("") : `<tr><td colspan="4" class="empty">Nenhuma carteira zerada.</td></tr>`;
 
   document.querySelector("#positionCount").textContent = positions.length;
-  document.querySelector("#positionRows").innerHTML = positions.length ? positions.map((position) => `<tr>
-    <td>${safe(position.trader)}</td><td><b>${safe(position.symbol)}</b></td><td>${safe(position.chain)}</td>
-    <td class="num">${unitPrice(position.entryPriceUsd)}</td><td class="num">${unitPrice(position.markPriceUsd)}</td><td class="num">${money(position.costUsd)}</td>
-    <td class="num ${tone(position.unrealizedPnlUsd)}">${money(position.unrealizedPnlUsd)}</td></tr>`).join("") : `<tr><td colspan="7" class="empty">Nenhuma posicao aberta.</td></tr>`;
+  document.querySelector("#positionRows").innerHTML = positions.length ? positions.map((position) => {
+    const marketValue = position.quantity * (position.markPriceUsd ?? position.entryPriceUsd);
+    const returnPct = position.costUsd > 0 ? position.unrealizedPnlUsd / position.costUsd * 100 : null;
+    return `<tr>
+      <td>${safe(position.trader)}</td><td><b>${safe(position.symbol)}</b></td><td>${safe(position.chain)}</td>
+      <td class="num">${quantity(position.quantity)}</td><td class="num">${unitPrice(position.entryPriceUsd)}</td><td class="num">${position.markPriceUsd == null ? "Sem cotação" : unitPrice(position.markPriceUsd)}</td>
+      <td class="num">${money(position.costUsd)}</td><td class="num">${money(marketValue)}</td>
+      <td class="num ${tone(position.unrealizedPnlUsd)}">${money(position.unrealizedPnlUsd)}</td>
+      <td class="num ${tone(returnPct)}">${pct(returnPct)}</td></tr>`;
+  }).join("") : `<tr><td colspan="10" class="empty">Nenhuma posicao aberta.</td></tr>`;
 
   const orders = data.orders ?? [];
   document.querySelector("#orderCount").textContent = `${orders.length} recentes`;
