@@ -74,6 +74,11 @@
     <div id="chartOrderDetail" class="chart-order-detail" hidden></div>
   </aside>
 </section>
+<section class="pane wide" id="feed-operations">
+  <h2>Operações do feed <small id="feedCount">Aguardando conexão</small></h2>
+  <p class="muted">Compras e vendas recebidas de todos os traders disponíveis no feed. Histórico reenviado é identificado; sugestões seguem o filtro do Top.</p>
+  <div class="table-wrap"><table><thead><tr><th>Origem</th><th>Lado</th><th>Ativo</th><th>Rede</th><th>Trader</th><th class="num">Valor (USD)</th><th>Recepção</th></tr></thead><tbody id="feedOperations"></tbody></table></div>
+</section>
 <section class="pane wide" id="ordens">
   <h2>Histórico de ordens <small id="orderContext">Operações do bot</small></h2>
   <div class="order-toolbar"><div class="tabs" id="orderTabs" role="group" aria-label="Filtrar ordens"><button type="button" data-order-filter="all" aria-pressed="true">Todas</button><button type="button" data-order-filter="buy" aria-pressed="false">Compras</button><button type="button" data-order-filter="sell" aria-pressed="false">Vendas</button><button type="button" data-order-filter="failed" aria-pressed="false">Falhas</button></div><label class="muted"><input id="ordersSelectedCoin" type="checkbox"> Só a moeda do gráfico</label></div>

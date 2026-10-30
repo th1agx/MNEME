@@ -411,6 +411,16 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) clea
 
 // ---------- Ciclo ----------
 
+function renderFeedOperations(s) {
+  const events = s.feedEvents ?? [];
+  $("feedCount").textContent = events.length + " operações recentes";
+  $("feedOperations").innerHTML = events.slice().reverse().map(e => {
+    const side = e.eventType === "buy" ? ["Compra", "up"] : ["Venda", "down"];
+    const top = s.top.traders.some(t => e.userId ? t.userId === e.userId : t.handle.toLowerCase() === e.traderHandle?.toLowerCase());
+    return '<tr><td>' + esc(new Date(e.eventTime).toLocaleTimeString("pt-BR")) + '</td><td class="' + side[1] + '">' + side[0] + '</td><td>' + esc(e.tokenSymbol ?? "—") + '</td><td>' + esc(e.chain ?? "—") + '</td><td>' + esc(e.traderHandle ?? "—") + (top ? ' · Top' : '') + '</td><td class="num">' + usd(e.amountUsd) + '</td><td>' + (e.replay ? 'Histórico reenviado' : 'Ao vivo') + '</td></tr>';
+  }).join("") || '<tr><td colspan="7" class="empty">Aguardando compras e vendas do feed.</td></tr>';
+}
+
 function render(s) {
   state = s;
   window.dispatchEvent(new CustomEvent("mneme:state", { detail: s }));
@@ -426,6 +436,7 @@ function render(s) {
   renderWatch(s);
   renderCalibration(s);
   renderTrades(s);
+  renderFeedOperations(s);
   notifyNew(s);
   firstRender = false;
 }
