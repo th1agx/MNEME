@@ -3,6 +3,7 @@ const unitPrice = (value) => new Intl.NumberFormat("pt-BR", { style: "currency",
 const quantity = (value) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 6 }).format(Number(value) || 0);
 const pct = (value) => value == null ? "-" : `${Number(value).toFixed(2).replace(".", ",")}%`;
 const safe = (value) => String(value ?? "-").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+const plural = (count, one, many) => `${Number(count) || 0} ${Number(count) === 1 ? one : many}`;
 const tone = (value) => Number(value) > 0 ? "positive" : Number(value) < 0 ? "negative" : "";
 const patternName = (value) => ({
   large_buy: "Compra de alto valor", crowd_buy: "Compra em grupo", large_and_crowd_buy: "Alto valor + grupo",
@@ -20,8 +21,9 @@ function render(data) {
   current = data;
   const followedTrader = data.followedTrader;
   document.querySelector("#followedTraderStatus").textContent = followedTrader
-    ? `Trader seguido: ${followedTrader.handle} · última posição conhecida no ranking de 30 dias: #${followedTrader.rank ?? "-"} · ID fixado desde ${followedTrader.selectedAt ? new Date(followedTrader.selectedAt).toLocaleString("pt-BR") : "o início do teste"}.`
-    : "Trader seguido: aguardando o ranking para fixar o primeiro colocado após o reset.";
+    ? `Seguindo ${followedTrader.handle} · #${followedTrader.rank ?? "-"} no ranking 30d`
+    : "Aguardando o ranking para fixar o trader seguido";
+  document.querySelector("#followedTraderStatus").title = followedTrader?.selectedAt ? `ID fixado desde ${new Date(followedTrader.selectedAt).toLocaleString("pt-BR")}` : "";
   const allPositions = data.positions ?? [];
   const wallets = (data.wallets ?? []).map((item) => {
     const openPositions = allPositions.filter((position) => position.botId === item.botId);
@@ -43,30 +45,28 @@ function render(data) {
   const wallet = wallets.find((item) => item.botId === selectedBotId);
   const bots = data.bots ?? [];
   const botName = (id) => bots.find((bot) => bot.id === id)?.name ?? id;
-  const rankedWallets = wallets;
-  const leaderBotId = rankedWallets.length > 1 && rankedWallets[0].totalPnlUsd !== rankedWallets[1].totalPnlUsd ? rankedWallets[0].botId : null;
-  document.querySelector("#botComparison").innerHTML = wallets.map((item) => `<button class="bot-card ${item.botId === selectedBotId ? "selected" : ""}" type="button" data-bot-id="${safe(item.botId)}" aria-pressed="${item.botId === selectedBotId}">
-    <span class="bot-card-title">${safe(botName(item.botId))}</span><strong class="${tone(item.totalPnlUsd)}">${money(item.totalPnlUsd)}</strong><small>resultado acumulado (realizado + em aberto) · ${pct(item.returnPct)}</small>
-    <span class="bot-card-stats"><span>Patrimônio <b>${money(item.equityUsd)}</b></span><span>Hoje <b class="${tone(item.dailyPnlUsd)}">${money(item.dailyPnlUsd)}</b></span><span>Em aberto <b class="${tone(item.unrealizedPnlUsd)}">${money(item.unrealizedPnlUsd)}</b></span></span>
-    <small>${item.botId === leaderBotId ? "Maior resultado acumulado agora · " : leaderBotId === null ? "Empate no resultado acumulado · " : ""}${item.closedTrades} vendas fechadas · ${item.openPositions} posições abertas · ${item.haltedAt ? "pausado" : "ativo"}</small></button>`).join("");
-  document.querySelector("#botTabs").innerHTML = wallets.map((item) => `<button type="button" role="tab" data-bot-id="${safe(item.botId)}" aria-selected="${item.botId === selectedBotId}" class="bot-tab ${item.botId === selectedBotId ? "selected" : ""}">${safe(botName(item.botId))}</button>`).join("");
+  document.querySelector("#botComparison").innerHTML = wallets.length ? wallets.map((item) => `<tr class="bot-row ${item.botId === selectedBotId ? "selected" : ""}" data-bot-id="${safe(item.botId)}">
+    <td><button type="button" class="bot-pick" data-bot-id="${safe(item.botId)}" aria-pressed="${item.botId === selectedBotId}">${safe(botName(item.botId))}</button></td>
+    <td class="num ${tone(item.totalPnlUsd)}"><b>${money(item.totalPnlUsd)}</b></td><td class="num ${tone(item.returnPct)}">${pct(item.returnPct)}</td>
+    <td class="num hide-sm">${money(item.equityUsd)}</td><td class="num hide-sm ${tone(item.dailyPnlUsd)}">${money(item.dailyPnlUsd)}</td>
+    <td class="num hide-sm">${item.openPositions}</td><td class="num hide-sm">${item.closedTrades}</td>
+    <td class="hide-sm">${item.haltedAt ? `<span class="halted" title="${safe(item.haltReason)}">Pausado</span>` : `<span class="state-on">Ativo</span>`}</td></tr>`).join("")
+    : `<tr><td colspan="8" class="empty">As carteiras aparecem quando o Worker iniciar.</td></tr>`;
   const positions = (data.positions ?? []).filter((item) => item.botId === selectedBotId);
   const orders = (data.orders ?? []).filter((item) => item.botId === selectedBotId);
   const incidents = (data.incidents ?? []).filter((item) => item.botId === selectedBotId);
   const patterns = (data.patterns ?? []).filter((item) => item.botId === selectedBotId);
   const summary = [
-    ["Capital total aportado", money(wallet?.initialUsd ?? data.paperCapital?.totalAllocatedUsd)],
-    ["Saldo para novas compras", money(wallet?.cashUsd)],
-    ["Valor das posições abertas", money(wallet?.marketValueUsd)],
-    ["Patrimônio atual", money(wallet?.equityUsd)],
-    ["Resultado já realizado", money(wallet?.realizedPnlUsd)],
-    ["Resultado ainda em aberto", money(wallet?.unrealizedPnlUsd)],
+    ["Patrimônio", money(wallet?.equityUsd), `aportado ${money(wallet?.initialUsd ?? data.paperCapital?.totalAllocatedUsd)}`, ""],
+    ["Saldo livre", money(wallet?.cashUsd), `em posições ${money(wallet?.marketValueUsd)}`, ""],
+    ["Realizado", money(wallet?.realizedPnlUsd), `${plural(wallet?.closedTrades, "venda", "vendas")}${wallet?.winRatePct == null ? "" : ` · acerto ${pct(wallet.winRatePct)}`}`, tone(wallet?.realizedPnlUsd)],
+    ["Em aberto", money(wallet?.unrealizedPnlUsd), `${plural(wallet?.openPositions, "posição", "posições")} · estimado`, tone(wallet?.unrealizedPnlUsd)],
   ];
-  document.querySelector("#trainingSummary").innerHTML = summary.map(([label, value]) => `<div class="training-kpi"><span>${safe(label)}</span><b>${safe(value)}</b></div>`).join("");
+  document.querySelector("#selectedBotName").textContent = botName(selectedBotId);
+  document.querySelector("#trainingSummary").innerHTML = summary.map(([label, value, note, valueTone]) => `<div class="training-kpi"><span>${safe(label)}</span><b class="${valueTone}">${safe(value)}</b><small>${safe(note)}</small></div>`).join("");
   const capitalButton = document.querySelector("#addCapitalButton");
   capitalButton.disabled = !data.capitalControlReady;
-  capitalButton.title = "Adicionar saldo simulado à carteira selecionada";
-  document.querySelector("#capitalControlHelp").textContent = "Aporte simulado entra no saldo e no capital aportado, não como lucro.";
+  capitalButton.title = "Aporte simulado: entra no saldo e no capital aportado, não como lucro";
   document.querySelector("#capitalBot").innerHTML = wallets.map((item) => `<option value="${safe(item.botId)}">${safe(botName(item.botId))}</option>`).join("");
   document.querySelector("#capitalBot").value = selectedBotId;
   const capitalEvents = data.capitalEvents ?? [];
@@ -74,10 +74,17 @@ function render(data) {
   document.querySelector("#capitalRows").innerHTML = capitalEvents.length ? capitalEvents.map((event) => `<tr>
     <td>${new Date(event.createdAt).toLocaleString("pt-BR")}</td><td>${safe(botName(event.botId))}</td><td class="num positive">+${money(event.amountUsd)}</td></tr>`).join("")
     : `<tr><td colspan="3" class="empty">Nenhum aporte registrado.</td></tr>`;
-  const positionLines = positions.map((position) => `${safe(position.symbol)}: custo de ${money(position.costUsd)}; valor agora de ${money(position.costUsd + position.unrealizedPnlUsd)}; variação aberta de ${money(position.unrealizedPnlUsd)}.`).join(" ");
   const profile = bots.find((bot) => bot.id === selectedBotId);
-  const profileRules = profile ? `${profile.buyConfirmations > 1 ? `Compra após ${profile.buyConfirmations} compras do trader no mesmo ativo` : "Compra no primeiro sinal do trader"}; ${profile.buySizePct}% da carteira por sinal; liquidez mínima ${money(profile.minimumLiquidityUsd)}; limite de ${profile.maxAssetExposurePct}% por ativo e ${profile.maxPortfolioExposurePct}% total; ${profile.buyCooldownMinutes > 0 ? `intervalo de ${profile.buyCooldownMinutes} min por ativo` : "sem intervalo entre compras"}.` : "";
-  document.querySelector("#trainingExplanation").innerHTML = `<b>${safe(botName(selectedBotId))}:</b> ${profileRules} Segue ${followedTrader ? `<b>${safe(followedTrader.handle)}</b>` : "o primeiro colocado aguardando seleção"}; ignora sinais dos outros traders para comprar e vender. O patrimônio soma saldo disponível e posições. O resultado em aberto é estimado e só vira realizado na venda. ${positionLines || "Ainda não há posições abertas."}<span>Resultado de hoje: <b>${money(wallet?.dailyPnlUsd)}</b> (${pct(wallet?.dailyReturnPct)}). Valores paper; o score identifica o perfil de execução e não é probabilidade de lucro.</span>`;
+  const ruleChips = profile ? [
+    profile.buyConfirmations > 1 ? `Entra após ${profile.buyConfirmations} compras` : "Entra no 1º sinal",
+    `${profile.buySizePct}% por sinal`,
+    `Liquidez mín. ${money(profile.minimumLiquidityUsd).replace(/,00$/, "")}`,
+    `Máx. ${profile.maxAssetExposurePct}% por ativo`,
+    profile.buyCooldownMinutes > 0 ? `Intervalo ${profile.buyCooldownMinutes} min` : "Sem intervalo",
+  ] : [];
+  const waiting = !positions.length && !(wallet?.closedTrades);
+  document.querySelector("#trainingExplanation").innerHTML = `<div class="rule-chips">${ruleChips.map((chip) => `<span>${safe(chip)}</span>`).join("")}</div>
+    <p>${waiting ? `Aguardando o primeiro sinal de compra de <b>${safe(followedTrader?.handle ?? "trader seguido")}</b>. ` : ""}Copia só o trader seguido; o resultado em aberto vira realizado na venda. <a href="#trainingRules" class="rules-link">Ver regras completas</a></p>`;
 
   const headerLabels = {
     "#": "#", "Conta": "Conta", "Resultado total": "Lucro/prejuízo total", "Realizado": "Já realizado (vendas)", "Em aberto": "Ainda em aberto",
@@ -146,7 +153,7 @@ function render(data) {
   document.querySelector("#historyRows").innerHTML = history.length ? history.map((row) => `<tr><td>${safe(row.day)}</td><td>${safe(botName(row.botId))}</td>
     <td class="num">${money(row.equityUsd)}</td><td class="num ${tone(row.pnlUsd)}">${money(row.pnlUsd)}</td><td class="num ${tone(row.returnPct)}">${pct(row.returnPct)}</td></tr>`).join("")
     : `<tr><td colspan="5" class="empty">O histórico diário será registrado pelo Worker.</td></tr>`;
-  document.querySelector("#trainingStatus").textContent = `Painel ${new Date(data.generatedAt).toLocaleTimeString("pt-BR")} · cotações verificadas ${data.pricesCheckedAt ? new Date(data.pricesCheckedAt).toLocaleTimeString("pt-BR") : "aguardando"}`;
+  document.querySelector("#trainingStatus").textContent = `Atualizado ${new Date(data.generatedAt).toLocaleTimeString("pt-BR")} · cotações ${data.pricesCheckedAt ? new Date(data.pricesCheckedAt).toLocaleTimeString("pt-BR") : "aguardando"}`;
   document.querySelector("#trainingStatus").classList.remove("error");
 }
 
@@ -200,11 +207,9 @@ async function refreshPrices() {
 }
 
 document.querySelector("#walletSearch").addEventListener("input", () => { if (current) render(current); });
-document.querySelector("#botTabs").addEventListener("click", (event) => {
-  const button = event.target.closest("[data-bot-id]");
-  if (!button || !current) return;
-  selectedBotId = button.dataset.botId;
-  render(current);
+document.querySelector("#trainingExplanation").addEventListener("click", (event) => {
+  if (!event.target.closest(".rules-link")) return;
+  document.querySelector("#trainingRules").open = true;
 });
 document.querySelector("#botComparison").addEventListener("click", (event) => {
   const button = event.target.closest("[data-bot-id]");

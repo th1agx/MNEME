@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/brand/icon-32.png">
 <link rel="stylesheet" href="/assets/app.css">
-<link rel="stylesheet" href="/assets/training.css">
+<link rel="stylesheet" href="/assets/training.css?v=20261031-compact">
 </head>
 <body>
 <header class="app-bar">
@@ -18,21 +18,19 @@
   <nav class="nav" aria-label="Navegação principal"><a href="/">Painel</a><a href="/configuracoes">Configurações</a><a href="/treino" aria-current="page">Treino Bot</a></nav>
 </header>
 <main class="training-main">
-  <div class="page-heading">
-    <div><h1>Treino Bot</h1><p>Duas carteiras paper seguem o mesmo trader, com critérios diferentes e sem envio de ordens reais.</p></div>
-    <span class="training-mode">SIMULAÇÃO</span>
+  <div class="training-head">
+    <div class="training-title"><h1>Treino Bot</h1><span class="training-mode">SIMULAÇÃO</span></div>
+    <div class="training-meta"><span id="followedTraderStatus">Trader seguido: aguardando o primeiro ranking após o reset.</span><span id="trainingStatus" class="training-status" role="status">Carregando resultados…</span></div>
   </div>
-  <div id="trainingStatus" class="training-status" role="status">Carregando resultados…</div>
-  <p id="followedTraderStatus" class="muted">Trader seguido: aguardando o primeiro ranking após o reset.</p>
-  <section id="botComparison" class="bot-comparison" aria-label="Comparação dos bots"></section>
-  <div id="botTabs" class="bot-tabs" role="tablist" aria-label="Selecionar bot"></div>
-  <div class="capital-toolbar">
-    <div><b>Ajuste de capital paper</b><p id="capitalControlHelp" class="muted">Aporte simulado entra no saldo e no capital aportado, não como lucro.</p></div>
-    <button id="addCapitalButton" class="btn primary" type="button" disabled>Adicionar capital</button>
-  </div>
-  <p id="capitalNotice" class="capital-notice" role="status"></p>
-  <section id="trainingSummary" class="training-summary" aria-label="Resumo do treino"></section>
-  <section id="trainingExplanation" class="training-explanation" aria-label="Como entender os valores"></section>
+  <section class="pane training-board" aria-label="Comparação dos bots">
+    <div class="table-wrap"><table class="bot-compare"><thead><tr><th>Carteira</th><th class="num">Resultado</th><th class="num">Retorno</th><th class="num hide-sm">Patrimônio</th><th class="num hide-sm">Hoje</th><th class="num hide-sm">Posições</th><th class="num hide-sm">Vendas</th><th class="hide-sm">Estado</th></tr></thead><tbody id="botComparison"><tr><td colspan="8" class="empty">Carregando…</td></tr></tbody></table></div>
+  </section>
+  <section class="pane bot-focus" aria-label="Carteira selecionada">
+    <div class="bot-focus-head"><h2 id="selectedBotName">Carteira</h2><button id="addCapitalButton" class="btn small" type="button" disabled>+ Adicionar capital</button></div>
+    <p id="capitalNotice" class="capital-notice" role="status"></p>
+    <div id="trainingSummary" class="training-summary"></div>
+    <div id="trainingExplanation" class="bot-rules"></div>
+  </section>
   <details class="training-details">
     <summary>Desempenho detalhado <small>comparação e qualidade das vendas fechadas</small></summary>
     <section class="pane wide training-section">
@@ -77,7 +75,7 @@
     <div class="table-wrap"><table><thead><tr><th>Executada</th><th>Trader</th><th>Lado</th><th>Ativo</th><th>Rede</th><th class="num">Preço</th><th class="num">Valor</th><th class="num">Taxa</th><th>Padrão</th><th>Resultado</th><th>Situação</th></tr></thead><tbody id="orderRows"><tr><td colspan="11" class="empty">Aguardando movimentações.</td></tr></tbody></table></div>
     </section>
   </details>
-  <details class="training-details training-rules"><summary>Regras da simulação</summary><p class="training-note">Ambas as carteiras seguem um único trader, escolhido como primeiro do ranking de 30 dias após o reset; o ID fica fixo durante o teste. O Conservador espera uma segunda compra do mesmo trader no mesmo ativo, exige liquidez de US$ 25.000 e compra 2% da carteira por sinal. O Arriscado copia a primeira compra, exige liquidez de US$ 10.000, compra 4% por sinal e não aplica intervalo entre compras. As vendas seguem os sinais de venda desse trader; sinais dos demais não abrem nem fecham posições. Limite por ativo: 10% no Conservador e 15% no Arriscado; exposição total máxima: 100%. Slippage simulado: 0,5%; taxa: 0,1%. Nenhuma ordem real é enviada.</p></details>
+  <details id="trainingRules" class="training-details training-rules"><summary>Regras da simulação</summary><p class="training-note">Ambas as carteiras seguem um único trader, escolhido como primeiro do ranking de 30 dias após o reset; o ID fica fixo durante o teste. O Conservador espera uma segunda compra do mesmo trader no mesmo ativo, exige liquidez de US$ 25.000 e compra 2% da carteira por sinal. O Arriscado copia a primeira compra, exige liquidez de US$ 10.000, compra 4% por sinal e não aplica intervalo entre compras. As vendas seguem os sinais de venda desse trader; sinais dos demais não abrem nem fecham posições. Limite por ativo: 10% no Conservador e 15% no Arriscado; exposição total máxima: 100%. Slippage simulado: 0,5%; taxa: 0,1%. Nenhuma ordem real é enviada.</p></details>
 </main>
 <dialog id="capitalDialog" class="capital-dialog">
   <form id="capitalForm">
@@ -88,6 +86,6 @@
     <div class="capital-dialog-actions"><button id="cancelCapitalDialog" class="btn" type="button">Cancelar</button><button id="submitCapital" class="btn primary" type="submit">Confirmar aporte</button></div>
   </form>
 </dialog>
-<script src="/assets/training.js?v=20261031-no-capital-key"></script>
+<script src="/assets/training.js?v=20261031-compact"></script>
 </body>
 </html>
