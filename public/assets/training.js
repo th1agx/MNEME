@@ -27,6 +27,14 @@ function dailyTargetLabel(item, execution) {
   return item.dailyTargetReached ? `Atingida hoje · compras pausadas${lossText}` : `${pct(item.dailyReturnPct)} de ${pct(target)}${lossText}`;
 }
 
+// Tempo médio que os traders ficam na operação, em minutos, horas ou dias.
+function holdLabel(minutes) {
+  if (minutes == null) return "—";
+  if (minutes < 60) return `${Math.max(1, Math.round(minutes))} min`;
+  if (minutes < 24 * 60) return `${(minutes / 60).toFixed(1).replace(".", ",")} h`;
+  return `${(minutes / 1440).toFixed(1).replace(".", ",")} dias`;
+}
+
 function render(data) {
   current = data;
   const flow = data.top50Flow ?? {};
@@ -142,6 +150,17 @@ function render(data) {
     <td>${safe(pattern.reason)}</td><td class="num">${Number(pattern.buyers) || 0}</td><td class="num">${Number(pattern.sellers) || 0}</td>
     <td class="num">${Number(pattern.buyers) + Number(pattern.sellers) ? `${Number(pattern.score) || 0}%` : "—"}</td></tr>`).join("")
     : `<tr><td colspan="7" class="empty">Ainda não há decisão registrada. Se houver sinal do Top 50 associado, o motivo aparecerá aqui.</td></tr>`;
+
+  const accuracy = data.traderAccuracy;
+  const ranked = accuracy?.top ?? [];
+  document.querySelector("#traderAccuracyCount").textContent = `${plural(accuracy?.measuredTraders, "trader", "traders")} · ${plural(accuracy?.qualifiedTraders, "conta", "contam")}`;
+  document.querySelector("#traderAccuracySummary").textContent = accuracy
+    ? `Últimos ${accuracy.windowDays} dias: ${plural(accuracy.measuredTraders, "trader medido", "traders medidos")} em ${plural(accuracy.closedTrades, "operação fechada", "operações fechadas")}; ${plural(accuracy.withSampleTraders, "tem", "têm")} a amostra mínima e ${plural(accuracy.qualifiedTraders, "passa", "passam")} na taxa de acerto de Configurações. Tempo médio na operação: ${holdLabel(accuracy.averageHoldMinutes)} no geral, ${holdLabel(accuracy.qualifiedAverageHoldMinutes)} entre os de alto acerto.`
+    : "O acerto de cada trader é medido pelas operações que ele encerra nos últimos 30 dias.";
+  document.querySelector("#traderAccuracyRows").innerHTML = ranked.length ? ranked.map((trader) => `<tr>
+    <td>${safe(trader.trader)}</td><td class="num">${Number(trader.closedTrades) || 0}</td><td class="num">${pct(trader.winRatePct)}</td>
+    <td class="num">${holdLabel(trader.averageHoldMinutes)}</td><td class="${trader.qualified ? "positive" : ""}">${trader.qualified ? "Sim, alto acerto" : "Não, abaixo da taxa"}</td></tr>`).join("")
+    : `<tr><td colspan="5" class="empty">Nenhum trader com a amostra mínima ainda. O acerto aparece quando os traders do Top encerram operações.</td></tr>`;
 
   document.querySelector("#incidentCount").textContent = incidents.length;
   document.querySelector("#incidentRows").innerHTML = incidents.length ? incidents.map((incident) => {

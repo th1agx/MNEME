@@ -1,3 +1,5 @@
+import { summarizeTraderAccuracy } from "../lib/trader-accuracy.js";
+
 interface TrainingEnv {
   MNEME_DB: D1Database;
 }
@@ -126,6 +128,15 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
       .first<{ daily_profit_target_pct: number | null; daily_loss_limit_pct: number | null; consensus_min_win_rate_pct: number | null;
         consensus_min_closed_trades: number | null; consensus_min_traders: number | null; consensus_window_minutes: number | null;
         order_size_pct: number | null; min_liquidity_usd: number | null }>();
+    // Acerto medido de cada trader do Top em 30 dias, com quanto tempo ele costuma ficar na operação.
+    const traderResults = await env.MNEME_DB.prepare(`SELECT source_trader_id, MAX(source_trader_handle) AS handle, COUNT(*) AS closed_trades,
+      SUM(CASE WHEN return_pct > 0 THEN 1 ELSE 0 END) AS wins, COUNT(opened_at) AS timed_trades,
+      AVG(CASE WHEN opened_at IS NOT NULL THEN (julianday(closed_at) - julianday(opened_at)) * 1440 END) AS average_hold_minutes
+      FROM paper_training_trader_results WHERE closed_at >= ? GROUP BY source_trader_id`)
+      .bind(new Date(Date.now() - 30 * 24 * 60 * 60_000).toISOString())
+      .all<{ source_trader_id: string; handle: string; closed_trades: number; wins: number; timed_trades: number; average_hold_minutes: number | null }>();
+    const traderAccuracy = summarizeTraderAccuracy(traderResults.results, limitsRow?.consensus_min_win_rate_pct ?? null,
+      limitsRow?.consensus_min_closed_trades ?? null);
     const dailyTargetPct = limitsRow?.daily_profit_target_pct ?? null;
     const dailyLossLimitPct = limitsRow?.daily_loss_limit_pct ?? null;
     const capitalAddedByTrader = new Map(capitalTotalResult.results.map((row) => [row.trader_id, row.capital_added_usd]));
@@ -210,6 +221,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
           windowMinutes: limitsRow?.consensus_window_minutes ?? null, orderSizePct: limitsRow?.order_size_pct ?? null,
           minLiquidityUsd: limitsRow?.min_liquidity_usd ?? null },
       ],
+      traderAccuracy,
       generatedAt: new Date().toISOString(),
       capitalControlReady: true,
       wallets,
