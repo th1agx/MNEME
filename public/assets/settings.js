@@ -93,7 +93,19 @@ const SECTIONS = [
   },
 ];
 
-let current = null, defaults = null, liveAvailable = false, calibration = null;
+// Bot da nuvem (Treino Bot): lê estes valores do D1 a cada minuto. Aparece sempre que a API da nuvem responde.
+const CLOUD_SECTION = {
+  title: "Meta e limite do dia (bot na nuvem)",
+  text: "O bot da nuvem lê estes valores a cada minuto. Percentual do patrimônio na abertura do dia (UTC, 21h em Brasília). Ao atingir, para de comprar até o dia seguinte; vendas continuam.",
+  fields: [
+    { path: "cloud.dailyProfitTargetPct", label: "Parar de comprar ao ganhar no dia", type: "number", suffix: "%", min: 0, step: "0.01", nullable: true,
+      hint: "Em branco: sem meta." },
+    { path: "cloud.dailyLossLimitPct", label: "Parar de comprar ao perder no dia", type: "number", suffix: "%", min: 0, max: 100, step: "0.01", nullable: true,
+      hint: "Em branco: sem limite." },
+  ],
+};
+
+let current = null, defaults = null, liveAvailable = false, calibration = null, localAvailable = false, cloudAvailable = false;
 
 const get = (obj, path) => path.split(".").reduce((o, k) => o?.[k], obj);
 function set(obj, path, value) {
@@ -136,7 +148,9 @@ function calibrationHint() {
 }
 
 function render() {
-  $("sections").innerHTML = SECTIONS.map((sec) => `
+  const sections = [...(cloudAvailable ? [CLOUD_SECTION] : []), ...(localAvailable ? SECTIONS : [])];
+  $("defaults").hidden = !localAvailable;
+  $("sections").innerHTML = sections.length ? sections.map((sec) => `
     <section class="pane form-section">
       <header><h2>${esc(sec.title)}</h2><p>${esc(sec.text)}</p></header>
       <div class="fields">
@@ -150,8 +164,8 @@ function render() {
           </div>`).join("")}
         ${sec.title === "Modo de execução" ? liveCallout() : ""}
       </div>
-    </section>`).join("");
-  $("modeBadge").innerHTML = modeBadge(current.execution.mode);
+    </section>`).join("") : `<p class="empty">Nem o bot local nem o bot da nuvem responderam. Tente de novo em instantes.</p>`;
+  $("modeBadge").innerHTML = localAvailable ? modeBadge(current.execution.mode) : "";
 }
 
 function liveCallout() {
@@ -192,7 +206,7 @@ $("form").addEventListener("change", (ev) => {
 
 $("defaults").addEventListener("click", () => {
   const mode = current.execution.mode;
-  current = structuredClone(defaults);
+  current = { ...structuredClone(defaults), cloud: current.cloud };
   current.execution.mode = mode === "live" ? "paper" : mode;
   render();
   $("msg").textContent = "Padrões carregados. Clique em Salvar para aplicar.";
@@ -204,21 +218,27 @@ $("form").addEventListener("submit", async (ev) => {
   current = readForm();
   for (const el of document.querySelectorAll("[data-err]")) el.textContent = "";
   for (const el of document.querySelectorAll(".field.invalid")) el.classList.remove("invalid");
-  if (current.execution.mode === "live" && !$("liveAck")?.checked) {
+  if (localAvailable && current.execution.mode === "live" && !$("liveAck")?.checked) {
     $("msg").textContent = "Confirme a caixa do modo dinheiro real para salvar.";
     $("msg").className = "msg bad";
     return;
   }
   $("save").disabled = true;
-  const r = await api("PUT", "/api/settings", current).finally(() => ($("save").disabled = false));
-  if (r.ok) {
-    current = r.data.settings;
+  const { cloud, ...local } = current;
+  const [c, r] = await Promise.all([
+    cloudAvailable ? api("PUT", "/api/training/settings", cloud) : null,
+    localAvailable ? api("PUT", "/api/settings", local) : null,
+  ]).finally(() => ($("save").disabled = false));
+  if (c?.ok) current.cloud = c.data.settings;
+  if (r?.ok) current = { ...r.data.settings, cloud: current.cloud };
+  if ((!c || c.ok) && (!r || r.ok)) {
     render();
     $("msg").textContent = `Salvo às ${hms(new Date().toISOString())}.`;
     $("msg").className = "msg ok";
     return;
   }
-  const errors = r.data?.errors ?? [{ path: "", message: "Erro ao salvar." }];
+  const failed = [c, r].filter((x) => x && !x.ok);
+  const errors = failed.flatMap((x) => x.data?.errors ?? [{ path: "", message: x.data?.error ?? "Erro ao salvar." }]);
   let first = null;
   for (const e of errors) {
     const field = document.querySelector(`[data-field="${e.path}"]`) ?? document.querySelector(`[data-field^="${e.path.split(".").slice(0, 2).join(".")}"]`);
@@ -234,10 +254,15 @@ $("form").addEventListener("submit", async (ev) => {
 });
 
 (async () => {
-  const [s, st] = await Promise.all([api("GET", "/api/settings"), api("GET", "/api/state")]);
-  current = s.data.settings;
-  defaults = s.data.defaults;
-  liveAvailable = s.data.liveAvailable;
-  calibration = st.data?.calibration ?? null;
+  const safe = (p) => api("GET", p).catch(() => ({ ok: false, data: null }));
+  const [s, st, cl] = await Promise.all([safe("/api/settings"), safe("/api/state"), safe("/api/training/settings")]);
+  localAvailable = s.ok && !!s.data?.settings;
+  cloudAvailable = cl.ok && cl.data != null && "dailyProfitTargetPct" in cl.data;
+  current = { ...(localAvailable ? s.data.settings : {}), cloud: cloudAvailable ? cl.data : null };
+  if (localAvailable) {
+    defaults = s.data.defaults;
+    liveAvailable = s.data.liveAvailable;
+    calibration = st.data?.calibration ?? null;
+  }
   render();
 })();

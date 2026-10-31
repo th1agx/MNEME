@@ -10,7 +10,6 @@ function startCloudFeed() {
       active = true;
       document.querySelector('.page-heading h1').textContent = "Mercado e operações";
       document.querySelector('.page-heading p').textContent = "Acompanhe preços e operações recebidas do feed.";
-      document.querySelector('.nav a[href="/configuracoes"]').hidden = true;
       document.querySelectorAll('.section-nav a').forEach(link => { link.hidden = link.hash !== "#mercado"; });
       const feedLink = document.createElement("a");
       feedLink.href = "#feed-operations"; feedLink.textContent = "Operações do feed";

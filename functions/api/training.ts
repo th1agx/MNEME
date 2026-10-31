@@ -109,6 +109,10 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         FROM paper_training_capital_events WHERE applied_at IS NOT NULL GROUP BY trader_id`)
         .all<{ trader_id: string; capital_added_usd: number }>(),
     ]);
+    const limitsRow = await env.MNEME_DB.prepare("SELECT daily_profit_target_pct, daily_loss_limit_pct FROM paper_training_settings WHERE id = 1")
+      .first<{ daily_profit_target_pct: number | null; daily_loss_limit_pct: number | null }>();
+    const dailyTargetPct = limitsRow?.daily_profit_target_pct ?? null;
+    const dailyLossLimitPct = limitsRow?.daily_loss_limit_pct ?? null;
     const capitalAddedByTrader = new Map(capitalTotalResult.results.map((row) => [row.trader_id, row.capital_added_usd]));
     const dailyByTrader = new Map(dailyResult.results.map((row) => [row.trader_id, row]));
 
@@ -149,7 +153,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         dailyPnlUsd: daily?.pnl_usd ?? 0,
         dailyReturnPct: daily?.return_pct ?? 0,
         dailyTargetReached: daily?.target_reached === 1,
-        dailyTargetProgressPct: daily ? Math.max(0, Math.min(100, daily.return_pct / 30 * 100)) : 0,
+        dailyTargetProgressPct: daily && dailyTargetPct ? Math.max(0, Math.min(100, daily.return_pct / dailyTargetPct * 100)) : 0,
         haltedAt: wallet.halted_at,
         haltReason: wallet.halt_reason,
         winRatePct: stats.closedTrades ? (stats.wins / stats.closedTrades) * 100 : null,
@@ -171,7 +175,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         buyVolumeUsd: top50FlowResult?.buy_volume_usd ?? 0,
         sellVolumeUsd: top50FlowResult?.sell_volume_usd ?? 0,
       },
-      execution: { feeRate: 0.001, slippageRate: 0.005, initialWalletUsd: 200_000, dailyTargetPct: 30, dailyTargetIsGoalOnly: true,
+      execution: { feeRate: 0.001, slippageRate: 0.005, initialWalletUsd: 200_000, dailyTargetPct, dailyLossLimitPct,
         scoreMeaning: "etiqueta de execucao, nao probabilidade de lucro" },
       paperCapital: { walletCount: walletResult.results.length, totalAllocatedUsd: walletResult.results.reduce((sum, wallet) => sum + wallet.initial_usd, 0) },
       bots: [

@@ -50,6 +50,15 @@ let priceRefreshTimer = null;
 let dashboardRefreshTimer = null;
 let pendingCapitalEventId = null;
 
+// Meta e limite vêm de Configurações; sem meta definida, a coluna diz isso em vez de inventar um número.
+function dailyTargetLabel(item, execution) {
+  const target = execution?.dailyTargetPct;
+  const loss = execution?.dailyLossLimitPct;
+  const lossText = loss ? ` · limite -${pct(loss)}` : "";
+  if (!target) return `Sem meta definida${lossText}`;
+  return item.dailyTargetReached ? `Atingida hoje · compras pausadas${lossText}` : `${pct(item.dailyReturnPct)} de ${pct(target)}${lossText}`;
+}
+
 function render(data) {
   current = data;
   const flow = data.top50Flow ?? {};
@@ -127,7 +136,7 @@ function render(data) {
 
   const headerLabels = {
     "#": "#", "Conta": "Conta", "Resultado total": "Lucro/prejuízo total", "Realizado": "Já realizado (vendas)", "Em aberto": "Ainda em aberto",
-    "Retorno": "Retorno sobre capital", "Hoje": "Resultado de hoje", "Meta diária 30%": "Meta diária (referência)", "Estado": "Estado",
+    "Retorno": "Retorno sobre capital", "Hoje": "Resultado de hoje", "Meta diária": "Meta diária", "Estado": "Estado",
     "Acerto": "Vendas com lucro", "Fechadas": "Vendas fechadas", "Abertas": "Posições abertas",
   };
   document.querySelectorAll("#walletRows").forEach((body) => body.closest("table").querySelectorAll("thead th").forEach((th) => { if (headerLabels[th.textContent.trim()]) th.textContent = headerLabels[th.textContent.trim()]; }));
@@ -141,7 +150,7 @@ function render(data) {
     <td>${index + 1}</td><td>${safe(item.trader)}</td><td class="num ${tone(item.totalPnlUsd)}">${money(item.totalPnlUsd)}</td>
     <td class="num ${tone(item.realizedPnlUsd)}">${money(item.realizedPnlUsd)}</td><td class="num ${tone(item.unrealizedPnlUsd)}">${money(item.unrealizedPnlUsd)}</td>
     <td class="num ${tone(item.returnPct)}">${pct(item.returnPct)}</td><td class="num ${tone(item.dailyPnlUsd)}">${money(item.dailyPnlUsd)}<small>${pct(item.dailyReturnPct)}</small></td>
-    <td><div class="goal-meter"><span style="width:${Math.max(0, Math.min(100, Number(item.dailyTargetProgressPct) || 0))}%"></span></div><small>${item.dailyTargetReached ? "Atingida hoje" : `${pct(item.dailyReturnPct)} de 30%`}</small></td>
+    <td><div class="goal-meter"><span style="width:${Math.max(0, Math.min(100, Number(item.dailyTargetProgressPct) || 0))}%"></span></div><small>${dailyTargetLabel(item, data.execution)}</small></td>
     <td>${item.haltedAt ? `<span class="halted" title="${safe(item.haltReason)}">Pausada</span>` : "Ativa"}</td>
     <td class="num">${pct(item.winRatePct)}</td><td class="num">${item.closedTrades}</td><td class="num">${item.openPositions}</td></tr>`).join("") : `<tr><td colspan="12" class="empty">${wallets.length ? "Nenhum resultado para este filtro." : "A carteira aparece quando o Worker iniciar."}</td></tr>`;
 
