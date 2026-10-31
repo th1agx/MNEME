@@ -2,7 +2,7 @@ name: Deploy MNEME to Cloudflare
 
 on:
   push:
-    branches: [main, art]
+    branches: [main]
     paths:
       - "public/**"
       - "functions/**"
@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/art'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -56,4 +56,4 @@ jobs:
             -- bash scripts/prepare-pages.sh "$stage_dir/public"
           npx --yes wrangler@4.129.0 pages deploy "$stage_dir/public" \
             --project-name mneme \
-            --branch "$GITHUB_REF_NAME"
+            --branch main
