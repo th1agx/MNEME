@@ -23,16 +23,16 @@
     <div class="training-meta"><span id="followedTraderStatus">Trader seguido: aguardando o primeiro ranking após o reset.</span><span id="trainingStatus" class="training-status" role="status">Carregando resultados…</span></div>
   </div>
   <section class="pane training-board" aria-label="Comparação dos bots">
-    <div class="table-wrap"><table class="bot-compare"><thead><tr><th>Carteira</th><th class="num">Resultado</th><th class="num">Retorno</th><th class="num hide-sm">Patrimônio</th><th class="num hide-sm">Hoje</th><th class="num hide-sm">Posições</th><th class="num hide-sm">Vendas</th><th class="hide-sm">Estado</th></tr></thead><tbody id="botComparison"><tr><td colspan="8" class="empty">Carregando…</td></tr></tbody></table></div>
+    <div class="table-wrap"><table class="bot-compare"><thead><tr><th>Estratégia</th><th class="num">PnL total</th><th class="num">ROI</th><th class="num hide-sm">Patrimônio</th><th class="num hide-sm">PnL hoje</th><th class="num hide-sm">Posições</th><th class="num hide-sm">Trades</th><th class="hide-sm">Status</th></tr></thead><tbody id="botComparison"><tr><td colspan="8" class="empty">Carregando…</td></tr></tbody></table></div>
   </section>
   <section class="pane bot-focus" aria-label="Carteira selecionada">
-    <div class="bot-focus-head"><h2 id="selectedBotName">Carteira</h2><button id="addCapitalButton" class="btn small" type="button" disabled>+ Adicionar capital</button></div>
+    <div class="bot-focus-head"><h2 id="selectedBotName">Carteira</h2><button id="addCapitalButton" class="btn small" type="button" disabled>+ Aportar capital</button></div>
     <p id="capitalNotice" class="capital-notice" role="status"></p>
     <div id="trainingSummary" class="training-summary"></div>
     <div id="trainingExplanation" class="bot-rules"></div>
   </section>
   <details class="training-details">
-    <summary>Desempenho detalhado <small>comparação e qualidade das vendas fechadas</small></summary>
+    <summary>Performance <small>comparativo e resultado por padrão de entrada</small></summary>
     <section class="pane wide training-section">
     <div class="training-heading"><div><h2>Comparação das carteiras <small>mesmos alertas, regras diferentes</small></h2><p class="muted">Cada bot começa com US$ 200.000 paper e mantém saldo, posições e histórico separados. Nenhum envia ordens reais.</p></div><label class="training-search">Filtrar <input id="walletSearch" type="search" placeholder="MNEME"></label></div>
     <div class="table-wrap"><table><thead><tr><th>#</th><th>Conta</th><th class="num">Resultado total</th><th class="num">Realizado</th><th class="num">Em aberto</th><th class="num">Retorno</th><th class="num">Hoje</th><th>Meta diária 30%</th><th>Estado</th><th class="num">Acerto</th><th class="num">Fechadas</th><th class="num">Abertas</th></tr></thead><tbody id="walletRows"><tr><td colspan="12" class="empty">Carregando…</td></tr></tbody></table></div>
@@ -44,7 +44,7 @@
     </section>
   </details>
   <details class="training-details">
-    <summary>Memória do bot <small>histórico diário, aportes e decisões relevantes</small></summary>
+    <summary>Histórico <small>diário, aportes, sinais e incidentes</small></summary>
     <section class="pane wide training-section">
     <h2>Memória diária <small>resultados guardados para comparação</small></h2>
     <p class="muted">O D1 mantém um resumo por bot e por dia, operações executadas, alertas recentes necessários para reconhecer padrões e decisões de alto interesse. Cotações não são armazenadas como histórico.</p>
@@ -64,7 +64,7 @@
     </section>
   </details>
   <details class="training-details">
-    <summary>Posições e movimentações <small>ativos abertos e histórico de ordens</small></summary>
+    <summary>Posições e ordens <small>carteira aberta e execuções recentes</small></summary>
     <section class="pane wide training-section">
     <h2>Posições abertas <small id="positionCount">0</small></h2>
     <p class="muted">O bot acompanha cada ativo separadamente. Valor atual = quantidade × preço observado; variação = ganho ou perda em relação ao custo total, incluindo taxa. O ganho só é realizado depois da venda.</p>
@@ -75,7 +75,7 @@
     <div class="table-wrap"><table><thead><tr><th>Executada</th><th>Trader</th><th>Lado</th><th>Ativo</th><th>Rede</th><th class="num">Preço</th><th class="num">Valor</th><th class="num">Taxa</th><th>Padrão</th><th>Resultado</th><th>Situação</th></tr></thead><tbody id="orderRows"><tr><td colspan="11" class="empty">Aguardando movimentações.</td></tr></tbody></table></div>
     </section>
   </details>
-  <details id="trainingRules" class="training-details training-rules"><summary>Regras da simulação</summary><p class="training-note">Ambas as carteiras seguem um único trader, escolhido como primeiro do ranking de 30 dias após o reset; o ID fica fixo durante o teste. O Conservador espera uma segunda compra do mesmo trader no mesmo ativo, exige liquidez de US$ 25.000 e compra 2% da carteira por sinal. O Arriscado copia a primeira compra, exige liquidez de US$ 10.000, compra 4% por sinal e não aplica intervalo entre compras. As vendas seguem os sinais de venda desse trader; sinais dos demais não abrem nem fecham posições. Limite por ativo: 10% no Conservador e 15% no Arriscado; exposição total máxima: 100%. Slippage simulado: 0,5%; taxa: 0,1%. Nenhuma ordem real é enviada.</p></details>
+  <details id="trainingRules" class="training-details training-rules"><summary>Parâmetros da estratégia</summary><p class="training-note">Ambas as carteiras seguem um único trader, escolhido como primeiro do ranking de 30 dias após o reset; o ID fica fixo durante o teste. O Conservador espera uma segunda compra do mesmo trader no mesmo ativo, exige liquidez de US$ 25.000 e compra 2% da carteira por sinal. O Arriscado copia a primeira compra, exige liquidez de US$ 10.000, compra 4% por sinal e não aplica intervalo entre compras. As vendas seguem os sinais de venda desse trader; sinais dos demais não abrem nem fecham posições. Limite por ativo: 10% no Conservador e 15% no Arriscado; exposição total máxima: 100%. Slippage simulado: 0,5%; taxa: 0,1%. Nenhuma ordem real é enviada.</p></details>
 </main>
 <dialog id="capitalDialog" class="capital-dialog">
   <form id="capitalForm">

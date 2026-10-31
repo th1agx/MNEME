@@ -21,8 +21,8 @@ function render(data) {
   current = data;
   const followedTrader = data.followedTrader;
   document.querySelector("#followedTraderStatus").textContent = followedTrader
-    ? `Seguindo ${followedTrader.handle} · #${followedTrader.rank ?? "-"} no ranking 30d`
-    : "Aguardando o ranking para fixar o trader seguido";
+    ? `Copy trading · ${followedTrader.handle} (#${followedTrader.rank ?? "-"} · 30D)`
+    : "Copy trading · aguardando ranking para fixar o trader";
   document.querySelector("#followedTraderStatus").title = followedTrader?.selectedAt ? `ID fixado desde ${new Date(followedTrader.selectedAt).toLocaleString("pt-BR")}` : "";
   const allPositions = data.positions ?? [];
   const wallets = (data.wallets ?? []).map((item) => {
@@ -50,23 +50,23 @@ function render(data) {
     <td class="num ${tone(item.totalPnlUsd)}"><b>${money(item.totalPnlUsd)}</b></td><td class="num ${tone(item.returnPct)}">${pct(item.returnPct)}</td>
     <td class="num hide-sm">${money(item.equityUsd)}</td><td class="num hide-sm ${tone(item.dailyPnlUsd)}">${money(item.dailyPnlUsd)}</td>
     <td class="num hide-sm">${item.openPositions}</td><td class="num hide-sm">${item.closedTrades}</td>
-    <td class="hide-sm">${item.haltedAt ? `<span class="halted" title="${safe(item.haltReason)}">Pausado</span>` : `<span class="state-on">Ativo</span>`}</td></tr>`).join("")
+    <td class="hide-sm">${item.haltedAt ? `<span class="halted" title="${safe(item.haltReason)}">Pausado</span>` : `<span class="state-on">Operando</span>`}</td></tr>`).join("")
     : `<tr><td colspan="8" class="empty">As carteiras aparecem quando o Worker iniciar.</td></tr>`;
   const positions = (data.positions ?? []).filter((item) => item.botId === selectedBotId);
   const orders = (data.orders ?? []).filter((item) => item.botId === selectedBotId);
   const incidents = (data.incidents ?? []).filter((item) => item.botId === selectedBotId);
   const patterns = (data.patterns ?? []).filter((item) => item.botId === selectedBotId);
   const summary = [
-    ["Patrimônio", money(wallet?.equityUsd), `aportado ${money(wallet?.initialUsd ?? data.paperCapital?.totalAllocatedUsd)}`, ""],
-    ["Saldo livre", money(wallet?.cashUsd), `em posições ${money(wallet?.marketValueUsd)}`, ""],
-    ["Realizado", money(wallet?.realizedPnlUsd), `${plural(wallet?.closedTrades, "venda", "vendas")}${wallet?.winRatePct == null ? "" : ` · acerto ${pct(wallet.winRatePct)}`}`, tone(wallet?.realizedPnlUsd)],
-    ["Em aberto", money(wallet?.unrealizedPnlUsd), `${plural(wallet?.openPositions, "posição", "posições")} · estimado`, tone(wallet?.unrealizedPnlUsd)],
+    ["Patrimônio", money(wallet?.equityUsd), `Capital alocado ${money(wallet?.initialUsd ?? data.paperCapital?.totalAllocatedUsd)}`, ""],
+    ["Caixa disponível", money(wallet?.cashUsd), `Exposição ${money(wallet?.marketValueUsd)} · ${pct(wallet?.equityUsd > 0 ? wallet.marketValueUsd / wallet.equityUsd * 100 : 0)}`, ""],
+    ["PnL realizado", money(wallet?.realizedPnlUsd), `${plural(wallet?.closedTrades, "trade fechado", "trades fechados")}${wallet?.winRatePct == null ? "" : ` · win rate ${pct(wallet.winRatePct)}`}`, tone(wallet?.realizedPnlUsd)],
+    ["PnL não realizado", money(wallet?.unrealizedPnlUsd), `${plural(wallet?.openPositions, "posição aberta", "posições abertas")} · marcado a mercado`, tone(wallet?.unrealizedPnlUsd)],
   ];
   document.querySelector("#selectedBotName").textContent = botName(selectedBotId);
   document.querySelector("#trainingSummary").innerHTML = summary.map(([label, value, note, valueTone]) => `<div class="training-kpi"><span>${safe(label)}</span><b class="${valueTone}">${safe(value)}</b><small>${safe(note)}</small></div>`).join("");
   const capitalButton = document.querySelector("#addCapitalButton");
   capitalButton.disabled = !data.capitalControlReady;
-  capitalButton.title = "Aporte simulado: entra no saldo e no capital aportado, não como lucro";
+  capitalButton.title = "Aporte simulado: entra no caixa e no capital alocado, não conta como PnL";
   document.querySelector("#capitalBot").innerHTML = wallets.map((item) => `<option value="${safe(item.botId)}">${safe(botName(item.botId))}</option>`).join("");
   document.querySelector("#capitalBot").value = selectedBotId;
   const capitalEvents = data.capitalEvents ?? [];
@@ -76,15 +76,15 @@ function render(data) {
     : `<tr><td colspan="3" class="empty">Nenhum aporte registrado.</td></tr>`;
   const profile = bots.find((bot) => bot.id === selectedBotId);
   const ruleChips = profile ? [
-    profile.buyConfirmations > 1 ? `Entra após ${profile.buyConfirmations} compras` : "Entra no 1º sinal",
-    `${profile.buySizePct}% por sinal`,
-    `Liquidez mín. ${money(profile.minimumLiquidityUsd).replace(/,00$/, "")}`,
-    `Máx. ${profile.maxAssetExposurePct}% por ativo`,
-    profile.buyCooldownMinutes > 0 ? `Intervalo ${profile.buyCooldownMinutes} min` : "Sem intervalo",
+    profile.buyConfirmations > 1 ? `Gatilho: ${profile.buyConfirmations}ª compra` : "Gatilho: 1º sinal",
+    `Tamanho: ${profile.buySizePct}% / sinal`,
+    `Liquidez mín.: US$ ${Math.round(profile.minimumLiquidityUsd / 1000)} mil`,
+    `Exposição máx.: ${profile.maxAssetExposurePct}% / ativo`,
+    profile.buyCooldownMinutes > 0 ? `Cooldown: ${profile.buyCooldownMinutes} min` : "Sem cooldown",
   ] : [];
   const waiting = !positions.length && !(wallet?.closedTrades);
   document.querySelector("#trainingExplanation").innerHTML = `<div class="rule-chips">${ruleChips.map((chip) => `<span>${safe(chip)}</span>`).join("")}</div>
-    <p>${waiting ? `Aguardando o primeiro sinal de compra de <b>${safe(followedTrader?.handle ?? "trader seguido")}</b>. ` : ""}Copia só o trader seguido; o resultado em aberto vira realizado na venda. <a href="#trainingRules" class="rules-link">Ver regras completas</a></p>`;
+    <p>${waiting ? `Sem posições abertas · aguardando sinal de compra de <b>${safe(followedTrader?.handle ?? "trader seguido")}</b>. ` : ""}Replica apenas as operações do trader seguido; PnL não realizado é marcado a mercado e realizado no fechamento. <a href="#trainingRules" class="rules-link">Parâmetros completos</a></p>`;
 
   const headerLabels = {
     "#": "#", "Conta": "Conta", "Resultado total": "Lucro/prejuízo total", "Realizado": "Já realizado (vendas)", "Em aberto": "Ainda em aberto",
@@ -153,7 +153,7 @@ function render(data) {
   document.querySelector("#historyRows").innerHTML = history.length ? history.map((row) => `<tr><td>${safe(row.day)}</td><td>${safe(botName(row.botId))}</td>
     <td class="num">${money(row.equityUsd)}</td><td class="num ${tone(row.pnlUsd)}">${money(row.pnlUsd)}</td><td class="num ${tone(row.returnPct)}">${pct(row.returnPct)}</td></tr>`).join("")
     : `<tr><td colspan="5" class="empty">O histórico diário será registrado pelo Worker.</td></tr>`;
-  document.querySelector("#trainingStatus").textContent = `Atualizado ${new Date(data.generatedAt).toLocaleTimeString("pt-BR")} · cotações ${data.pricesCheckedAt ? new Date(data.pricesCheckedAt).toLocaleTimeString("pt-BR") : "aguardando"}`;
+  document.querySelector("#trainingStatus").textContent = `Atualizado ${new Date(data.generatedAt).toLocaleTimeString("pt-BR")} · Preços ${data.pricesCheckedAt ? new Date(data.pricesCheckedAt).toLocaleTimeString("pt-BR") : "—"}`;
   document.querySelector("#trainingStatus").classList.remove("error");
 }
 
@@ -162,6 +162,7 @@ async function refresh() {
     const response = await fetch("/api/training", { headers: { accept: "application/json" }, cache: "no-store" });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error ?? "Nao foi possivel carregar o treino.");
+    data.pricesCheckedAt ??= current?.pricesCheckedAt;
     render(data);
   } catch (error) {
     const status = document.querySelector("#trainingStatus");
