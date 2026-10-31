@@ -5,6 +5,15 @@
 # O arquivo de regras precisa permanecer legível para o git-crypt.
 .gitattributes !filter !diff
 
+# README aberto: é a página do projeto no GitHub.
+README.md !filter !diff
+# Imagens exibidas no README.
+docs/assets/*.svg !filter !diff
+# Pasta colaborar aberta: guia e script precisam estar legíveis para abrir o resto.
+colaborar/** !filter !diff
+colaborar/*.sh text eol=lf
+colaborar/chaves/*.enc binary
+
 # Workflow necessário para publicar Pages/Functions pelo GitHub Actions.
 .github/workflows/deploy-cloudflare.yml !filter !diff
 .github/workflows/deploy-cloudflare-worker.yml !filter !diff
