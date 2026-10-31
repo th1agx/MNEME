@@ -157,7 +157,7 @@ function liveCallout() {
     return `<div class="field full"><div class="callout">Dinheiro real está bloqueado. Para liberar: crie uma carteira Solana nova só para o bot, coloque pouco saldo, defina <b>SOLANA_PRIVATE_KEY</b> e <b>LIVE_TRADING=on</b> no <b>.env</b> e reinicie o MNEME.</div></div>`;
   }
   if (current.execution.mode !== "live") return "";
-  return `<div class="field full"><div class="callout live">O bot vai comprar e vender sozinho na carteira Solana dedicada, dentro dos limites desta página. Comece com valores pequenos.</div>
+  return `<div class="field full"><div class="callout live">Proteção do modo real: cada compra fica limitada a 10% do capital de referência. Ao atingir perda acumulada de 10%, novas compras param e a trava fica salva mesmo após reiniciar; vendas continuam liberadas. Use uma carteira Solana dedicada ao bot.</div>
     <label class="check" style="margin-top:8px"><input type="checkbox" id="liveAck"><span>Entendo que operações reais podem dar prejuízo e quero ativar o modo dinheiro real.</span></label></div>`;
 }
 
