@@ -12,6 +12,7 @@ const patternName = (value) => ({
 let current = null;
 let selectedBotId = "mneme-paper-conservative";
 let priceRefreshTimer = null;
+let dashboardRefreshTimer = null;
 
 function render(data) {
   current = data;
@@ -180,7 +181,14 @@ document.querySelector("#botComparison").addEventListener("click", (event) => {
 });
 void refresh();
 void refreshPrices();
-setInterval(refresh, 15_000);
+const scheduleDashboardRefresh = () => {
+  if (dashboardRefreshTimer) clearTimeout(dashboardRefreshTimer);
+  if (document.hidden) return;
+  dashboardRefreshTimer = setTimeout(async () => {
+    await refresh();
+    scheduleDashboardRefresh();
+  }, 15_000);
+};
 const schedulePriceRefresh = () => {
   if (priceRefreshTimer) clearTimeout(priceRefreshTimer);
   if (document.hidden) return;
@@ -189,5 +197,16 @@ const schedulePriceRefresh = () => {
     schedulePriceRefresh();
   }, 10_000);
 };
-document.addEventListener("visibilitychange", schedulePriceRefresh);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    if (dashboardRefreshTimer) clearTimeout(dashboardRefreshTimer);
+    if (priceRefreshTimer) clearTimeout(priceRefreshTimer);
+    return;
+  }
+  void refresh();
+  void refreshPrices();
+  scheduleDashboardRefresh();
+  schedulePriceRefresh();
+});
+scheduleDashboardRefresh();
 schedulePriceRefresh();
