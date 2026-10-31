@@ -66,17 +66,30 @@ interface FollowedTraderRow {
   selected_at: string | null;
 }
 
+interface TrainingFollowerRow {
+  source_trader_id: string;
+  source_trader_handle: string;
+  source_rank: number | null;
+  win_rate: number | null;
+  closed_trades: number;
+  selection_mode: "accuracy" | "calibration";
+  selected_at: string;
+}
+
 const jsonHeaders = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
 const trainingBotIds = ["mneme-paper-conservative", "mneme-paper-risky"] as const;
 
 export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request }) => {
   if (request.method !== "GET") return Response.json({ error: "Método não permitido." }, { status: 405, headers: jsonHeaders });
   try {
-    const [walletResult, positionResult, orderResult, followedTraderResult] = await Promise.all([
+    const [walletResult, positionResult, orderResult, followedTraderResult, followedTradersResult] = await Promise.all([
       env.MNEME_DB.prepare("SELECT * FROM paper_training_wallets WHERE trader_id IN (?, ?)").bind(...trainingBotIds).all<WalletRow>(),
       env.MNEME_DB.prepare("SELECT * FROM paper_training_positions WHERE trader_id IN (?, ?) ORDER BY updated_at DESC LIMIT 4000").bind(...trainingBotIds).all<PositionRow>(),
       env.MNEME_DB.prepare("SELECT * FROM paper_training_orders WHERE trader_id IN (?, ?) AND status != 'processing' ORDER BY executed_at DESC LIMIT 200").bind(...trainingBotIds).all<OrderRow>(),
       env.MNEME_DB.prepare("SELECT followed_trader_id, followed_trader_handle, followed_trader_rank, selected_at FROM paper_training_settings WHERE id = 1").all<FollowedTraderRow>(),
+      env.MNEME_DB.prepare(`SELECT source_trader_id, source_trader_handle, source_rank, win_rate, closed_trades, selection_mode, selected_at
+        FROM paper_training_followers ORDER BY CASE selection_mode WHEN 'accuracy' THEN 0 ELSE 1 END, win_rate DESC, closed_trades DESC, source_rank ASC`)
+        .all<TrainingFollowerRow>(),
     ]);
     const [dailyResult, incidentResult, patternResult, patternPerformanceResult, dailyHistoryResult, capitalEventResult, capitalTotalResult] = await Promise.all([
       env.MNEME_DB.prepare(`SELECT * FROM paper_training_daily_metrics
@@ -161,12 +174,21 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
 
     return Response.json({
       mode: "paper",
-      strategy: "Os dois bots seguem o mesmo trader fixado pelo ranking de 30 dias. O Conservador espera uma segunda compra dele no ativo; o Arriscado copia o primeiro sinal. Ambos seguem as vendas dele e mantêm limites próprios; sem ordens reais.",
+      strategy: "Os dois bots acompanham até cinco traders do Top de 30 dias. Após cinco saídas paper por trader, priorizam os maiores percentuais de acerto medidos internamente; enquanto formam a amostra, usam a posição do ranking. O Conservador espera uma segunda compra do mesmo trader no ativo; o Arriscado copia a primeira. Tudo em simulação.",
       followedTrader: followedTraderRow?.followed_trader_id ? {
         handle: followedTraderRow.followed_trader_handle,
         rank: followedTraderRow.followed_trader_rank,
         selectedAt: followedTraderRow.selected_at,
       } : null,
+      followedTraders: followedTradersResult.results.map((row) => ({
+        handle: row.source_trader_handle,
+        rank: row.source_rank,
+        winRatePct: row.win_rate == null ? null : row.win_rate * 100,
+        closedTrades: row.closed_trades,
+        selectionMode: row.selection_mode,
+        selectedAt: row.selected_at,
+      })),
+      traderAccuracy: { selectionSamplesRequired: 5, windowDays: 30, bootstrap: "posição no Top de 30 dias enquanto a amostra de acerto é formada" },
       execution: { feeRate: 0.001, slippageRate: 0.005, initialWalletUsd: 200_000, dailyTargetPct: 30, dailyTargetIsGoalOnly: true,
         scoreMeaning: "etiqueta de execucao, nao probabilidade de lucro" },
       paperCapital: { walletCount: walletResult.results.length, totalAllocatedUsd: walletResult.results.reduce((sum, wallet) => sum + wallet.initial_usd, 0) },
