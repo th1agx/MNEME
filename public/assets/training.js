@@ -11,6 +11,7 @@ const patternName = (value) => ({
 }[value] ?? value ?? "-");
 let current = null;
 let selectedBotId = "mneme-paper-conservative";
+let priceRefreshTimer = null;
 
 function render(data) {
   current = data;
@@ -111,7 +112,7 @@ function render(data) {
   document.querySelector("#historyRows").innerHTML = history.length ? history.map((row) => `<tr><td>${safe(row.day)}</td><td>${safe(botName(row.botId))}</td>
     <td class="num">${money(row.equityUsd)}</td><td class="num ${tone(row.pnlUsd)}">${money(row.pnlUsd)}</td><td class="num ${tone(row.returnPct)}">${pct(row.returnPct)}</td></tr>`).join("")
     : `<tr><td colspan="5" class="empty">O histórico diário será registrado pelo Worker.</td></tr>`;
-  document.querySelector("#trainingStatus").textContent = `Atualizado ${new Date(data.generatedAt).toLocaleTimeString("pt-BR")} · atualiza a cada 15 segundos`;
+  document.querySelector("#trainingStatus").textContent = `Painel ${new Date(data.generatedAt).toLocaleTimeString("pt-BR")} · cotações verificadas ${data.pricesCheckedAt ? new Date(data.pricesCheckedAt).toLocaleTimeString("pt-BR") : "aguardando"}`;
   document.querySelector("#trainingStatus").classList.remove("error");
 }
 
@@ -124,6 +125,42 @@ async function refresh() {
   } catch (error) {
     const status = document.querySelector("#trainingStatus");
     status.textContent = error instanceof Error ? error.message : "Nao foi possivel carregar o treino.";
+    status.classList.add("error");
+  }
+}
+
+async function refreshPrices() {
+  if (document.hidden) return;
+  try {
+    const response = await fetch("/api/training/prices", { headers: { accept: "application/json" }, cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error ?? "Cotações temporariamente indisponíveis.");
+    if (!current) return;
+    const livePositions = new Map((data.positions ?? []).map((position) => [
+      `${position.botId}:${position.chain.toLowerCase()}:${position.address.toLowerCase()}`, position,
+    ]));
+    for (const position of current.positions ?? []) {
+      const live = livePositions.get(`${position.botId}:${position.chain.toLowerCase()}:${position.address.toLowerCase()}`);
+      if (!live) continue;
+      position.markPriceUsd = live.priceUsd;
+      position.unrealizedPnlUsd = live.unrealizedPnlUsd;
+    }
+    for (const wallet of current.wallets ?? []) {
+      const previousUnrealized = wallet.unrealizedPnlUsd;
+      const positions = (current.positions ?? []).filter((position) => position.botId === wallet.botId);
+      wallet.marketValueUsd = positions.reduce((sum, position) => sum + position.quantity * position.markPriceUsd, 0);
+      wallet.unrealizedPnlUsd = positions.reduce((sum, position) => sum + position.unrealizedPnlUsd, 0);
+      wallet.totalPnlUsd = wallet.realizedPnlUsd + wallet.unrealizedPnlUsd;
+      wallet.equityUsd = wallet.cashUsd + wallet.marketValueUsd;
+      wallet.returnPct = wallet.initialUsd > 0 ? (wallet.equityUsd - wallet.initialUsd) / wallet.initialUsd * 100 : 0;
+      wallet.dailyPnlUsd += wallet.unrealizedPnlUsd - previousUnrealized;
+      wallet.dailyReturnPct = wallet.initialUsd > 0 ? wallet.dailyPnlUsd / wallet.initialUsd * 100 : 0;
+    }
+    current.pricesCheckedAt = data.checkedAt;
+    render(current);
+  } catch (error) {
+    const status = document.querySelector("#trainingStatus");
+    status.textContent = error instanceof Error ? error.message : "Cotações temporariamente indisponíveis.";
     status.classList.add("error");
   }
 }
@@ -142,4 +179,15 @@ document.querySelector("#botComparison").addEventListener("click", (event) => {
   render(current);
 });
 void refresh();
+void refreshPrices();
 setInterval(refresh, 15_000);
+const schedulePriceRefresh = () => {
+  if (priceRefreshTimer) clearTimeout(priceRefreshTimer);
+  if (document.hidden) return;
+  priceRefreshTimer = setTimeout(async () => {
+    await refreshPrices();
+    schedulePriceRefresh();
+  }, 10_000);
+};
+document.addEventListener("visibilitychange", schedulePriceRefresh);
+schedulePriceRefresh();

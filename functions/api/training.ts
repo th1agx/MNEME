@@ -160,6 +160,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         trader: walletResult.results.find((wallet) => wallet.trader_id === position.trader_id)?.trader_handle ?? position.trader_id,
         symbol: position.token_symbol,
         chain: position.chain,
+        address: position.token_address,
         quantity: position.quantity,
         entryPriceUsd: position.entry_price_usd,
         markPriceUsd: position.mark_price_usd,
