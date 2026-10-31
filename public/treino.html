@@ -19,11 +19,11 @@
 </header>
 <main class="training-main">
   <div class="page-heading">
-    <div><h1>Treino Bot</h1><p>Duas carteiras paper acompanham até cinco traders do Top de 30 dias e medem acertos por operações encerradas; sem envio de ordens reais.</p></div>
+    <div><h1>Treino Bot</h1><p>Duas carteiras paper analisam o fluxo dos 50 traders do Top antes de simular ordens; sem operações reais.</p></div>
     <span class="training-mode">SIMULAÇÃO</span>
   </div>
   <div id="trainingStatus" class="training-status" role="status">Carregando resultados…</div>
-  <p id="followedTraderStatus" class="muted">Aguardando o ranking Top de 30 dias para selecionar traders e medir os acertos.</p>
+  <p id="top50FlowStatus" class="muted">Aguardando dados recentes do fluxo dos 50 traders do Top.</p>
   <section id="botComparison" class="bot-comparison" aria-label="Comparação dos bots"></section>
   <div id="botTabs" class="bot-tabs" role="tablist" aria-label="Selecionar bot"></div>
   <div class="capital-toolbar">
@@ -77,7 +77,7 @@
     <div class="table-wrap"><table><thead><tr><th>Executada</th><th>Trader</th><th>Lado</th><th>Ativo</th><th>Rede</th><th class="num">Preço</th><th class="num">Valor</th><th class="num">Taxa</th><th>Padrão</th><th>Resultado</th><th>Situação</th></tr></thead><tbody id="orderRows"><tr><td colspan="11" class="empty">Aguardando movimentações.</td></tr></tbody></table></div>
     </section>
   </details>
-  <details class="training-details training-rules"><summary>Regras da simulação</summary><p class="training-note">As duas carteiras acompanham até cinco traders do Top de 30 dias. Depois de pelo menos cinco operações encerradas em paper por trader, a seleção prioriza os maiores percentuais de acerto observados nos últimos 30 dias; antes disso, usa a posição no ranking para formar a amostra. Uma operação conta como acerto se a venda simulada, já com slippage e taxas, fechar positiva. O Conservador espera a segunda compra do mesmo trader no ativo, exige liquidez de US$ 25.000 e usa 2% da carteira por entrada. O Arriscado copia a primeira compra, exige liquidez de US$ 10.000 e usa 4%. Limite por ativo: 10% no Conservador e 15% no Arriscado; exposição total máxima: 100%. Nenhuma ordem real é enviada.</p></details>
+  <details class="training-details training-rules"><summary>Regras da simulação</summary><p class="training-note">Os sinais dos 50 traders do Top são agrupados por ativo em uma janela de 5 minutos. Cada bot compara número de compradores e vendedores, volume e pressão de compra/venda. O Conservador exige 3 compradores, pelo menos US$ 2.500 comprados e 65% de pressão compradora; o Arriscado exige 2 compradores, US$ 1.000 e 55%. As vendas também precisam de confirmação de vários traders. O histórico paper positivo reforça a pontuação quando há amostra suficiente. Liquidez mínima: US$ 25.000 no Conservador e US$ 10.000 no Arriscado. Entradas: 2% e 4% da carteira, respectivamente. Limites por ativo: 10% e 15%; exposição total máxima: 100%. As ordens são simuladas com taxa e slippage. Nenhuma ordem real é enviada.</p></details>
 </main>
 <dialog id="capitalDialog" class="capital-dialog">
   <form id="capitalForm">

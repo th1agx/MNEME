@@ -8,7 +8,6 @@ const patternName = (value) => ({
   large_buy: "Compra de alto valor", crowd_buy: "Compra em grupo", large_and_crowd_buy: "Alto valor + grupo",
   large_sell: "Venda de alto valor", crowd_sell: "Venda em grupo", sell_batch: "Venda em lote",
   mixed_flow: "Fluxo conflitante", unconfirmed: "Sem confirmacao",
-  trader_copy_buy: "Compra do trader seguido", trader_copy_sell: "Venda do trader seguido",
 }[value] ?? value ?? "-");
 let current = null;
 let selectedBotId = "mneme-paper-conservative";
@@ -18,12 +17,9 @@ let pendingCapitalEventId = null;
 
 function render(data) {
   current = data;
-  const followedTraders = data.followedTraders ?? [];
-  document.querySelector("#followedTraderStatus").textContent = followedTraders.length
-    ? `Traders acompanhados: ${followedTraders.map((trader) => trader.selectionMode === "accuracy"
-      ? `${trader.handle} · ${pct(trader.winRatePct)} em ${trader.closedTrades} fechadas`
-      : `${trader.handle} · calibrando (${trader.closedTrades}/5 fechadas)`).join("  |  ")}`
-    : "Aguardando o ranking Top de 30 dias para selecionar traders e medir os acertos.";
+  const flow = data.top50Flow ?? {};
+  document.querySelector("#top50FlowStatus").textContent =
+    `Fluxo Top 50 - ultimos ${flow.windowMinutes ?? 5} min: ${flow.activeTraders ?? 0} traders ativos, ${flow.buyers ?? 0} compradores e ${flow.sellers ?? 0} vendedores - compras ${money(flow.buyVolumeUsd)} / vendas ${money(flow.sellVolumeUsd)}.`;
   const allPositions = data.positions ?? [];
   const wallets = (data.wallets ?? []).map((item) => {
     const openPositions = allPositions.filter((position) => position.botId === item.botId);
@@ -78,8 +74,8 @@ function render(data) {
     : `<tr><td colspan="3" class="empty">Nenhum aporte registrado.</td></tr>`;
   const positionLines = positions.map((position) => `${safe(position.symbol)}: custo de ${money(position.costUsd)}; valor agora de ${money(position.costUsd + position.unrealizedPnlUsd)}; variação aberta de ${money(position.unrealizedPnlUsd)}.`).join(" ");
   const profile = bots.find((bot) => bot.id === selectedBotId);
-  const profileRules = profile ? `${profile.buyConfirmations > 1 ? `Compra após ${profile.buyConfirmations} compras do trader no mesmo ativo` : "Compra no primeiro sinal do trader"}; ${profile.buySizePct}% da carteira por sinal; liquidez mínima ${money(profile.minimumLiquidityUsd)}; limite de ${profile.maxAssetExposurePct}% por ativo e ${profile.maxPortfolioExposurePct}% total; ${profile.buyCooldownMinutes > 0 ? `intervalo de ${profile.buyCooldownMinutes} min por ativo` : "sem intervalo entre compras"}.` : "";
-  document.querySelector("#trainingExplanation").innerHTML = `<b>${safe(botName(selectedBotId))}:</b> ${profileRules} Segue até cinco traders do Top de 30 dias, priorizados pelo acerto medido em saídas paper. Enquanto cada um não tiver cinco saídas, a seleção usa a posição no ranking. As vendas são simuladas ao preço observado, com taxa e slippage. O patrimônio soma saldo disponível e posições. O resultado em aberto é estimado e só vira realizado na venda. ${positionLines || "Ainda não há posições abertas."}<span>Resultado de hoje: <b>${money(wallet?.dailyPnlUsd)}</b> (${pct(wallet?.dailyReturnPct)}). Valores paper; acerto passado não garante lucro futuro.</span>`;
+  const profileRules = profile ? `Compra com pelo menos ${profile.minBuyers} compradores do Top e ${money(profile.minimumBuyVolumeUsd)} de volume, pressao compradora de ${profile.minimumPressurePct}%, e liquidez de ${money(profile.minimumLiquidityUsd)}; vende com ${profile.minSellers} vendedores, ${money(profile.minimumSellVolumeUsd)} de volume e ${profile.minimumPressurePct}% de pressao. Usa ${profile.buySizePct}% da carteira por entrada, limite de ${profile.maxAssetExposurePct}% por ativo e ${profile.maxPortfolioExposurePct}% total; ${profile.buyCooldownMinutes > 0 ? `intervalo de ${profile.buyCooldownMinutes} min por ativo` : "sem intervalo entre compras"}.` : "";
+  document.querySelector("#trainingExplanation").innerHTML = `<b>${safe(botName(selectedBotId))}:</b> ${profileRules} Analisa as operacoes recentes dos 50 traders do Top por ativo antes de decidir; o historico paper positivo reforca a pontuacao quando ja existe amostra. O Conservador exige mais confirmacao; o Arriscado entra com um fluxo menor. As ordens sao simuladas ao preco observado, com taxa e slippage. O resultado em aberto e estimado e so vira realizado na venda. ${positionLines || "Ainda nao ha posicoes abertas."}<span>Resultado de hoje: <b>${money(wallet?.dailyPnlUsd)}</b> (${pct(wallet?.dailyReturnPct)}). Valores paper; acerto passado nao garante lucro futuro.</span>`;
 
   const headerLabels = {
     "#": "#", "Conta": "Conta", "Resultado total": "Lucro/prejuízo total", "Realizado": "Já realizado (vendas)", "Em aberto": "Ainda em aberto",
