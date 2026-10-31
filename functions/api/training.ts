@@ -150,8 +150,8 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         scoreMeaning: "forca heuristica das regras, nao probabilidade de lucro" },
       paperCapital: { walletCount: walletResult.results.length, totalAllocatedUsd: walletResult.results.reduce((sum, wallet) => sum + wallet.initial_usd, 0) },
       bots: [
-        { id: trainingBotIds[0], name: "MNEME Conservador", largeSignalUsd: 5_000, crowdMinimumTraders: 3, crowdMinimumVolumeUsd: 2_500, maxAssetExposurePct: 2, maxPortfolioExposurePct: 25, buyCooldownMinutes: 15 },
-        { id: trainingBotIds[1], name: "MNEME Arriscado", largeSignalUsd: 2_500, crowdMinimumTraders: 2, crowdMinimumVolumeUsd: 1_500, maxAssetExposurePct: 1, maxPortfolioExposurePct: 10, buyCooldownMinutes: 5 },
+        { id: trainingBotIds[0], name: "MNEME Conservador", largeSignalUsd: 5_000, crowdMinimumTraders: 3, crowdMinimumVolumeUsd: 2_500, maxAssetExposurePct: 10, maxPortfolioExposurePct: 100, buyCooldownMinutes: 5 },
+        { id: trainingBotIds[1], name: "MNEME Arriscado", largeSignalUsd: 2_500, crowdMinimumTraders: 2, crowdMinimumVolumeUsd: 1_500, maxAssetExposurePct: 15, maxPortfolioExposurePct: 100, buyCooldownMinutes: 2 },
       ],
       generatedAt: new Date().toISOString(),
       wallets,

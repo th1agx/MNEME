@@ -6,6 +6,7 @@ on:
     paths:
       - "public/**"
       - "functions/**"
+      - "functions/**"
       - "wrangler.jsonc"
       - ".gitattributes"
       - "scripts/prepare-pages.sh"
