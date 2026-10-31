@@ -65,10 +65,8 @@ function render(data) {
   document.querySelector("#trainingSummary").innerHTML = summary.map(([label, value]) => `<div class="training-kpi"><span>${safe(label)}</span><b>${safe(value)}</b></div>`).join("");
   const capitalButton = document.querySelector("#addCapitalButton");
   capitalButton.disabled = !data.capitalControlReady;
-  capitalButton.title = data.capitalControlReady ? "Adicionar saldo simulado à carteira selecionada" : "Configure o Secret TRAINING_ADMIN_KEY nas configurações do projeto Pages";
-  document.querySelector("#capitalControlHelp").textContent = data.capitalControlReady
-    ? "Aporte simulado entra no saldo e no capital aportado, não como lucro."
-    : "Para habilitar, configure TRAINING_ADMIN_KEY como Secret de pelo menos 32 caracteres no projeto Pages. O aporte será simulado e não contará como lucro.";
+  capitalButton.title = "Adicionar saldo simulado à carteira selecionada";
+  document.querySelector("#capitalControlHelp").textContent = "Aporte simulado entra no saldo e no capital aportado, não como lucro.";
   document.querySelector("#capitalBot").innerHTML = wallets.map((item) => `<option value="${safe(item.botId)}">${safe(botName(item.botId))}</option>`).join("");
   document.querySelector("#capitalBot").value = selectedBotId;
   const capitalEvents = data.capitalEvents ?? [];
@@ -215,11 +213,9 @@ document.querySelector("#botComparison").addEventListener("click", (event) => {
   render(current);
 });
 const capitalDialog = document.querySelector("#capitalDialog");
-const capitalKeySessionStorage = "mneme-training-admin-key";
 document.querySelector("#addCapitalButton").addEventListener("click", () => {
   if (!current?.capitalControlReady) return;
   document.querySelector("#capitalBot").value = selectedBotId;
-  try { document.querySelector("#capitalKey").value = sessionStorage.getItem(capitalKeySessionStorage) ?? ""; } catch {}
   document.querySelector("#capitalMessage").textContent = "";
   document.querySelector("#capitalMessage").className = "capital-message";
   capitalDialog.showModal();
@@ -230,7 +226,6 @@ document.querySelector("#capitalForm").addEventListener("submit", async (event) 
   event.preventDefault();
   const button = document.querySelector("#submitCapital");
   const message = document.querySelector("#capitalMessage");
-  const adminKey = document.querySelector("#capitalKey").value;
   const amountUsd = Number(document.querySelector("#capitalAmount").value);
   button.disabled = true;
   message.textContent = "Registrando aporte no D1…";
@@ -239,15 +234,13 @@ document.querySelector("#capitalForm").addEventListener("submit", async (event) 
   try {
     const response = await fetch("/api/training", {
       method: "POST",
-      headers: { accept: "application/json", "content-type": "application/json", authorization: `Bearer ${adminKey}` },
+      headers: { accept: "application/json", "content-type": "application/json" },
       body: JSON.stringify({ botId: document.querySelector("#capitalBot").value, amountUsd, eventId: pendingCapitalEventId }),
       cache: "no-store",
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? "Não foi possível registrar o aporte.");
-    try { sessionStorage.setItem(capitalKeySessionStorage, adminKey); } catch {}
     pendingCapitalEventId = null;
-    document.querySelector("#capitalKey").value = "";
     capitalDialog.close();
     const notice = document.querySelector("#capitalNotice");
     notice.textContent = result.duplicate ? "Este aporte já estava registrado; não foi adicionado novamente." : `${money(amountUsd)} adicionados à carteira paper; o aporte não foi contado como lucro.`;

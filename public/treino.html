@@ -84,12 +84,10 @@
     <div class="capital-dialog-heading"><div><h2>Adicionar capital paper</h2><p>Este aporte é simulado e não é registrado como lucro.</p></div><button id="closeCapitalDialog" class="btn small" type="button" aria-label="Fechar">Fechar</button></div>
     <label class="capital-field">Carteira<select id="capitalBot" required></select></label>
     <label class="capital-field">Valor em USD<input id="capitalAmount" type="number" min="10" max="1000000" step="0.01" value="10000" required></label>
-    <label class="capital-field">Chave administrativa<input id="capitalKey" type="password" autocomplete="off" required></label>
-    <p class="muted capital-key-help">Depois do primeiro aporte confirmado, a chave fica lembrada somente nesta aba para os próximos aportes. Ela é descartada ao fechar a aba e não é salva no Git.</p>
     <p id="capitalMessage" class="capital-message" role="status"></p>
     <div class="capital-dialog-actions"><button id="cancelCapitalDialog" class="btn" type="button">Cancelar</button><button id="submitCapital" class="btn primary" type="submit">Confirmar aporte</button></div>
   </form>
 </dialog>
-<script src="/assets/training.js?v=20261030-closed-metrics"></script>
+<script src="/assets/training.js?v=20261031-no-capital-key"></script>
 </body>
 </html>

@@ -1,6 +1,5 @@
 interface TrainingEnv {
   MNEME_DB: D1Database;
-  TRAINING_ADMIN_KEY?: string;
 }
 
 interface WalletRow {
@@ -176,7 +175,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         { id: trainingBotIds[1], name: "MNEME Arriscado", buyConfirmations: 1, buySizePct: 4, minimumLiquidityUsd: 10_000, maxAssetExposurePct: 15, maxPortfolioExposurePct: 100, buyCooldownMinutes: 0 },
       ],
       generatedAt: new Date().toISOString(),
-      capitalControlReady: (env.TRAINING_ADMIN_KEY?.trim().length ?? 0) >= 32,
+      capitalControlReady: true,
       wallets,
       positions: positionResult.results.map((position) => ({
         botId: position.trader_id,
@@ -241,23 +240,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
   }
 };
 
-function constantTimeEqual(left: string, right: string): boolean {
-  const encoder = new TextEncoder();
-  const a = encoder.encode(left);
-  const b = encoder.encode(right);
-  if (a.length !== b.length) return false;
-  let difference = 0;
-  for (let index = 0; index < a.length; index += 1) difference |= a[index] ^ b[index];
-  return difference === 0;
-}
-
 export const onRequestPost: PagesFunction<TrainingEnv> = async ({ env, request }) => {
-  const adminKey = env.TRAINING_ADMIN_KEY?.trim();
-  if (!adminKey || adminKey.length < 32) return Response.json({ error: "Configure TRAINING_ADMIN_KEY como Secret de pelo menos 32 caracteres nas configurações do Pages." }, { status: 503, headers: jsonHeaders });
-  const authorization = request.headers.get("authorization") ?? "";
-  const suppliedKey = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
-  if (!constantTimeEqual(suppliedKey, adminKey)) return Response.json({ error: "Chave administrativa inválida." }, { status: 401, headers: jsonHeaders });
-
   let body: { botId?: unknown; amountUsd?: unknown; eventId?: unknown };
   try { body = await request.json() as typeof body; } catch {
     return Response.json({ error: "Envie os dados do aporte em JSON." }, { status: 400, headers: jsonHeaders });
