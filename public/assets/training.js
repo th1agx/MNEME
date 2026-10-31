@@ -210,9 +210,11 @@ document.querySelector("#botComparison").addEventListener("click", (event) => {
   render(current);
 });
 const capitalDialog = document.querySelector("#capitalDialog");
+const capitalKeySessionStorage = "mneme-training-admin-key";
 document.querySelector("#addCapitalButton").addEventListener("click", () => {
   if (!current?.capitalControlReady) return;
   document.querySelector("#capitalBot").value = selectedBotId;
+  try { document.querySelector("#capitalKey").value = sessionStorage.getItem(capitalKeySessionStorage) ?? ""; } catch {}
   document.querySelector("#capitalMessage").textContent = "";
   document.querySelector("#capitalMessage").className = "capital-message";
   capitalDialog.showModal();
@@ -238,6 +240,7 @@ document.querySelector("#capitalForm").addEventListener("submit", async (event) 
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? "Não foi possível registrar o aporte.");
+    try { sessionStorage.setItem(capitalKeySessionStorage, adminKey); } catch {}
     pendingCapitalEventId = null;
     document.querySelector("#capitalKey").value = "";
     capitalDialog.close();
