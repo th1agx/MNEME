@@ -60,16 +60,24 @@ interface PatternObservationRow {
   buy_volume_usd: number; sell_volume_usd: number; observed_at: string;
 }
 
+interface FollowedTraderRow {
+  followed_trader_id: string | null;
+  followed_trader_handle: string | null;
+  followed_trader_rank: number | null;
+  selected_at: string | null;
+}
+
 const jsonHeaders = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
 const trainingBotIds = ["mneme-paper-conservative", "mneme-paper-risky"] as const;
 
 export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request }) => {
   if (request.method !== "GET") return Response.json({ error: "Método não permitido." }, { status: 405, headers: jsonHeaders });
   try {
-    const [walletResult, positionResult, orderResult] = await Promise.all([
+    const [walletResult, positionResult, orderResult, followedTraderResult] = await Promise.all([
       env.MNEME_DB.prepare("SELECT * FROM paper_training_wallets WHERE trader_id IN (?, ?)").bind(...trainingBotIds).all<WalletRow>(),
       env.MNEME_DB.prepare("SELECT * FROM paper_training_positions WHERE trader_id IN (?, ?) ORDER BY updated_at DESC LIMIT 4000").bind(...trainingBotIds).all<PositionRow>(),
       env.MNEME_DB.prepare("SELECT * FROM paper_training_orders WHERE trader_id IN (?, ?) AND status != 'processing' ORDER BY executed_at DESC LIMIT 200").bind(...trainingBotIds).all<OrderRow>(),
+      env.MNEME_DB.prepare("SELECT followed_trader_id, followed_trader_handle, followed_trader_rank, selected_at FROM paper_training_settings WHERE id = 1").all<FollowedTraderRow>(),
     ]);
     const [dailyResult, incidentResult, patternResult, patternPerformanceResult, dailyHistoryResult, capitalEventResult, capitalTotalResult] = await Promise.all([
       env.MNEME_DB.prepare(`SELECT * FROM paper_training_daily_metrics
@@ -101,6 +109,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         FROM paper_training_capital_events WHERE applied_at IS NOT NULL GROUP BY trader_id`)
         .all<{ trader_id: string; capital_added_usd: number }>(),
     ]);
+    const followedTraderRow = followedTraderResult.results[0];
     const capitalAddedByTrader = new Map(capitalTotalResult.results.map((row) => [row.trader_id, row.capital_added_usd]));
     const dailyByTrader = new Map(dailyResult.results.map((row) => [row.trader_id, row]));
 
@@ -153,14 +162,18 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
 
     return Response.json({
       mode: "paper",
-      strategy: "Dois bots paper recebem os mesmos alertas e precos, com carteiras, regras e historicos independentes; sem ordens reais.",
+      strategy: "Os dois bots seguem o mesmo trader fixado pelo ranking de 30 dias. O Conservador espera uma segunda compra dele no ativo; o Arriscado copia o primeiro sinal. Ambos seguem as vendas dele e mantêm limites próprios; sem ordens reais.",
+      followedTrader: followedTraderRow?.followed_trader_id ? {
+        handle: followedTraderRow.followed_trader_handle,
+        rank: followedTraderRow.followed_trader_rank,
+        selectedAt: followedTraderRow.selected_at,
+      } : null,
       execution: { feeRate: 0.001, slippageRate: 0.005, initialWalletUsd: 200_000, dailyTargetPct: 30, dailyTargetIsGoalOnly: true,
-        minimumLiquidityUsd: 10_000,
-        scoreMeaning: "forca heuristica das regras, nao probabilidade de lucro" },
+        scoreMeaning: "etiqueta de execucao, nao probabilidade de lucro" },
       paperCapital: { walletCount: walletResult.results.length, totalAllocatedUsd: walletResult.results.reduce((sum, wallet) => sum + wallet.initial_usd, 0) },
       bots: [
-        { id: trainingBotIds[0], name: "MNEME Conservador", largeSignalUsd: 5_000, crowdMinimumTraders: 3, crowdMinimumVolumeUsd: 2_500, maxAssetExposurePct: 10, maxPortfolioExposurePct: 100, buyCooldownMinutes: 5 },
-        { id: trainingBotIds[1], name: "MNEME Arriscado", largeSignalUsd: 2_500, crowdMinimumTraders: 2, crowdMinimumVolumeUsd: 1_500, maxAssetExposurePct: 15, maxPortfolioExposurePct: 100, buyCooldownMinutes: 2 },
+        { id: trainingBotIds[0], name: "MNEME Conservador", buyConfirmations: 2, buySizePct: 2, minimumLiquidityUsd: 25_000, maxAssetExposurePct: 10, maxPortfolioExposurePct: 100, buyCooldownMinutes: 5 },
+        { id: trainingBotIds[1], name: "MNEME Arriscado", buyConfirmations: 1, buySizePct: 4, minimumLiquidityUsd: 10_000, maxAssetExposurePct: 15, maxPortfolioExposurePct: 100, buyCooldownMinutes: 0 },
       ],
       generatedAt: new Date().toISOString(),
       capitalControlReady: (env.TRAINING_ADMIN_KEY?.trim().length ?? 0) >= 32,

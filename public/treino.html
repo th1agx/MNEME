@@ -19,10 +19,11 @@
 </header>
 <main class="training-main">
   <div class="page-heading">
-    <div><h1>Treino Bot</h1><p>Uma carteira simulada analisa padrões do fluxo, com preços observados e sem envio de ordens reais.</p></div>
+    <div><h1>Treino Bot</h1><p>Duas carteiras paper seguem o mesmo trader, com critérios diferentes e sem envio de ordens reais.</p></div>
     <span class="training-mode">SIMULAÇÃO</span>
   </div>
   <div id="trainingStatus" class="training-status" role="status">Carregando resultados…</div>
+  <p id="followedTraderStatus" class="muted">Trader seguido: aguardando o primeiro ranking após o reset.</p>
   <section id="botComparison" class="bot-comparison" aria-label="Comparação dos bots"></section>
   <div id="botTabs" class="bot-tabs" role="tablist" aria-label="Selecionar bot"></div>
   <div class="capital-toolbar">
@@ -76,7 +77,7 @@
     <div class="table-wrap"><table><thead><tr><th>Executada</th><th>Trader</th><th>Lado</th><th>Ativo</th><th>Rede</th><th class="num">Preço</th><th class="num">Valor</th><th class="num">Taxa</th><th>Padrão</th><th>Resultado</th><th>Situação</th></tr></thead><tbody id="orderRows"><tr><td colspan="11" class="empty">Aguardando movimentações.</td></tr></tbody></table></div>
     </section>
   </details>
-  <details class="training-details training-rules"><summary>Regras da simulação</summary><p class="training-note">Regras paper: compra individual a partir de US$ 5.000 ou pelo menos 3 compradores distintos com volume agregado de US$ 2.500 em 5 min e pressão compradora; venda individual de US$ 5.000, pressão de 3 vendedores ou venda em lote de 3 ativos pelo mesmo trader. Exige liquidez observada de US$ 10.000. Compras usam score 70+ e tamanho definido para cada carteira, com limite de exposição por ativo e total e intervalo por ativo. Score é força heurística, não probabilidade de lucro. Slippage simulado: 0,5%; taxa: 0,1%. Nenhuma ordem real é enviada.</p></details>
+  <details class="training-details training-rules"><summary>Regras da simulação</summary><p class="training-note">Ambas as carteiras seguem um único trader, escolhido como primeiro do ranking de 30 dias após o reset; o ID fica fixo durante o teste. O Conservador espera uma segunda compra do mesmo trader no mesmo ativo, exige liquidez de US$ 25.000 e compra 2% da carteira por sinal. O Arriscado copia a primeira compra, exige liquidez de US$ 10.000, compra 4% por sinal e não aplica intervalo entre compras. As vendas seguem os sinais de venda desse trader; sinais dos demais não abrem nem fecham posições. Limite por ativo: 10% no Conservador e 15% no Arriscado; exposição total máxima: 100%. Slippage simulado: 0,5%; taxa: 0,1%. Nenhuma ordem real é enviada.</p></details>
 </main>
 <dialog id="capitalDialog" class="capital-dialog">
   <form id="capitalForm">

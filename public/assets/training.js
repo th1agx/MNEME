@@ -8,6 +8,7 @@ const patternName = (value) => ({
   large_buy: "Compra de alto valor", crowd_buy: "Compra em grupo", large_and_crowd_buy: "Alto valor + grupo",
   large_sell: "Venda de alto valor", crowd_sell: "Venda em grupo", sell_batch: "Venda em lote",
   mixed_flow: "Fluxo conflitante", unconfirmed: "Sem confirmacao",
+  trader_copy_buy: "Compra do trader seguido", trader_copy_sell: "Venda do trader seguido",
 }[value] ?? value ?? "-");
 let current = null;
 let selectedBotId = "mneme-paper-conservative";
@@ -17,6 +18,10 @@ let pendingCapitalEventId = null;
 
 function render(data) {
   current = data;
+  const followedTrader = data.followedTrader;
+  document.querySelector("#followedTraderStatus").textContent = followedTrader
+    ? `Trader seguido: ${followedTrader.handle} · última posição conhecida no ranking de 30 dias: #${followedTrader.rank ?? "-"} · ID fixado desde ${followedTrader.selectedAt ? new Date(followedTrader.selectedAt).toLocaleString("pt-BR") : "o início do teste"}.`
+    : "Trader seguido: aguardando o ranking para fixar o primeiro colocado após o reset.";
   const allPositions = data.positions ?? [];
   const wallets = (data.wallets ?? []).map((item) => {
     const openPositions = allPositions.filter((position) => position.botId === item.botId);
@@ -73,8 +78,8 @@ function render(data) {
     : `<tr><td colspan="3" class="empty">Nenhum aporte registrado.</td></tr>`;
   const positionLines = positions.map((position) => `${safe(position.symbol)}: custo de ${money(position.costUsd)}; valor agora de ${money(position.costUsd + position.unrealizedPnlUsd)}; variação aberta de ${money(position.unrealizedPnlUsd)}.`).join(" ");
   const profile = bots.find((bot) => bot.id === selectedBotId);
-  const profileRules = profile ? `Regras desta carteira: compra individual a partir de ${money(profile.largeSignalUsd)} ou grupo de ${profile.crowdMinimumTraders}+ traders com ${money(profile.crowdMinimumVolumeUsd)}; limite de ${profile.maxAssetExposurePct}% por ativo e ${profile.maxPortfolioExposurePct}% total; intervalo de ${profile.buyCooldownMinutes} min por ativo.` : "";
-  document.querySelector("#trainingExplanation").innerHTML = `<b>${safe(botName(selectedBotId))}:</b> ${profileRules} Mesmo fluxo de alertas e cotações do outro bot, com regras e carteira separadas. O patrimônio soma saldo disponível e posições. O resultado em aberto é estimado e só vira realizado na venda. ${positionLines || "Ainda não há posições abertas."}<span>Resultado de hoje: <b>${money(wallet?.dailyPnlUsd)}</b> (${pct(wallet?.dailyReturnPct)}). Valores de simulação; o score é uma heurística, não probabilidade de lucro.</span>`;
+  const profileRules = profile ? `${profile.buyConfirmations > 1 ? `Compra após ${profile.buyConfirmations} compras do trader no mesmo ativo` : "Compra no primeiro sinal do trader"}; ${profile.buySizePct}% da carteira por sinal; liquidez mínima ${money(profile.minimumLiquidityUsd)}; limite de ${profile.maxAssetExposurePct}% por ativo e ${profile.maxPortfolioExposurePct}% total; ${profile.buyCooldownMinutes > 0 ? `intervalo de ${profile.buyCooldownMinutes} min por ativo` : "sem intervalo entre compras"}.` : "";
+  document.querySelector("#trainingExplanation").innerHTML = `<b>${safe(botName(selectedBotId))}:</b> ${profileRules} Segue ${followedTrader ? `<b>${safe(followedTrader.handle)}</b>` : "o primeiro colocado aguardando seleção"}; ignora sinais dos outros traders para comprar e vender. O patrimônio soma saldo disponível e posições. O resultado em aberto é estimado e só vira realizado na venda. ${positionLines || "Ainda não há posições abertas."}<span>Resultado de hoje: <b>${money(wallet?.dailyPnlUsd)}</b> (${pct(wallet?.dailyReturnPct)}). Valores paper; o score identifica o perfil de execução e não é probabilidade de lucro.</span>`;
 
   const headerLabels = {
     "#": "#", "Conta": "Conta", "Resultado total": "Lucro/prejuízo total", "Realizado": "Já realizado (vendas)", "Em aberto": "Ainda em aberto",
