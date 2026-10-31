@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/brand/icon-32.png">
 <link rel="stylesheet" href="/assets/app.css">
-<link rel="stylesheet" href="/assets/training.css?v=20261031-compact">
+<link rel="stylesheet" href="/assets/training.css?v=20261031-params">
 </head>
 <body>
 <header class="app-bar">
@@ -75,7 +75,16 @@
     <div class="table-wrap"><table><thead><tr><th>Executada</th><th>Trader</th><th>Lado</th><th>Ativo</th><th>Rede</th><th class="num">Preço</th><th class="num">Valor</th><th class="num">Taxa</th><th>Padrão</th><th>Resultado</th><th>Situação</th></tr></thead><tbody id="orderRows"><tr><td colspan="11" class="empty">Aguardando movimentações.</td></tr></tbody></table></div>
     </section>
   </details>
-  <details id="trainingRules" class="training-details training-rules"><summary>Parâmetros da estratégia</summary><p class="training-note">Os sinais dos 50 traders do Top são agrupados por ativo em janelas de 5 minutos. O Conservador compra com fluxo de 3 compradores, pelo menos US$ 2.500 e pressão compradora de 65%, exigindo ao menos um trader com 8 saídas paper, acerto mínimo de 60% e retorno médio positivo. Também aceita compra individual de US$ 20.000 com 75% de pressão, desde que venha desse perfil validado. Vende com 3 vendedores, US$ 2.500 e pressão de 65%, ou venda individual de US$ 20.000 com pressão de 75% e trader validado. O Arriscado compra com 2 compradores, US$ 1.000 e pressão de 55%, ou considera uma ordem individual de US$ 5.000 com 55% de pressão ou duas compras do mesmo trader. Para vender, considera 2 vendedores, US$ 1.000 e pressão de 55%; também aceita ordem individual de US$ 5.000 com pressão de 55% ou venda em lote do mesmo trader em 3 ou mais ativos, com volume e pressão mínimos. Liquidez mínima: US$ 25.000 no Conservador e US$ 10.000 no Arriscado. Entradas: 2% e 4% da carteira; limites por ativo: 10% e 15%; exposição total máxima: 100%. As ordens são simuladas com taxa e slippage; nenhuma ordem real é enviada.</p></details>
+  <details id="trainingRules" class="training-details training-rules"><summary>Parâmetros da estratégia <small>comparativo entre os bots</small></summary>
+    <div class="params-panel">
+      <div class="params-toolbar">
+        <div id="paramFilter" class="params-seg" role="group" aria-label="Filtrar parâmetros"><button type="button" data-group="all" aria-pressed="true">Todos</button><button type="button" data-group="entry" aria-pressed="false">Entrada</button><button type="button" data-group="exit" aria-pressed="false">Saída</button><button type="button" data-group="risk" aria-pressed="false">Risco</button><button type="button" data-group="sizing" aria-pressed="false">Dimensionamento</button></div>
+        <label class="params-diff"><input id="paramDiffOnly" type="checkbox"> Só diferenças</label>
+      </div>
+      <div class="table-wrap params-wrap"><table class="params-table"><thead id="paramHead"></thead><tbody id="paramRows"><tr><td colspan="3" class="empty">Carregando…</td></tr></tbody></table></div>
+      <p class="training-note">Os sinais dos 50 traders do Top são agrupados por ativo em janelas de 5 minutos. O Conservador compra com fluxo de 3 compradores, pelo menos US$ 2.500 e pressão compradora de 65%, exigindo ao menos um trader com 8 saídas paper, acerto mínimo de 60% e retorno médio positivo. Também aceita compra individual de US$ 20.000 com 75% de pressão, desde que venha desse perfil validado. Vende com 3 vendedores, US$ 2.500 e pressão de 65%, ou venda individual de US$ 20.000 com pressão de 75% e trader validado. O Arriscado compra com 2 compradores, US$ 1.000 e pressão de 55%, ou considera uma ordem individual de US$ 5.000 com 55% de pressão ou duas compras do mesmo trader. Para vender, considera 2 vendedores, US$ 1.000 e pressão de 55%; também aceita ordem individual de US$ 5.000 com pressão de 55% ou venda em lote do mesmo trader em 3 ou mais ativos, com volume e pressão mínimos. Liquidez mínima: US$ 25.000 no Conservador e US$ 10.000 no Arriscado. Entradas: 2% e 4% da carteira; limites por ativo: 10% e 15%; exposição total máxima: 100%. As ordens são simuladas com taxa e slippage; nenhuma ordem real é enviada.</p>
+    </div>
+  </details>
 </main>
 <dialog id="capitalDialog" class="capital-dialog">
   <form id="capitalForm">
@@ -86,6 +95,6 @@
     <div class="capital-dialog-actions"><button id="cancelCapitalDialog" class="btn" type="button">Cancelar</button><button id="submitCapital" class="btn primary" type="submit">Confirmar aporte</button></div>
   </form>
 </dialog>
-<script src="/assets/training.js?v=20261031-compact-top50"></script>
+<script src="/assets/training.js?v=20261031-params"></script>
 </body>
 </html>

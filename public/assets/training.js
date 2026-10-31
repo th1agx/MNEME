@@ -10,6 +10,40 @@ const patternName = (value) => ({
   large_sell: "Venda de alto valor", crowd_sell: "Venda em grupo", sell_batch: "Venda em lote",
   repeat_buy: "Recompras do mesmo trader", mixed_flow: "Fluxo conflitante", unconfirmed: "Sem confirmacao",
 }[value] ?? value ?? "-");
+const paramGroups = { entry: "Entrada", exit: "Saída", risk: "Risco", other: "Outros", sizing: "Dimensionamento (patrimônio atual)" };
+const paramMeta = {
+  minBuyers: ["entry", "Compradores mínimos", "Traders distintos do Top 50 comprando o ativo na janela de 5 min.", "count"],
+  minimumBuyVolumeUsd: ["entry", "Volume comprador mínimo", "Soma das compras do Top 50 no ativo na janela.", "usd"],
+  minimumPressurePct: ["entry", "Pressão mínima do fluxo", "Participação do lado dominante no volume da janela; vale para compra e venda em grupo.", "pct"],
+  minimumSingleBuyUsd: ["entry", "Ordem individual de compra", "Tamanho mínimo de uma compra isolada para gerar sinal.", "usd"],
+  minimumSinglePressurePct: ["entry", "Pressão na ordem individual", "Pressão exigida quando o sinal vem de uma ordem isolada.", "pct"],
+  minimumRepeatBuys: ["entry", "Recompras do mesmo trader", "Compras repetidas de um trader no mesmo ativo que contam como sinal.", "count"],
+  minimumAccurateBuyers: ["entry", "Traders validados exigidos", "Compradores com histórico paper aprovado; 0 desliga o filtro.", "count"],
+  minimumAccuracySample: ["entry", "Amostra mínima do trader", "Saídas paper necessárias para avaliar o histórico de um trader.", "trades"],
+  minimumTraderWinRatePct: ["entry", "Win rate mínimo do trader", "Acerto mínimo nas saídas paper para o trader contar como validado.", "pct"],
+  minSellers: ["exit", "Vendedores mínimos", "Traders distintos do Top 50 vendendo o ativo na janela.", "count"],
+  minimumSellVolumeUsd: ["exit", "Volume vendedor mínimo", "Soma das vendas do Top 50 no ativo na janela.", "usd"],
+  minimumSingleSellUsd: ["exit", "Ordem individual de venda", "Tamanho mínimo de uma venda isolada para gerar saída.", "usd"],
+  allowBatchSell: ["exit", "Venda em lote", "Sai quando um trader vende vários ativos de uma vez.", "bool"],
+  minimumBatchSellAssets: ["exit", "Ativos na venda em lote", "Quantidade de ativos vendidos juntos para caracterizar o lote.", "count"],
+  buySizePct: ["risk", "Tamanho por entrada", "Percentual do patrimônio usado em cada compra.", "pct"],
+  minimumLiquidityUsd: ["risk", "Liquidez mínima do ativo", "Liquidez observada no pool para permitir a entrada.", "usd"],
+  maxAssetExposurePct: ["risk", "Exposição máxima por ativo", "Limite do patrimônio alocado em um único ativo.", "pct"],
+  maxPortfolioExposurePct: ["risk", "Exposição máxima total", "Limite do patrimônio alocado em posições abertas.", "pct"],
+  buyCooldownMinutes: ["risk", "Cooldown por ativo", "Intervalo mínimo entre compras do mesmo ativo; 0 desliga.", "min"],
+};
+const humanize = (key) => key.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase()).replace(/ Usd$/, " (US$)").replace(/ Pct$/, " (%)");
+const formatParam = (value, unit) => {
+  if (typeof value === "boolean" || unit === "bool") return value ? "Ligado" : "Desligado";
+  if (value == null) return "-";
+  const number = Number(value);
+  if (unit === "usd") return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(number);
+  if (unit === "pct") return `${number.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
+  if (unit === "min") return number > 0 ? `${number} min` : "Desligado";
+  if (unit === "trades") return `${number} trades`;
+  return number.toLocaleString("pt-BR");
+};
+let paramFilter = "all";
 let current = null;
 let selectedBotId = "mneme-paper-conservative";
 let priceRefreshTimer = null;
@@ -89,6 +123,7 @@ function render(data) {
   const waiting = !positions.length && !(wallet?.closedTrades);
   document.querySelector("#trainingExplanation").innerHTML = `<div class="rule-chips">${ruleChips.map((chip) => `<span>${safe(chip)}</span>`).join("")}</div>
     <p>${waiting ? "Sem posições abertas · aguardando confluência compradora do Top 50. " : ""}Entradas exigem confluência de traders do Top 50; saídas exigem confirmação do fluxo vendedor. PnL não realizado é marcado a mercado e realizado no fechamento. <a href="#trainingRules" class="rules-link">Parâmetros completos</a></p>`;
+  renderParams(bots, wallets, botName);
 
   const headerLabels = {
     "#": "#", "Conta": "Conta", "Resultado total": "Lucro/prejuízo total", "Realizado": "Já realizado (vendas)", "Em aberto": "Ainda em aberto",
@@ -161,6 +196,43 @@ function render(data) {
   document.querySelector("#trainingStatus").classList.remove("error");
 }
 
+function renderParams(bots, wallets, botName) {
+  const head = document.querySelector("#paramHead");
+  const rows = document.querySelector("#paramRows");
+  if (!bots.length) { head.innerHTML = ""; rows.innerHTML = `<tr><td colspan="3" class="empty">Parâmetros indisponíveis.</td></tr>`; return; }
+  head.innerHTML = `<tr><th>Parâmetro</th>${bots.map((bot) => `<th class="num ${bot.id === selectedBotId ? "param-selected" : ""}">${safe(botName(bot.id))}</th>`).join("")}</tr>`;
+  const keys = [...new Set(bots.flatMap((bot) => Object.keys(bot)))].filter((key) => !["id", "name"].includes(key));
+  const entries = keys.map((key) => {
+    const [group, label, help, unit] = paramMeta[key] ?? ["other", humanize(key), "", typeof bots[0][key] === "boolean" ? "bool" : /Usd$/.test(key) ? "usd" : /Pct$/.test(key) ? "pct" : "count"];
+    return { group, label, help, values: bots.map((bot) => formatParam(bot[key], unit)) };
+  });
+  const groupOrder = Object.keys(paramGroups);
+  const metaOrder = Object.keys(paramMeta);
+  const rank = (entry) => groupOrder.indexOf(entry.group) * 1000 + (metaOrder.includes(keys[entries.indexOf(entry)]) ? metaOrder.indexOf(keys[entries.indexOf(entry)]) : 999);
+  entries.sort((left, right) => rank(left) - rank(right));
+  const sizing = (bot) => {
+    const equity = wallets.find((item) => item.botId === bot.id)?.equityUsd ?? 0;
+    const perEntry = equity * (Number(bot.buySizePct) || 0) / 100;
+    return { equity, perEntry, perAsset: equity * (Number(bot.maxAssetExposurePct) || 0) / 100, total: equity * (Number(bot.maxPortfolioExposurePct) || 0) / 100 };
+  };
+  const sized = bots.map(sizing);
+  const usd = (value) => formatParam(value, "usd");
+  entries.push(
+    { group: "sizing", label: "Valor por entrada", help: "Patrimônio atual × tamanho por entrada.", values: sized.map((item) => usd(item.perEntry)) },
+    { group: "sizing", label: "Limite por ativo", help: "Patrimônio atual × exposição máxima por ativo.", values: sized.map((item, index) => `${usd(item.perAsset)} · ${item.perEntry > 0 ? Math.floor(item.perAsset / item.perEntry + 1e-9) : 0} entradas`) },
+    { group: "sizing", label: "Posições simultâneas", help: "Quantas entradas cheias cabem dentro da exposição total.", values: sized.map((item) => `até ${item.perEntry > 0 ? Math.floor(item.total / item.perEntry + 1e-9) : 0}`) },
+  );
+  const diffOnly = document.querySelector("#paramDiffOnly").checked;
+  const visible = entries.filter((entry) => (paramFilter === "all" || entry.group === paramFilter) && (!diffOnly || new Set(entry.values).size > 1));
+  let lastGroup = null;
+  rows.innerHTML = visible.length ? visible.map((entry) => {
+    const differs = new Set(entry.values).size > 1;
+    const groupRow = entry.group !== lastGroup && paramFilter === "all" ? `<tr class="param-group"><th colspan="${bots.length + 1}">${safe(paramGroups[entry.group])}</th></tr>` : "";
+    lastGroup = entry.group;
+    return `${groupRow}<tr class="${differs ? "param-differs" : ""}"><td><b>${safe(entry.label)}</b>${entry.help ? `<small>${safe(entry.help)}</small>` : ""}</td>${entry.values.map((value, index) => `<td class="num ${bots[index].id === selectedBotId ? "param-selected" : ""}" data-bot="${safe(botName(bots[index].id))}">${safe(value)}</td>`).join("")}</tr>`;
+  }).join("") : `<tr><td colspan="${bots.length + 1}" class="empty">Os bots usam os mesmos valores neste grupo.</td></tr>`;
+}
+
 async function refresh() {
   try {
     const response = await fetch("/api/training", { headers: { accept: "application/json" }, cache: "no-store" });
@@ -212,6 +284,14 @@ async function refreshPrices() {
 }
 
 document.querySelector("#walletSearch").addEventListener("input", () => { if (current) render(current); });
+document.querySelector("#paramFilter").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-group]");
+  if (!button) return;
+  paramFilter = button.dataset.group;
+  document.querySelectorAll("#paramFilter [data-group]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
+  if (current) render(current);
+});
+document.querySelector("#paramDiffOnly").addEventListener("change", () => { if (current) render(current); });
 document.querySelector("#trainingExplanation").addEventListener("click", (event) => {
   if (!event.target.closest(".rules-link")) return;
   document.querySelector("#trainingRules").open = true;
