@@ -56,14 +56,20 @@
         <option value="1h">1 h</option><option value="2h">2 h</option><option value="4h">4 h</option><option value="6h">6 h</option><option value="12h">12 h</option><option value="1d">1 dia</option>
       </select></label>
       <div class="tabs" id="chartTypes" role="group" aria-label="Tipo de gráfico"><button type="button" data-chart-type="candles" aria-pressed="true">Velas</button><button type="button" data-chart-type="line" aria-pressed="false">Linha</button></div>
+      <div class="chart-navigation" role="group" aria-label="Navegação do gráfico">
+        <button class="btn small" id="chartZoomOut" type="button" aria-label="Diminuir zoom" title="Diminuir zoom (-)">−</button>
+        <button class="btn small" id="chartZoomIn" type="button" aria-label="Aumentar zoom" title="Aumentar zoom (+)">+</button>
+        <button class="btn small" id="chartReset" type="button" title="Restaurar visão completa (0)">Restaurar</button>
+      </div>
       <button class="btn small chart-toggle" id="chartOrdersToggle" type="button" aria-pressed="true">Mostrar ordens</button>
     </div>
     <div class="chart-ohlc" id="chartOhlc" aria-live="off">Aguardando velas reais…</div>
     <div class="chart-stage" id="chartStage" aria-busy="true">
-      <svg id="marketChart" class="market-chart" role="group" aria-roledescription="gráfico de preços" aria-label="Gráfico de velas SOL / USDT da Binance, preços e volume reais" tabindex="0"></svg>
+      <svg id="marketChart" class="market-chart" role="group" aria-roledescription="gráfico de preços" aria-label="Gráfico de velas SOL / USDT da Binance, preços e volume reais" aria-describedby="chartNavigationHint" tabindex="0"></svg>
       <div class="chart-message" id="chartMessage" role="status">Carregando 180 velas da Binance…</div>
     </div>
     <div class="chart-footer"><span id="chartUpdated" role="status">Atualização a cada 10 segundos</span><span><b class="up">▲ C</b> Compra <b class="down">▼ V</b> Venda · ordens do bot</span></div>
+    <p class="chart-context" id="chartNavigationHint">Role sobre o gráfico para dar zoom e arraste para navegar. Duplo clique ou Restaurar para ver tudo. Teclado: + / − para zoom, 0 para restaurar.</p>
     <p class="chart-context" id="chartContext">Preços em USDT da Binance; execução do bot em USD.</p>
   </div>
   <aside class="pane market-side">

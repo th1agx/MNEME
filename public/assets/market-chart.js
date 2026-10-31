@@ -1,5 +1,6 @@
 import { MARKET_SYMBOLS, baseSymbol, chartOrders, orderMarkers, filterOrders, orderMarket } from "./chart-data.js";
 import { createMarketClient } from "./market-client.js";
+import { chartViewport, zoomViewport } from "./chart-viewport.js";
 
 const loadMarket = createMarketClient();
 
@@ -18,6 +19,7 @@ const priceText = (n) => number(n, n < 1 ? 7 : 4);
 let symbol = "SOLUSDT", interval = "1m", chartType = "candles", showOrders = true, orderFilter = "all";
 let series = null, botState = null, hovered = null, geometry = null, markers = [], selectedOrder = null;
 let request = null, requestSerial = 0;
+let viewport = null, priceOffset = 0, drag = null, dragged = false;
 const quotes = new Map();
 const botOrders = () => (botState?.orders ?? []).filter((o) => o.venue === (botState?.executionMode === "live" ? "solana" : "paper"));
 
@@ -56,26 +58,31 @@ function drawChart() {
   const svg = el("marketChart");
   const focusedMarker = document.activeElement?.closest?.("[data-marker-key]")?.dataset.markerKey;
   if (!series) { svg.innerHTML = ""; geometry = null; return; }
-  const candles = series.candles, W = Math.max(280, Math.round(svg.getBoundingClientRect().width)), H = 430;
+  const view = chartViewport(series.candles.length, viewport?.start, viewport?.count);
+  const dataStart = Math.max(0, view.start), dataEnd = Math.min(series.candles.length, view.start + view.count);
+  const candles = series.candles.slice(dataStart, dataEnd);
+  const W = Math.max(280, Math.round(svg.getBoundingClientRect().width)), H = 430;
   const left = 8, right = W - 76, top = 16, bottom = 264, width = right - left;
-  const step = width / candles.length, bodyWidth = Math.max(0.7, step * .64);
+  const step = width / view.count, bodyWidth = Math.max(0.7, step * .64);
   const lo = Math.min(...candles.map((c) => c.low)), hi = Math.max(...candles.map((c) => c.high));
-  const padding = Math.max((hi - lo) * .14, hi * .0003), lower = lo - padding, upper = hi + padding;
+  const padding = Math.max((hi - lo) * .14, hi * .0003), lower = lo - padding + priceOffset, upper = hi + padding + priceOffset;
   const y = (price) => bottom - (price - lower) / (upper - lower) * (bottom - top);
-  const x = (i) => left + (i + .5) * step;
+  const x = (i) => left + (i + dataStart - view.start + .5) * step;
   const maxVolume = Math.max(1, ...candles.map((c) => c.quoteVolume));
   markers = orderMarkers(candles, botOrders(), symbol);
   const botVolumes = candles.map(() => ({ buy: 0, sell: 0 }));
   for (const m of markers) botVolumes[m.index][m.side] += m.volumeUsd;
   const maxBot = Math.max(1, ...botVolumes.map((v) => v.buy + v.sell));
-  geometry = { W, H, left, right, step, x, y, top, bottom };
+  geometry = { W, H, left, right, step, x, y, top, bottom, view, dataStart, dataEnd, lower, upper };
+  el("chartZoomIn").disabled = view.count <= Math.min(12, series.candles.length);
+  el("chartZoomOut").disabled = view.count === series.candles.length;
   let grid = "", body = "", volumes = "", botVolumeBars = "", markerSvg = "";
   for (let i = 0; i <= 4; i++) {
     const py = top + (bottom - top) * i / 4, value = upper - (upper - lower) * i / 4;
     grid += `<line class="chart-grid" x1="${left}" x2="${right}" y1="${py}" y2="${py}"/><text class="chart-axis-label" x="${right + 8}" y="${py + 4}">${priceText(value)}</text>`;
   }
-  for (let i = 0; i <= 4; i++) {
-    const index = Math.round((candles.length - 1) * i / 4), px = x(index);
+  for (let i = 0; i <= Math.min(4, candles.length - 1); i++) {
+    const index = Math.round((candles.length - 1) * i / Math.max(1, Math.min(4, candles.length - 1))), px = x(index);
     const label = candles.at(-1).time - candles[0].time >= 86_400_000
       ? new Date(candles[index].time).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" }) : time(candles[index].time);
     grid += `<line class="chart-grid" x1="${px}" x2="${px}" y1="${top}" y2="404"/><text class="chart-axis-label" x="${px}" y="422" text-anchor="${i === 0 ? "start" : i === 4 ? "end" : "middle"}">${label}</text>`;
@@ -97,17 +104,23 @@ function drawChart() {
   });
   const last = candles.at(-1), lastY = y(last.close), lastColor = last.close >= last.open ? "chart-up" : "chart-down";
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-  svg.setAttribute("aria-label", `${chartType === "candles" ? `${candles.length} velas` : "Linha de preços"} de ${baseSymbol(symbol)} / USDT, Binance Spot. Último preço ${priceText(last.close)} USDT. Use as setas para consultar abertura, máxima, mínima e fechamento.`);
+  svg.setAttribute("aria-label", `${chartType === "candles" ? `${candles.length} velas` : "Linha de preços"} de ${baseSymbol(symbol)} / USDT, Binance Spot. Último preço visível ${priceText(last.close)} USDT. Use as setas para consultar abertura, máxima, mínima e fechamento.`);
   svg.innerHTML = `<defs><clipPath id="marketPriceClip"><rect x="${left}" y="0" width="${width}" height="282"/></clipPath></defs>${grid}<g clip-path="url(#marketPriceClip)">${body}<line class="chart-last-line ${lastColor}" x1="${left}" x2="${right}" y1="${lastY}" y2="${lastY}"/>${markerSvg}</g><g class="${lastColor}"><rect x="${right + 2}" y="${lastY - 10}" width="73" height="20" rx="2"/><text class="chart-last-label" x="${right + 38}" y="${lastY + 4}" text-anchor="middle">${priceText(last.close)}</text></g><text class="chart-axis-label" x="${left}" y="285">Volume Binance (USDT)</text>${volumes}<text class="chart-axis-label" x="${right + 8}" y="306">${compact(maxVolume)}</text><line class="chart-grid" x1="${left}" x2="${right}" y1="350" y2="350"/><text class="chart-axis-label" x="${left}" y="365">Volume do bot (USD)${markers.length ? "" : " · sem ordens no período"}</text>${botVolumeBars}<g id="chartCrosshair" pointer-events="none"></g>`;
-  if (hovered != null) hovered = Math.min(hovered, candles.length - 1);
-  describeCandle(hovered ?? candles.length - 1);
+  if (hovered != null) hovered = Math.max(dataStart, Math.min(hovered, dataEnd - 1));
+  describeCandle(hovered ?? dataEnd - 1);
   if (focusedMarker) [...svg.querySelectorAll("[data-marker-key]")].find((m) => m.dataset.markerKey === focusedMarker)?.focus({ preventScroll: true });
 }
 
 function hoverAt(index) {
   if (!geometry || !series) return;
-  hovered = Math.max(0, Math.min(series.candles.length - 1, index));
-  const px = geometry.x(hovered), py = geometry.y(series.candles[hovered].close);
+  if (index < geometry.dataStart || index >= geometry.dataEnd) {
+    hovered = null;
+    el("chartCrosshair").innerHTML = "";
+    describeCandle(geometry.dataEnd - 1);
+    return;
+  }
+  hovered = index;
+  const px = geometry.x(hovered - geometry.dataStart), py = geometry.y(series.candles[hovered].close);
   el("chartCrosshair").innerHTML = `<line class="chart-crosshair" x1="${px}" x2="${px}" y1="${geometry.top}" y2="404"/><line class="chart-crosshair" x1="${geometry.left}" x2="${geometry.right}" y1="${py}" y2="${py}"/><circle class="chart-crosshair-dot" cx="${px}" cy="${py}" r="3"/>`;
   describeCandle(hovered);
 }
@@ -116,29 +129,95 @@ function selectAtPointer(event) {
   if (!geometry) return;
   const bounds = el("marketChart").getBoundingClientRect();
   const px = (event.clientX - bounds.left) * geometry.W / bounds.width;
-  if (px >= geometry.left && px <= geometry.right) hoverAt(Math.floor((px - geometry.left) / geometry.step));
+  if (px >= geometry.left && px <= geometry.right) hoverAt(geometry.view.start + Math.floor((px - geometry.left) / geometry.step));
 }
-el("marketChart").addEventListener("pointermove", selectAtPointer);
-el("marketChart").addEventListener("pointerdown", selectAtPointer);
-el("marketChart").addEventListener("pointerleave", () => {
+const chart = el("marketChart");
+function zoom(factor, anchor = .5) {
+  if (!geometry) return;
+  viewport = zoomViewport(series.candles.length, geometry.view, factor, anchor);
   hovered = null;
-  if (series) { el("chartCrosshair").innerHTML = ""; describeCandle(series.candles.length - 1); }
+  drawChart();
+}
+function resetView() {
+  viewport = null; priceOffset = 0; hovered = null;
+  drawChart();
+}
+el("chartZoomIn").addEventListener("click", () => zoom(.8));
+el("chartZoomOut").addEventListener("click", () => zoom(1.25));
+el("chartReset").addEventListener("click", resetView);
+chart.addEventListener("dblclick", resetView);
+chart.addEventListener("wheel", (event) => {
+  if (!geometry || !event.deltaY) return;
+  const bounds = chart.getBoundingClientRect();
+  const px = (event.clientX - bounds.left) * geometry.W / bounds.width;
+  if (px < geometry.left || px > geometry.right) return;
+  event.preventDefault();
+  const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? bounds.height : 1);
+  zoom(Math.exp(Math.max(-.5, Math.min(.5, delta * .002))), (px - geometry.left) / (geometry.right - geometry.left));
+}, { passive: false });
+chart.addEventListener("pointerdown", (event) => {
+  if (!geometry || event.button !== 0 || drag || event.target.closest("[data-marker]")) return;
+  const bounds = chart.getBoundingClientRect();
+  const px = (event.clientX - bounds.left) * geometry.W / bounds.width;
+  if (px < geometry.left || px > geometry.right) return;
+  dragged = false;
+  drag = { id: event.pointerId, x: event.clientX, y: event.clientY, view: geometry.view,
+    step: geometry.step * bounds.width / geometry.W,
+    pricePerPixel: (geometry.upper - geometry.lower) / (geometry.bottom - geometry.top), offset: priceOffset };
+  chart.setPointerCapture(event.pointerId);
+  chart.classList.add("is-dragging");
+  selectAtPointer(event);
+});
+chart.addEventListener("pointermove", (event) => {
+  if (!drag || drag.id !== event.pointerId) { selectAtPointer(event); return; }
+  const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+  if (!dragged && Math.hypot(dx, dy) < 4) return;
+  dragged = true;
+  viewport = chartViewport(series.candles.length, drag.view.start - dx / drag.step, drag.view.count);
+  priceOffset = drag.offset + dy * drag.pricePerPixel;
+  hovered = null;
+  drawChart();
+});
+function endDrag(event) {
+  if (drag?.id !== event.pointerId) return;
+  drag = null;
+  chart.classList.remove("is-dragging");
+  if (chart.hasPointerCapture(event.pointerId)) chart.releasePointerCapture(event.pointerId);
+}
+chart.addEventListener("pointerup", endDrag);
+chart.addEventListener("pointercancel", endDrag);
+chart.addEventListener("lostpointercapture", endDrag);
+el("marketChart").addEventListener("pointerleave", () => {
+  if (drag) return;
+  hovered = null;
+  if (series) { el("chartCrosshair").innerHTML = ""; describeCandle(geometry.dataEnd - 1); }
 });
 el("marketChart").addEventListener("keydown", (event) => {
   if (event.target.closest("[data-marker]")) {
     if (["Enter", " "].includes(event.key)) { event.preventDefault(); selectMarker(event.target.closest("[data-marker]")); }
     return;
   }
-  if (!series || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  if (!series) return;
+  if (["+", "=", "-", "0"].includes(event.key)) {
+    event.preventDefault();
+    if (event.key === "0") resetView(); else zoom(event.key === "-" ? 1.25 : .8);
+    return;
+  }
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
   event.preventDefault();
-  hoverAt(event.key === "Home" ? 0 : event.key === "End" ? series.candles.length - 1 : (hovered ?? series.candles.length - 1) + (event.key === "ArrowLeft" ? -1 : 1));
+  const index = Math.max(0, Math.min(series.candles.length - 1, event.key === "Home" ? 0 : event.key === "End" ? series.candles.length - 1 : (hovered ?? geometry.dataEnd - 1) + (event.key === "ArrowLeft" ? -1 : 1)));
+  if (index < geometry.view.start || index >= geometry.view.start + geometry.view.count) {
+    viewport = chartViewport(series.candles.length, index < geometry.view.start ? index : index - geometry.view.count + 1, geometry.view.count);
+    drawChart();
+  }
+  hoverAt(index);
 });
 
 function selectMarker(target) {
   const marker = markers[Number(target.dataset.marker)];
   if (marker) { selectedOrder = marker.orders[0]; renderOrderDetail(); }
 }
-el("marketChart").addEventListener("click", (event) => { const marker = event.target.closest("[data-marker]"); if (marker) selectMarker(marker); });
+el("marketChart").addEventListener("click", (event) => { if (dragged) { dragged = false; return; } const marker = event.target.closest("[data-marker]"); if (marker) selectMarker(marker); });
 
 function renderWatch() {
   const list = [...new Set(["SOLUSDT", "BTCUSDT", "ETHUSDT", symbol])];
@@ -195,6 +274,13 @@ async function fetchCandles() {
     const data = await loadMarket(requestedSymbol, requestedInterval, controller.signal);
     if (serial !== requestSerial) return;
     if (data.symbol !== requestedSymbol || data.interval !== requestedInterval || !data.candles?.length) throw new Error("Histórico de mercado inválido.");
+    if (viewport && series) {
+      const oldView = chartViewport(series.candles.length, viewport.start, viewport.count);
+      const following = oldView.start + oldView.count === series.candles.length;
+      const spacing = series.candles.length > 1 ? series.candles[1].time - series.candles[0].time : 1;
+      const shift = Math.round((series.candles[0].time - data.candles[0].time) / spacing);
+      viewport = chartViewport(data.candles.length, following ? data.candles.length - oldView.count : oldView.start + shift, oldView.count);
+    }
     series = data;
     quotes.set(symbol, data);
     setMessage("");
@@ -216,7 +302,7 @@ async function fetchCandles() {
 function changeMarket(nextSymbol = symbol) {
   if (!MARKET_SYMBOLS.includes(nextSymbol)) return;
   symbol = nextSymbol; el("chartSymbol").value = symbol; interval = el("chartInterval").value;
-  series = null; hovered = null;
+  series = null; hovered = null; viewport = null; priceOffset = 0;
   paintQuote(); drawChart(); renderWatch(); renderOrders();
   el("chartOhlc").textContent = "Aguardando velas reais…";
   el("chartUpdated").textContent = "Buscando histórico da Binance…";
