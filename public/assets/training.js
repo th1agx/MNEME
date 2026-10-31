@@ -16,12 +16,28 @@ let dashboardRefreshTimer = null;
 
 function render(data) {
   current = data;
-  const wallets = data.wallets ?? [];
+  const allPositions = data.positions ?? [];
+  const wallets = (data.wallets ?? []).map((item) => {
+    const openPositions = allPositions.filter((position) => position.botId === item.botId);
+    const marketValueUsd = openPositions.reduce((sum, position) => sum + position.quantity * (position.markPriceUsd ?? position.entryPriceUsd), 0);
+    const unrealizedPnlUsd = openPositions.reduce((sum, position) => sum + position.quantity * (position.markPriceUsd ?? position.entryPriceUsd) - position.costUsd, 0);
+    const equityUsd = item.cashUsd + marketValueUsd;
+    return {
+      ...item,
+      marketValueUsd,
+      unrealizedPnlUsd,
+      totalPnlUsd: item.realizedPnlUsd + unrealizedPnlUsd,
+      equityUsd,
+      returnPct: item.initialUsd > 0 ? (equityUsd - item.initialUsd) / item.initialUsd * 100 : 0,
+      openPositions: openPositions.length,
+    };
+  }).sort((a, b) => b.totalPnlUsd - a.totalPnlUsd);
+  data.wallets = wallets;
   if (!wallets.some((item) => item.botId === selectedBotId) && wallets[0]) selectedBotId = wallets[0].botId;
   const wallet = wallets.find((item) => item.botId === selectedBotId);
   const bots = data.bots ?? [];
   const botName = (id) => bots.find((bot) => bot.id === id)?.name ?? id;
-  const rankedWallets = [...wallets].sort((a, b) => b.totalPnlUsd - a.totalPnlUsd);
+  const rankedWallets = wallets;
   const leaderBotId = rankedWallets.length > 1 && rankedWallets[0].totalPnlUsd !== rankedWallets[1].totalPnlUsd ? rankedWallets[0].botId : null;
   document.querySelector("#botComparison").innerHTML = wallets.map((item) => `<button class="bot-card ${item.botId === selectedBotId ? "selected" : ""}" type="button" data-bot-id="${safe(item.botId)}" aria-pressed="${item.botId === selectedBotId}">
     <span class="bot-card-title">${safe(botName(item.botId))}</span><strong class="${tone(item.totalPnlUsd)}">${money(item.totalPnlUsd)}</strong><small>resultado acumulado (realizado + em aberto) · ${pct(item.returnPct)}</small>
