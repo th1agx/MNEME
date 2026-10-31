@@ -59,24 +59,25 @@ interface PatternObservationRow {
   buy_volume_usd: number; sell_volume_usd: number; observed_at: string;
 }
 
-interface FollowedTraderRow {
-  followed_trader_id: string | null;
-  followed_trader_handle: string | null;
-  followed_trader_rank: number | null;
-  selected_at: string | null;
-}
-
 const jsonHeaders = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
 const trainingBotIds = ["mneme-paper-conservative", "mneme-paper-risky"] as const;
 
 export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request }) => {
   if (request.method !== "GET") return Response.json({ error: "Método não permitido." }, { status: 405, headers: jsonHeaders });
   try {
-    const [walletResult, positionResult, orderResult, followedTraderResult] = await Promise.all([
+    const [walletResult, positionResult, orderResult, top50FlowResult] = await Promise.all([
       env.MNEME_DB.prepare("SELECT * FROM paper_training_wallets WHERE trader_id IN (?, ?)").bind(...trainingBotIds).all<WalletRow>(),
       env.MNEME_DB.prepare("SELECT * FROM paper_training_positions WHERE trader_id IN (?, ?) ORDER BY updated_at DESC LIMIT 4000").bind(...trainingBotIds).all<PositionRow>(),
       env.MNEME_DB.prepare("SELECT * FROM paper_training_orders WHERE trader_id IN (?, ?) AND status != 'processing' ORDER BY executed_at DESC LIMIT 200").bind(...trainingBotIds).all<OrderRow>(),
-      env.MNEME_DB.prepare("SELECT followed_trader_id, followed_trader_handle, followed_trader_rank, selected_at FROM paper_training_settings WHERE id = 1").all<FollowedTraderRow>(),
+      env.MNEME_DB.prepare(`SELECT COUNT(*) AS signal_count, COUNT(DISTINCT source_trader_id) AS active_traders,
+        COUNT(DISTINCT CASE WHEN side = 'buy' THEN source_trader_id END) AS buyers,
+        COUNT(DISTINCT CASE WHEN side = 'sell' THEN source_trader_id END) AS sellers,
+        COALESCE(SUM(CASE WHEN side = 'buy' THEN amount_usd ELSE 0 END), 0) AS buy_volume_usd,
+        COALESCE(SUM(CASE WHEN side = 'sell' THEN amount_usd ELSE 0 END), 0) AS sell_volume_usd
+        FROM paper_training_signal_events WHERE signal_at >= ? AND source_rank BETWEEN 1 AND 50`)
+        .bind(new Date(Date.now() - 5 * 60_000).toISOString()).first<{
+          signal_count: number; active_traders: number; buyers: number; sellers: number; buy_volume_usd: number; sell_volume_usd: number;
+        }>(),
     ]);
     const [dailyResult, incidentResult, patternResult, patternPerformanceResult, dailyHistoryResult, capitalEventResult, capitalTotalResult] = await Promise.all([
       env.MNEME_DB.prepare(`SELECT * FROM paper_training_daily_metrics
@@ -108,7 +109,6 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         FROM paper_training_capital_events WHERE applied_at IS NOT NULL GROUP BY trader_id`)
         .all<{ trader_id: string; capital_added_usd: number }>(),
     ]);
-    const followedTraderRow = followedTraderResult.results[0];
     const capitalAddedByTrader = new Map(capitalTotalResult.results.map((row) => [row.trader_id, row.capital_added_usd]));
     const dailyByTrader = new Map(dailyResult.results.map((row) => [row.trader_id, row]));
 
@@ -161,18 +161,22 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
 
     return Response.json({
       mode: "paper",
-      strategy: "Os dois bots seguem o mesmo trader fixado pelo ranking de 30 dias. O Conservador espera uma segunda compra dele no ativo; o Arriscado copia o primeiro sinal. Ambos seguem as vendas dele e mantêm limites próprios; sem ordens reais.",
-      followedTrader: followedTraderRow?.followed_trader_id ? {
-        handle: followedTraderRow.followed_trader_handle,
-        rank: followedTraderRow.followed_trader_rank,
-        selectedAt: followedTraderRow.selected_at,
-      } : null,
+      strategy: "Os bots analisam o fluxo recente dos 50 traders do Top em cada ativo. Compram somente depois de confirmar volume e pressao compradora; vendas exigem confirmacao do fluxo vendedor. Historico paper positivo reforca a pontuacao quando ha amostra suficiente. Tudo em simulacao.",
+      top50Flow: {
+        windowMinutes: 5,
+        activeTraders: top50FlowResult?.active_traders ?? 0,
+        signalCount: top50FlowResult?.signal_count ?? 0,
+        buyers: top50FlowResult?.buyers ?? 0,
+        sellers: top50FlowResult?.sellers ?? 0,
+        buyVolumeUsd: top50FlowResult?.buy_volume_usd ?? 0,
+        sellVolumeUsd: top50FlowResult?.sell_volume_usd ?? 0,
+      },
       execution: { feeRate: 0.001, slippageRate: 0.005, initialWalletUsd: 200_000, dailyTargetPct: 30, dailyTargetIsGoalOnly: true,
         scoreMeaning: "etiqueta de execucao, nao probabilidade de lucro" },
       paperCapital: { walletCount: walletResult.results.length, totalAllocatedUsd: walletResult.results.reduce((sum, wallet) => sum + wallet.initial_usd, 0) },
       bots: [
-        { id: trainingBotIds[0], name: "MNEME Conservador", buyConfirmations: 2, buySizePct: 2, minimumLiquidityUsd: 25_000, maxAssetExposurePct: 10, maxPortfolioExposurePct: 100, buyCooldownMinutes: 5 },
-        { id: trainingBotIds[1], name: "MNEME Arriscado", buyConfirmations: 1, buySizePct: 4, minimumLiquidityUsd: 10_000, maxAssetExposurePct: 15, maxPortfolioExposurePct: 100, buyCooldownMinutes: 0 },
+        { id: trainingBotIds[0], name: "MNEME Conservador", minBuyers: 3, minSellers: 3, minimumBuyVolumeUsd: 2_500, minimumSellVolumeUsd: 2_500, minimumPressurePct: 65, buySizePct: 2, minimumLiquidityUsd: 25_000, maxAssetExposurePct: 10, maxPortfolioExposurePct: 100, buyCooldownMinutes: 5 },
+        { id: trainingBotIds[1], name: "MNEME Arriscado", minBuyers: 2, minSellers: 2, minimumBuyVolumeUsd: 1_000, minimumSellVolumeUsd: 1_000, minimumPressurePct: 55, buySizePct: 4, minimumLiquidityUsd: 10_000, maxAssetExposurePct: 15, maxPortfolioExposurePct: 100, buyCooldownMinutes: 0 },
       ],
       generatedAt: new Date().toISOString(),
       capitalControlReady: true,

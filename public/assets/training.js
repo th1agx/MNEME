@@ -9,7 +9,6 @@ const patternName = (value) => ({
   large_buy: "Compra de alto valor", crowd_buy: "Compra em grupo", large_and_crowd_buy: "Alto valor + grupo",
   large_sell: "Venda de alto valor", crowd_sell: "Venda em grupo", sell_batch: "Venda em lote",
   mixed_flow: "Fluxo conflitante", unconfirmed: "Sem confirmacao",
-  trader_copy_buy: "Compra do trader seguido", trader_copy_sell: "Venda do trader seguido",
 }[value] ?? value ?? "-");
 let current = null;
 let selectedBotId = "mneme-paper-conservative";
@@ -19,11 +18,10 @@ let pendingCapitalEventId = null;
 
 function render(data) {
   current = data;
-  const followedTrader = data.followedTrader;
-  document.querySelector("#followedTraderStatus").textContent = followedTrader
-    ? `Copy trading · ${followedTrader.handle} (#${followedTrader.rank ?? "-"} · 30D)`
-    : "Copy trading · aguardando ranking para fixar o trader";
-  document.querySelector("#followedTraderStatus").title = followedTrader?.selectedAt ? `ID fixado desde ${new Date(followedTrader.selectedAt).toLocaleString("pt-BR")}` : "";
+  const flow = data.top50Flow ?? {};
+  const flowStatus = document.querySelector("#top50FlowStatus");
+  flowStatus.textContent = `Fluxo Top 50 · ${flow.windowMinutes ?? 5} min: ${plural(flow.activeTraders, "trader ativo", "traders ativos")} · ${flow.buyers ?? 0} compradores / ${flow.sellers ?? 0} vendedores`;
+  flowStatus.title = `Compradores: ${flow.buyers ?? 0} (${money(flow.buyVolumeUsd)}) · Vendedores: ${flow.sellers ?? 0} (${money(flow.sellVolumeUsd)})`;
   const allPositions = data.positions ?? [];
   const wallets = (data.wallets ?? []).map((item) => {
     const openPositions = allPositions.filter((position) => position.botId === item.botId);
@@ -75,16 +73,19 @@ function render(data) {
     <td>${new Date(event.createdAt).toLocaleString("pt-BR")}</td><td>${safe(botName(event.botId))}</td><td class="num positive">+${money(event.amountUsd)}</td></tr>`).join("")
     : `<tr><td colspan="3" class="empty">Nenhum aporte registrado.</td></tr>`;
   const profile = bots.find((bot) => bot.id === selectedBotId);
+  const thousands = (value) => `US$ ${(Number(value) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil`;
   const ruleChips = profile ? [
-    profile.buyConfirmations > 1 ? `Gatilho: ${profile.buyConfirmations}ª compra` : "Gatilho: 1º sinal",
-    `Tamanho: ${profile.buySizePct}% / sinal`,
-    `Liquidez mín.: US$ ${Math.round(profile.minimumLiquidityUsd / 1000)} mil`,
+    `Gatilho: ${profile.minBuyers}+ compradores Top 50`,
+    `Volume mín.: ${thousands(profile.minimumBuyVolumeUsd)}`,
+    `Pressão compradora: ${profile.minimumPressurePct}%`,
+    `Tamanho: ${profile.buySizePct}% / entrada`,
+    `Liquidez mín.: ${thousands(profile.minimumLiquidityUsd)}`,
     `Exposição máx.: ${profile.maxAssetExposurePct}% / ativo`,
     profile.buyCooldownMinutes > 0 ? `Cooldown: ${profile.buyCooldownMinutes} min` : "Sem cooldown",
   ] : [];
   const waiting = !positions.length && !(wallet?.closedTrades);
   document.querySelector("#trainingExplanation").innerHTML = `<div class="rule-chips">${ruleChips.map((chip) => `<span>${safe(chip)}</span>`).join("")}</div>
-    <p>${waiting ? `Sem posições abertas · aguardando sinal de compra de <b>${safe(followedTrader?.handle ?? "trader seguido")}</b>. ` : ""}Replica apenas as operações do trader seguido; PnL não realizado é marcado a mercado e realizado no fechamento. <a href="#trainingRules" class="rules-link">Parâmetros completos</a></p>`;
+    <p>${waiting ? "Sem posições abertas · aguardando confluência compradora do Top 50. " : ""}Entradas exigem confluência de traders do Top 50; saídas exigem confirmação do fluxo vendedor. PnL não realizado é marcado a mercado e realizado no fechamento. <a href="#trainingRules" class="rules-link">Parâmetros completos</a></p>`;
 
   const headerLabels = {
     "#": "#", "Conta": "Conta", "Resultado total": "Lucro/prejuízo total", "Realizado": "Já realizado (vendas)", "Em aberto": "Ainda em aberto",

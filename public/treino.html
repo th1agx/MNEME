@@ -20,7 +20,7 @@
 <main class="training-main">
   <div class="training-head">
     <div class="training-title"><h1>Treino Bot</h1><span class="training-mode">SIMULAÇÃO</span></div>
-    <div class="training-meta"><span id="followedTraderStatus">Trader seguido: aguardando o primeiro ranking após o reset.</span><span id="trainingStatus" class="training-status" role="status">Carregando resultados…</span></div>
+    <div class="training-meta"><span id="top50FlowStatus">Fluxo Top 50 · aguardando dados</span><span id="trainingStatus" class="training-status" role="status">Carregando resultados…</span></div>
   </div>
   <section class="pane training-board" aria-label="Comparação dos bots">
     <div class="table-wrap"><table class="bot-compare"><thead><tr><th>Estratégia</th><th class="num">PnL total</th><th class="num">ROI</th><th class="num hide-sm">Patrimônio</th><th class="num hide-sm">PnL hoje</th><th class="num hide-sm">Posições</th><th class="num hide-sm">Trades</th><th class="hide-sm">Status</th></tr></thead><tbody id="botComparison"><tr><td colspan="8" class="empty">Carregando…</td></tr></tbody></table></div>
@@ -75,7 +75,7 @@
     <div class="table-wrap"><table><thead><tr><th>Executada</th><th>Trader</th><th>Lado</th><th>Ativo</th><th>Rede</th><th class="num">Preço</th><th class="num">Valor</th><th class="num">Taxa</th><th>Padrão</th><th>Resultado</th><th>Situação</th></tr></thead><tbody id="orderRows"><tr><td colspan="11" class="empty">Aguardando movimentações.</td></tr></tbody></table></div>
     </section>
   </details>
-  <details id="trainingRules" class="training-details training-rules"><summary>Parâmetros da estratégia</summary><p class="training-note">Ambas as carteiras seguem um único trader, escolhido como primeiro do ranking de 30 dias após o reset; o ID fica fixo durante o teste. O Conservador espera uma segunda compra do mesmo trader no mesmo ativo, exige liquidez de US$ 25.000 e compra 2% da carteira por sinal. O Arriscado copia a primeira compra, exige liquidez de US$ 10.000, compra 4% por sinal e não aplica intervalo entre compras. As vendas seguem os sinais de venda desse trader; sinais dos demais não abrem nem fecham posições. Limite por ativo: 10% no Conservador e 15% no Arriscado; exposição total máxima: 100%. Slippage simulado: 0,5%; taxa: 0,1%. Nenhuma ordem real é enviada.</p></details>
+  <details id="trainingRules" class="training-details training-rules"><summary>Parâmetros da estratégia</summary><p class="training-note">Os sinais dos 50 traders do Top são agrupados por ativo em uma janela de 5 minutos. Cada bot compara número de compradores e vendedores, volume e pressão de compra/venda. O Conservador exige 3 compradores, pelo menos US$ 2.500 comprados e 65% de pressão compradora; o Arriscado exige 2 compradores, US$ 1.000 e 55%. As vendas também precisam de confirmação de vários traders. O histórico paper positivo reforça a pontuação quando há amostra suficiente. Liquidez mínima: US$ 25.000 no Conservador e US$ 10.000 no Arriscado. Entradas: 2% e 4% da carteira, respectivamente. Limites por ativo: 10% e 15%; exposição total máxima: 100%. As ordens são simuladas com taxa e slippage. Nenhuma ordem real é enviada.</p></details>
 </main>
 <dialog id="capitalDialog" class="capital-dialog">
   <form id="capitalForm">
@@ -86,6 +86,6 @@
     <div class="capital-dialog-actions"><button id="cancelCapitalDialog" class="btn" type="button">Cancelar</button><button id="submitCapital" class="btn primary" type="submit">Confirmar aporte</button></div>
   </form>
 </dialog>
-<script src="/assets/training.js?v=20261031-compact"></script>
+<script src="/assets/training.js?v=20261031-compact-top50"></script>
 </body>
 </html>
