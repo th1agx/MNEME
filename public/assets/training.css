@@ -32,6 +32,13 @@
 .training-note { color:var(--muted); font-size:11px; line-height:1.6; margin:18px 0; }
 .positive { color:var(--up); }.negative { color:var(--down); }
 .training-section td small { display:block; color:var(--muted); font-size:10px; margin-top:3px; }
+.live-activity { margin:10px 0; padding:0 14px 10px; border:1px solid var(--line); }
+.live-activity .training-heading { padding-top:10px; }
+.live-activity h2 { font-size:14px; }
+.live-activity h2 small { margin-left:8px; color:var(--muted); font-size:11px; font-weight:400; }
+.live-activity p { margin:3px 0 10px; font-size:11px; }
+.live-activity td { white-space:nowrap; }
+.unmatched-signal { color:var(--warn); }
 .goal-meter { width:88px; height:5px; overflow:hidden; border-radius:4px; background:var(--line); margin-bottom:4px; }
 .goal-meter span { display:block; height:100%; background:var(--warn); }
 .halted { color:var(--down); font-weight:600; }

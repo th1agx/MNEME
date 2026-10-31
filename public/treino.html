@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/brand/icon-32.png">
 <link rel="stylesheet" href="/assets/app.css">
-<link rel="stylesheet" href="/assets/training.css?v=20261031-crud">
+<link rel="stylesheet" href="/assets/training.css?v=20261031-activity">
 </head>
 <body>
 <header class="app-bar">
@@ -30,6 +30,18 @@
     <p id="capitalNotice" class="capital-notice" role="status"></p>
     <div id="trainingSummary" class="training-summary"></div>
     <div id="trainingExplanation" class="bot-rules"></div>
+  </section>
+  <section class="pane wide training-section live-activity" aria-label="Atividade recente do robô">
+    <div class="training-heading"><div><h2>O que o robô está lendo <small id="signalEventCount">0 sinais</small></h2>
+      <p class="muted">Até 100 movimentações recentes guardadas por até sete dias. O ciclo da nuvem lê sinais a cada minuto. “Sem vínculo com o Top 50” significa que o alerta não foi associado ao ranking.</p></div></div>
+    <div class="table-wrap"><table><thead><tr><th>Hora da operação</th><th>Trader</th><th>Ranking</th><th>Lado</th><th>Ativo</th><th>Rede</th><th class="num">Valor</th><th>Recebido pelo robô</th></tr></thead>
+      <tbody id="signalEventRows"><tr><td colspan="8" class="empty">Aguardando movimentações recebidas pela nuvem.</td></tr></tbody></table></div>
+  </section>
+  <section class="pane wide training-section live-activity" aria-label="Decisões recentes do robô">
+    <div class="training-heading"><div><h2>Decisões do robô <small id="patternCount">0</small></h2>
+      <p class="muted">Cada linha mostra o motivo registrado para comprar, vender ou continuar observando.</p></div></div>
+    <div class="table-wrap"><table><thead><tr><th>Hora</th><th>Ativo</th><th>Decisão</th><th>Motivo e consenso observado</th><th class="num">Compradores</th><th class="num">Vendedores</th><th class="num">Acerto médio</th></tr></thead>
+      <tbody id="patternRows"><tr><td colspan="7" class="empty">Nenhuma decisão registrada ainda.</td></tr></tbody></table></div>
   </section>
   <details class="training-details">
     <summary>Performance <small>comparativo e resultado por padrão de entrada</small></summary>
@@ -53,10 +65,6 @@
     <section class="pane wide training-section">
       <h2>Aportes paper <small id="capitalEventCount">0</small></h2>
       <div class="table-wrap"><table><thead><tr><th>Data</th><th>Bot</th><th class="num">Valor adicionado</th></tr></thead><tbody id="capitalRows"><tr><td colspan="3" class="empty">Nenhum aporte registrado.</td></tr></tbody></table></div>
-    </section>
-    <section class="pane wide training-section">
-    <h2>Padrões recentes <small id="patternCount">0</small></h2>
-    <div class="table-wrap"><table><thead><tr><th>Horário</th><th>Ativo</th><th>Padrão</th><th>Decisão</th><th class="num">Força</th><th class="num">Compradores</th><th class="num">Vendedores</th><th class="num">Compra 5 min</th><th class="num">Venda 5 min</th></tr></thead><tbody id="patternRows"><tr><td colspan="9" class="empty">Aguardando alertas para classificar.</td></tr></tbody></table></div>
     </section>
     <section class="pane wide training-section">
     <h2>Investigações <small id="incidentCount">0</small></h2>
@@ -86,6 +94,6 @@
     <div class="capital-dialog-actions"><button id="cancelCapitalDialog" class="btn" type="button">Cancelar</button><button id="submitCapital" class="btn primary" type="submit">Confirmar aporte</button></div>
   </form>
 </dialog>
-<script src="/assets/training.js?v=20261031-crud"></script>
+<script src="/assets/training.js?v=20261031-activity"></script>
 </body>
 </html>

@@ -9,6 +9,7 @@ const patternName = (value) => ({
   large_buy: "Compra de alto valor", crowd_buy: "Compra em grupo", large_and_crowd_buy: "Alto valor + grupo",
   large_sell: "Venda de alto valor", crowd_sell: "Venda em grupo", sell_batch: "Venda em lote",
   consensus_buy: "Maioria de alto acerto comprando", consensus_exit: "Maioria de alto acerto vendeu",
+  consensus_wait: "Aguardando consenso",
   repeat_buy: "Recompras do mesmo trader", mixed_flow: "Fluxo conflitante", unconfirmed: "Sem confirmacao",
 }[value] ?? value ?? "-");
 let current = null;
@@ -124,13 +125,23 @@ function render(data) {
     <td class="num ${tone(row.realizedPnlUsd)}">${money(row.realizedPnlUsd)}</td><td class="num ${tone(row.averagePnlUsd)}">${money(row.averagePnlUsd)}</td></tr>`).join("")
     : `<tr><td colspan="5" class="empty">Ainda nao ha saidas fechadas para comparar.</td></tr>`;
 
-  document.querySelector("#patternCount").textContent = patterns.length;
+  const signalEvents = data.signalEvents ?? [];
+  document.querySelector("#signalEventCount").textContent = `Exibindo ${signalEvents.length} · máx. 100`;
+  document.querySelector("#signalEventRows").innerHTML = signalEvents.length ? signalEvents.map((signal) => `<tr>
+    <td>${new Date(signal.signalAt).toLocaleString("pt-BR")}<small>recebido ${new Date(signal.observedAt).toLocaleTimeString("pt-BR")}</small></td>
+    <td>${safe(signal.trader)}</td><td>${signal.matchedTop50 ? `Top #${Number(signal.sourceRank)}` : `<span class="unmatched-signal">Sem vínculo com o Top 50</span>`}</td>
+    <td class="${signal.side === "buy" ? "positive" : "negative"}">${signal.side === "buy" ? "Compra" : "Venda"}</td>
+    <td><b>${safe(signal.symbol)}</b></td><td>${safe(signal.chain)}</td><td class="num">${signal.amountUsd == null ? "—" : money(signal.amountUsd)}</td>
+    <td>${signal.matchedTop50 ? "Incluído na leitura" : "Não entra no consenso"}</td></tr>`).join("")
+    : `<tr><td colspan="8" class="empty">Nenhuma movimentação válida foi registrada pelo ciclo da nuvem nos últimos sete dias.</td></tr>`;
+
+  document.querySelector("#patternCount").textContent = `${patterns.length} decisões`;
   document.querySelector("#patternRows").innerHTML = patterns.length ? patterns.map((pattern) => `<tr>
     <td>${new Date(pattern.observedAt).toLocaleString("pt-BR")}</td><td><b>${safe(pattern.symbol)}</b><small>${safe(pattern.chain)}</small></td>
-    <td>${safe(patternName(pattern.pattern))}</td><td class="${pattern.action === "buy" ? "positive" : pattern.action === "sell" ? "negative" : ""}">${pattern.action === "buy" ? "Compra paper" : pattern.action === "sell" ? "Venda paper" : "Observar"}<small>${safe(pattern.reason)}</small></td>
-    <td class="num">${Number(pattern.score) || 0}/100</td><td class="num">${pattern.buyers}</td><td class="num">${pattern.sellers}</td>
-    <td class="num">${money(pattern.buyVolumeUsd)}</td><td class="num">${money(pattern.sellVolumeUsd)}</td></tr>`).join("")
-    : `<tr><td colspan="9" class="empty">Aguardando alertas para classificar.</td></tr>`;
+    <td class="${pattern.action === "buy" ? "positive" : pattern.action === "sell" ? "negative" : ""}">${pattern.action === "buy" ? "Compra paper" : pattern.action === "sell" ? "Venda paper" : "Observar"}</td>
+    <td>${safe(pattern.reason)}</td><td class="num">${Number(pattern.buyers) || 0}</td><td class="num">${Number(pattern.sellers) || 0}</td>
+    <td class="num">${Number(pattern.buyers) + Number(pattern.sellers) ? `${Number(pattern.score) || 0}%` : "—"}</td></tr>`).join("")
+    : `<tr><td colspan="7" class="empty">Ainda não há decisão registrada. Se houver sinal do Top 50 associado, o motivo aparecerá aqui.</td></tr>`;
 
   document.querySelector("#incidentCount").textContent = incidents.length;
   document.querySelector("#incidentRows").innerHTML = incidents.length ? incidents.map((incident) => {

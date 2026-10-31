@@ -59,6 +59,11 @@ interface PatternObservationRow {
   buy_volume_usd: number; sell_volume_usd: number; observed_at: string;
 }
 
+interface TrainingSignalEventRow {
+  event_id: string; source_trader_handle: string; source_rank: number | null; side: "buy" | "sell";
+  chain: string; token_symbol: string; amount_usd: number | null; signal_at: string; observed_at: string;
+}
+
 /** O dia de operação vira à meia-noite de Brasília (UTC-3), igual ao Worker. */
 const brasiliaDay = (date: Date) => new Date(date.getTime() - 3 * 60 * 60_000).toISOString().slice(0, 10);
 
@@ -68,7 +73,7 @@ const trainingBotIds = ["mneme-paper"] as const;
 export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request }) => {
   if (request.method !== "GET") return Response.json({ error: "Método não permitido." }, { status: 405, headers: jsonHeaders });
   try {
-    const [walletResult, positionResult, orderResult, top50FlowResult] = await Promise.all([
+    const [walletResult, positionResult, orderResult, top50FlowResult, signalEventResult] = await Promise.all([
       env.MNEME_DB.prepare("SELECT * FROM paper_training_wallets WHERE trader_id = ?").bind(...trainingBotIds).all<WalletRow>(),
       env.MNEME_DB.prepare("SELECT * FROM paper_training_positions WHERE trader_id = ? ORDER BY updated_at DESC LIMIT 4000").bind(...trainingBotIds).all<PositionRow>(),
       env.MNEME_DB.prepare("SELECT * FROM paper_training_orders WHERE trader_id = ? AND status != 'processing' ORDER BY executed_at DESC LIMIT 200").bind(...trainingBotIds).all<OrderRow>(),
@@ -81,6 +86,9 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         .bind(new Date(Date.now() - 5 * 60_000).toISOString()).first<{
           signal_count: number; active_traders: number; buyers: number; sellers: number; buy_volume_usd: number; sell_volume_usd: number;
         }>(),
+      env.MNEME_DB.prepare(`SELECT event_id, source_trader_handle, source_rank, side, chain, token_symbol,
+        amount_usd, signal_at, observed_at FROM paper_training_signal_events
+        ORDER BY observed_at DESC LIMIT 100`).all<TrainingSignalEventRow>(),
     ]);
     const [dailyResult, incidentResult, patternResult, patternPerformanceResult, dailyHistoryResult, capitalEventResult, capitalTotalResult] = await Promise.all([
       env.MNEME_DB.prepare(`SELECT * FROM paper_training_daily_metrics
@@ -182,6 +190,17 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         buyVolumeUsd: top50FlowResult?.buy_volume_usd ?? 0,
         sellVolumeUsd: top50FlowResult?.sell_volume_usd ?? 0,
       },
+      signalEvents: signalEventResult.results.map((signal) => ({
+        trader: signal.source_trader_handle,
+        sourceRank: signal.source_rank,
+        matchedTop50: signal.source_rank != null && signal.source_rank >= 1 && signal.source_rank <= 50,
+        side: signal.side,
+        chain: signal.chain,
+        symbol: signal.token_symbol,
+        amountUsd: signal.amount_usd,
+        signalAt: signal.signal_at,
+        observedAt: signal.observed_at,
+      })),
       execution: { feeRate: 0.001, slippageRate: 0.005, initialWalletUsd: 200_000, dailyTargetPct, dailyLossLimitPct,
         scoreMeaning: "etiqueta de execucao, nao probabilidade de lucro" },
       paperCapital: { walletCount: walletResult.results.length, totalAllocatedUsd: walletResult.results.reduce((sum, wallet) => sum + wallet.initial_usd, 0) },
