@@ -8,7 +8,7 @@ const tone = (value) => Number(value) > 0 ? "positive" : Number(value) < 0 ? "ne
 const patternName = (value) => ({
   large_buy: "Compra de alto valor", crowd_buy: "Compra em grupo", large_and_crowd_buy: "Alto valor + grupo",
   large_sell: "Venda de alto valor", crowd_sell: "Venda em grupo", sell_batch: "Venda em lote",
-  mixed_flow: "Fluxo conflitante", unconfirmed: "Sem confirmacao",
+  repeat_buy: "Recompras do mesmo trader", mixed_flow: "Fluxo conflitante", unconfirmed: "Sem confirmacao",
 }[value] ?? value ?? "-");
 let current = null;
 let selectedBotId = "mneme-paper-conservative";
@@ -78,6 +78,9 @@ function render(data) {
     `Gatilho: ${profile.minBuyers}+ compradores Top 50`,
     `Volume mín.: ${thousands(profile.minimumBuyVolumeUsd)}`,
     `Pressão compradora: ${profile.minimumPressurePct}%`,
+    `Ordem individual: ${thousands(profile.minimumSingleBuyUsd)}+`,
+    profile.minimumAccurateBuyers > 0 ? `Trader validado: ${profile.minimumTraderWinRatePct}%+ win rate (${profile.minimumAccuracySample}+ trades)` : `Recompras: ${profile.minimumRepeatBuys}+ do mesmo trader`,
+    ...(profile.allowBatchSell ? [`Venda em lote: ${profile.minimumBatchSellAssets}+ ativos`] : []),
     `Tamanho: ${profile.buySizePct}% / entrada`,
     `Liquidez mín.: ${thousands(profile.minimumLiquidityUsd)}`,
     `Exposição máx.: ${profile.maxAssetExposurePct}% / ativo`,

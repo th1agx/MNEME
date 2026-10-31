@@ -161,7 +161,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
 
     return Response.json({
       mode: "paper",
-      strategy: "Os bots analisam o fluxo recente dos 50 traders do Top em cada ativo. Compram somente depois de confirmar volume e pressao compradora; vendas exigem confirmacao do fluxo vendedor. Historico paper positivo reforca a pontuacao quando ha amostra suficiente. Tudo em simulacao.",
+      strategy: "O Conservador prioriza fluxo confirmado por traders com historico paper positivo e amostra suficiente. O Arriscado tambem observa ordens individuais grandes, recompras do mesmo trader e vendas em lote. Os dois analisam os 50 traders do Top e operam somente em simulacao.",
       top50Flow: {
         windowMinutes: 5,
         activeTraders: top50FlowResult?.active_traders ?? 0,
@@ -175,8 +175,8 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         scoreMeaning: "etiqueta de execucao, nao probabilidade de lucro" },
       paperCapital: { walletCount: walletResult.results.length, totalAllocatedUsd: walletResult.results.reduce((sum, wallet) => sum + wallet.initial_usd, 0) },
       bots: [
-        { id: trainingBotIds[0], name: "MNEME Conservador", minBuyers: 3, minSellers: 3, minimumBuyVolumeUsd: 2_500, minimumSellVolumeUsd: 2_500, minimumPressurePct: 65, buySizePct: 2, minimumLiquidityUsd: 25_000, maxAssetExposurePct: 10, maxPortfolioExposurePct: 100, buyCooldownMinutes: 5 },
-        { id: trainingBotIds[1], name: "MNEME Arriscado", minBuyers: 2, minSellers: 2, minimumBuyVolumeUsd: 1_000, minimumSellVolumeUsd: 1_000, minimumPressurePct: 55, buySizePct: 4, minimumLiquidityUsd: 10_000, maxAssetExposurePct: 15, maxPortfolioExposurePct: 100, buyCooldownMinutes: 0 },
+        { id: trainingBotIds[0], name: "MNEME Conservador", minBuyers: 3, minSellers: 3, minimumBuyVolumeUsd: 2_500, minimumSellVolumeUsd: 2_500, minimumPressurePct: 65, minimumSingleBuyUsd: 20_000, minimumSingleSellUsd: 20_000, minimumSinglePressurePct: 75, minimumRepeatBuys: 3, minimumBatchSellAssets: 3, allowBatchSell: false, minimumAccurateBuyers: 1, minimumAccuracySample: 8, minimumTraderWinRatePct: 60, buySizePct: 2, minimumLiquidityUsd: 25_000, maxAssetExposurePct: 10, maxPortfolioExposurePct: 100, buyCooldownMinutes: 5 },
+        { id: trainingBotIds[1], name: "MNEME Arriscado", minBuyers: 2, minSellers: 2, minimumBuyVolumeUsd: 1_000, minimumSellVolumeUsd: 1_000, minimumPressurePct: 55, minimumSingleBuyUsd: 5_000, minimumSingleSellUsd: 5_000, minimumSinglePressurePct: 55, minimumRepeatBuys: 2, minimumBatchSellAssets: 3, allowBatchSell: true, minimumAccurateBuyers: 0, minimumAccuracySample: 5, minimumTraderWinRatePct: 50, buySizePct: 4, minimumLiquidityUsd: 10_000, maxAssetExposurePct: 15, maxPortfolioExposurePct: 100, buyCooldownMinutes: 0 },
       ],
       generatedAt: new Date().toISOString(),
       capitalControlReady: true,
