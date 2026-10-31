@@ -84,7 +84,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         COUNT(DISTINCT CASE WHEN side = 'sell' THEN source_trader_id END) AS sellers,
         COALESCE(SUM(CASE WHEN side = 'buy' THEN amount_usd ELSE 0 END), 0) AS buy_volume_usd,
         COALESCE(SUM(CASE WHEN side = 'sell' THEN amount_usd ELSE 0 END), 0) AS sell_volume_usd
-        FROM paper_training_signal_events WHERE signal_at >= ? AND source_rank BETWEEN 1 AND 50`)
+        FROM paper_training_signal_events WHERE signal_at >= ?`)
         .bind(new Date(Date.now() - 5 * 60_000).toISOString()).first<{
           signal_count: number; active_traders: number; buyers: number; sellers: number; buy_volume_usd: number; sell_volume_usd: number;
         }>(),
@@ -128,7 +128,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
       .first<{ daily_profit_target_pct: number | null; daily_loss_limit_pct: number | null; consensus_min_win_rate_pct: number | null;
         consensus_min_closed_trades: number | null; consensus_min_traders: number | null; consensus_window_minutes: number | null;
         order_size_pct: number | null; min_liquidity_usd: number | null }>();
-    // Acerto medido de cada trader do Top em 30 dias, com quanto tempo ele costuma ficar na operação.
+    // Acerto medido de cada trader em 30 dias, esteja ou não no ranking, com quanto tempo ele costuma ficar na operação.
     const traderResults = await env.MNEME_DB.prepare(`SELECT source_trader_id, MAX(source_trader_handle) AS handle, COUNT(*) AS closed_trades,
       SUM(CASE WHEN return_pct > 0 THEN 1 ELSE 0 END) AS wins, COUNT(opened_at) AS timed_trades,
       AVG(CASE WHEN opened_at IS NOT NULL THEN (julianday(closed_at) - julianday(opened_at)) * 1440 END) AS average_hold_minutes
@@ -191,7 +191,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
 
     return Response.json({
       mode: "paper",
-      strategy: "Um robô só: entra quando a maioria dos traders de alto acerto do Top está comprando o mesmo token e sai quando a maioria desses traders vende. Os parâmetros vêm de Configurações. Tudo em simulação.",
+      strategy: "Um robô só: entra quando a maioria dos traders de alto acerto medido, estejam ou não no ranking, está comprando o mesmo token de Solana e sai quando a maioria desses traders vende. Os parâmetros vêm de Configurações. Tudo em simulação.",
       top50Flow: {
         windowMinutes: 5,
         activeTraders: top50FlowResult?.active_traders ?? 0,

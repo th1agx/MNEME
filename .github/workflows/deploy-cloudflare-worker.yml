@@ -74,6 +74,7 @@ jobs:
           test "$(head -c 9 migrations/0016_training_single_bot.sql)" != "GITCRYPT"
           test "$(head -c 9 migrations/0017_drop_training_params.sql)" != "GITCRYPT"
           test "$(head -c 9 migrations/0018_training_trader_hold_time.sql)" != "GITCRYPT"
+          test "$(head -c 9 migrations/0019_training_ranking_cache.sql)" != "GITCRYPT"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

@@ -39,7 +39,7 @@ function render(data) {
   current = data;
   const flow = data.top50Flow ?? {};
   const flowStatus = document.querySelector("#top50FlowStatus");
-  flowStatus.textContent = `Fluxo Top 50 · ${flow.windowMinutes ?? 5} min: ${plural(flow.activeTraders, "trader ativo", "traders ativos")} · ${flow.buyers ?? 0} compradores / ${flow.sellers ?? 0} vendedores`;
+  flowStatus.textContent = `Fluxo dos traders · ${flow.windowMinutes ?? 5} min: ${plural(flow.activeTraders, "trader ativo", "traders ativos")} · ${flow.buyers ?? 0} compradores / ${flow.sellers ?? 0} vendedores`;
   flowStatus.title = `Compradores: ${flow.buyers ?? 0} (${money(flow.buyVolumeUsd)}) · Vendedores: ${flow.sellers ?? 0} (${money(flow.sellVolumeUsd)})`;
   const allPositions = data.positions ?? [];
   const wallets = (data.wallets ?? []).map((item) => {
@@ -137,10 +137,10 @@ function render(data) {
   document.querySelector("#signalEventCount").textContent = `Exibindo ${signalEvents.length} · máx. 100`;
   document.querySelector("#signalEventRows").innerHTML = signalEvents.length ? signalEvents.map((signal) => `<tr>
     <td>${new Date(signal.signalAt).toLocaleString("pt-BR")}<small>recebido ${new Date(signal.observedAt).toLocaleTimeString("pt-BR")}</small></td>
-    <td>${safe(signal.trader)}</td><td>${signal.matchedTop50 ? `Top #${Number(signal.sourceRank)}` : `<span class="unmatched-signal">Sem vínculo com o Top 50</span>`}</td>
+    <td>${safe(signal.trader)}</td><td>${signal.matchedTop50 ? `Top #${Number(signal.sourceRank)}` : `<span class="unmatched-signal">Fora do Top 50</span>`}</td>
     <td class="${signal.side === "buy" ? "positive" : "negative"}">${signal.side === "buy" ? "Compra" : "Venda"}</td>
     <td><b>${safe(signal.symbol)}</b></td><td>${safe(signal.chain)}</td><td class="num">${signal.amountUsd == null ? "—" : money(signal.amountUsd)}</td>
-    <td>${signal.matchedTop50 ? "Incluído na leitura" : "Não entra no consenso"}</td></tr>`).join("")
+    <td>${String(signal.chain).toLowerCase() === "solana" ? "Mede o acerto e entra no consenso" : "Mede o acerto; não compra fora de Solana"}</td></tr>`).join("")
     : `<tr><td colspan="8" class="empty">Nenhuma movimentação válida foi registrada pelo ciclo da nuvem nos últimos sete dias.</td></tr>`;
 
   document.querySelector("#patternCount").textContent = `${patterns.length} decisões`;
@@ -149,7 +149,7 @@ function render(data) {
     <td class="${pattern.action === "buy" ? "positive" : pattern.action === "sell" ? "negative" : ""}">${pattern.action === "buy" ? "Compra paper" : pattern.action === "sell" ? "Venda paper" : "Observar"}</td>
     <td>${safe(pattern.reason)}</td><td class="num">${Number(pattern.buyers) || 0}</td><td class="num">${Number(pattern.sellers) || 0}</td>
     <td class="num">${Number(pattern.buyers) + Number(pattern.sellers) ? `${Number(pattern.score) || 0}%` : "—"}</td></tr>`).join("")
-    : `<tr><td colspan="7" class="empty">Ainda não há decisão registrada. Se houver sinal do Top 50 associado, o motivo aparecerá aqui.</td></tr>`;
+    : `<tr><td colspan="7" class="empty">Ainda não há decisão registrada. Quando um trader operar um token de Solana, o motivo aparecerá aqui.</td></tr>`;
 
   const accuracy = data.traderAccuracy;
   const ranked = accuracy?.top ?? [];
@@ -160,7 +160,7 @@ function render(data) {
   document.querySelector("#traderAccuracyRows").innerHTML = ranked.length ? ranked.map((trader) => `<tr>
     <td>${safe(trader.trader)}</td><td class="num">${Number(trader.closedTrades) || 0}</td><td class="num">${pct(trader.winRatePct)}</td>
     <td class="num">${holdLabel(trader.averageHoldMinutes)}</td><td class="${trader.qualified ? "positive" : ""}">${trader.qualified ? "Sim, alto acerto" : "Não, abaixo da taxa"}</td></tr>`).join("")
-    : `<tr><td colspan="5" class="empty">Nenhum trader com a amostra mínima ainda. O acerto aparece quando os traders do Top encerram operações.</td></tr>`;
+    : `<tr><td colspan="5" class="empty">Nenhum trader com a amostra mínima ainda. O acerto aparece quando os traders encerram operações.</td></tr>`;
 
   document.querySelector("#incidentCount").textContent = incidents.length;
   document.querySelector("#incidentRows").innerHTML = incidents.length ? incidents.map((incident) => {

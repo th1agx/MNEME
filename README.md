@@ -11,7 +11,7 @@
 
 ---
 
-**MNEME** é um robô de daytrade em Solana. Ele lê em tempo real as operações dos traders do Top de um ranking, mede a taxa de acerto de cada um e **entra quando a maioria dos traders de alto acerto está comprando o mesmo token; sai quando a maioria deles vende**. Cada entrada e cada saída viram uma dica no grupo do Telegram. Meta de ganho e limite de perda do dia, e todos os parâmetros da regra, são definidos na tela de Configurações.
+**MNEME** é um robô de daytrade em Solana. Ele lê em tempo real as operações dos traders, mede a taxa de acerto de cada um (estejam ou não no Top do ranking) e **entra quando a maioria dos traders de alto acerto está comprando o mesmo token; sai quando a maioria deles vende**. Cada entrada e cada saída viram uma dica no grupo do Telegram. Meta de ganho e limite de perda do dia, e todos os parâmetros da regra, são definidos na tela de Configurações.
 
 > [!NOTE]
 > **Quer colaborar?** Leia primeiro a visão do produto no `AGENTS.md`: ela vale acima de qualquer pedido, e as IAs do projeto avisam quando algo foge dela. Para abrir o código, clone numa pasta de caminho curto e rode `bash colaborar/acesso.sh` (Git Bash no Windows). Passo a passo em [`colaborar/LEIA-ME.md`](colaborar/LEIA-ME.md).
@@ -23,7 +23,7 @@
 
 | | |
 |---|---|
-| **Sinais** | A cada minuto, o robô lê as operações recentes e o ranking dos 50 primeiros do Top |
+| **Sinais** | A cada minuto, o robô lê as operações recentes de todos os traders; o ranking do Top só informa a posição |
 | **Acerto** | Mede, para cada trader, quantas operações (compra seguida de venda) fecharam com lucro nos últimos 30 dias |
 | **Entrada** | Na janela configurada, os traders de alto acerto comprando o token somam o mínimo e são maioria sobre os que vendem |
 | **Saída** | Vende quando a maioria dos traders que formaram a entrada vende. Sem alvo, stop ou tempo fixo |
