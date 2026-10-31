@@ -224,12 +224,21 @@ $("positions").addEventListener("click", async (ev) => {
   if (!r.ok) alert(r.data?.reason ?? "Não foi possível vender.");
 });
 
+// Meta e limite do dia ao lado do resultado, para saber quanto falta antes de o bot parar de comprar.
+function dayLimitsLabel(s) {
+  const l = s.settings.limits;
+  const loss = `limite −${usd(l.dailyLossLimitUsd)}`;
+  if (l.dailyProfitTargetUsd == null || l.dailyProfitTargetUsd <= 0) return `${loss} · sem meta`;
+  const hit = s.portfolio.dayPnlUsd >= l.dailyProfitTargetUsd;
+  return `${hit ? "meta atingida" : "meta"} ${usd(l.dailyProfitTargetUsd)} · ${loss}`;
+}
+
 function renderOverview(s) {
   const pf = s.portfolio;
   const context = s.executionMode === "suggest" ? "Sem execução" : s.executionMode === "paper" ? "Carteira simulada" : "Carteira real";
   const items = [
     ["Saldo livre", usd(pf.balanceUsd), context, ""],
-    ["Resultado do dia", signedUsd(pf.dayPnlUsd), context, tone(pf.dayPnlUsd)],
+    ["Resultado do dia", signedUsd(pf.dayPnlUsd), dayLimitsLabel(s), tone(pf.dayPnlUsd)],
     ["Capital em posições", usd(pf.exposureUsd), `${pf.open.length} ${pf.open.length === 1 ? "posição aberta" : "posições abertas"}`, ""],
     ["Traders acompanhados", String(s.top.traders.length), `Ranking ${s.settings.leaderboard.window === "all" ? "de todo o período" : s.settings.leaderboard.window.replace("d", " dias").replace("h", " horas")}`, ""],
   ];

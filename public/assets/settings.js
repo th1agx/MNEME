@@ -64,6 +64,8 @@ const SECTIONS = [
       { path: "limits.maxExposureUsd", label: "Exposição total máxima", type: "number", suffix: "US$", min: 0 },
       { path: "limits.maxPerTokenUsd", label: "Máximo em um mesmo token", type: "number", suffix: "US$", min: 0 },
       { path: "limits.dailyLossLimitUsd", label: "Parar de comprar se perder no dia", type: "number", suffix: "US$", min: 0 },
+      { path: "limits.dailyProfitTargetUsd", label: "Parar de comprar ao ganhar no dia", type: "number", suffix: "US$", min: 0, nullable: true,
+        hint: "Meta do dia: ao atingir, o bot não abre novas posições até amanhã. As vendas e os stops continuam. Em branco desliga." },
       { path: "limits.slippageBps", label: "Slippage máximo", type: "number", suffix: "bps", min: 1,
         hint: "Vale para compras. 100 bps = 1%. No modo real, a compra é recusada antes de assinar se a cotação vier pior que isso." },
       { path: "limits.exitSlippageBps", label: "Slippage máximo nas vendas", type: "number", suffix: "bps", min: 1,
