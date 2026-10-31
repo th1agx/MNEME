@@ -59,16 +59,19 @@ interface PatternObservationRow {
   buy_volume_usd: number; sell_volume_usd: number; observed_at: string;
 }
 
+/** O dia de operação vira à meia-noite de Brasília (UTC-3), igual ao Worker. */
+const brasiliaDay = (date: Date) => new Date(date.getTime() - 3 * 60 * 60_000).toISOString().slice(0, 10);
+
 const jsonHeaders = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
-const trainingBotIds = ["mneme-paper-conservative", "mneme-paper-risky"] as const;
+const trainingBotIds = ["mneme-paper"] as const;
 
 export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request }) => {
   if (request.method !== "GET") return Response.json({ error: "Método não permitido." }, { status: 405, headers: jsonHeaders });
   try {
     const [walletResult, positionResult, orderResult, top50FlowResult] = await Promise.all([
-      env.MNEME_DB.prepare("SELECT * FROM paper_training_wallets WHERE trader_id IN (?, ?)").bind(...trainingBotIds).all<WalletRow>(),
-      env.MNEME_DB.prepare("SELECT * FROM paper_training_positions WHERE trader_id IN (?, ?) ORDER BY updated_at DESC LIMIT 4000").bind(...trainingBotIds).all<PositionRow>(),
-      env.MNEME_DB.prepare("SELECT * FROM paper_training_orders WHERE trader_id IN (?, ?) AND status != 'processing' ORDER BY executed_at DESC LIMIT 200").bind(...trainingBotIds).all<OrderRow>(),
+      env.MNEME_DB.prepare("SELECT * FROM paper_training_wallets WHERE trader_id = ?").bind(...trainingBotIds).all<WalletRow>(),
+      env.MNEME_DB.prepare("SELECT * FROM paper_training_positions WHERE trader_id = ? ORDER BY updated_at DESC LIMIT 4000").bind(...trainingBotIds).all<PositionRow>(),
+      env.MNEME_DB.prepare("SELECT * FROM paper_training_orders WHERE trader_id = ? AND status != 'processing' ORDER BY executed_at DESC LIMIT 200").bind(...trainingBotIds).all<OrderRow>(),
       env.MNEME_DB.prepare(`SELECT COUNT(*) AS signal_count, COUNT(DISTINCT source_trader_id) AS active_traders,
         COUNT(DISTINCT CASE WHEN side = 'buy' THEN source_trader_id END) AS buyers,
         COUNT(DISTINCT CASE WHEN side = 'sell' THEN source_trader_id END) AS sellers,
@@ -81,26 +84,26 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
     ]);
     const [dailyResult, incidentResult, patternResult, patternPerformanceResult, dailyHistoryResult, capitalEventResult, capitalTotalResult] = await Promise.all([
       env.MNEME_DB.prepare(`SELECT * FROM paper_training_daily_metrics
-        WHERE trader_id IN (?, ?) AND day_utc = ?`).bind(...trainingBotIds, new Date().toISOString().slice(0, 10)).all<{
+        WHERE trader_id = ? AND day_utc = ?`).bind(...trainingBotIds, brasiliaDay(new Date())).all<{
           trader_id: string; day_utc: string; opening_equity_usd: number; current_equity_usd: number;
           pnl_usd: number; return_pct: number; target_reached: number; updated_at: string;
         }>(),
       env.MNEME_DB.prepare(`SELECT trader_id, trader_handle, incident_type, summary, diagnostics_json, occurred_at
-        FROM paper_training_incidents WHERE trader_id IN (?, ?) ORDER BY occurred_at DESC LIMIT 100`).bind(...trainingBotIds).all<{
+        FROM paper_training_incidents WHERE trader_id = ? ORDER BY occurred_at DESC LIMIT 100`).bind(...trainingBotIds).all<{
           trader_id: string; trader_handle: string; incident_type: string; summary: string; diagnostics_json: string; occurred_at: string;
         }>(),
       env.MNEME_DB.prepare(`SELECT trader_id, chain, token_symbol, pattern_type, score, action, reason, signal_count,
         distinct_buyers, distinct_sellers, buy_volume_usd, sell_volume_usd, observed_at
-        FROM paper_training_pattern_observations WHERE trader_id IN (?, ?) ORDER BY observed_at DESC LIMIT 100`).bind(...trainingBotIds).all<PatternObservationRow>(),
+        FROM paper_training_pattern_observations WHERE trader_id = ? ORDER BY observed_at DESC LIMIT 100`).bind(...trainingBotIds).all<PatternObservationRow>(),
       env.MNEME_DB.prepare(`SELECT trader_id, entry_pattern AS pattern, COUNT(*) AS closed_trades,
         SUM(CASE WHEN realized_pnl_usd > 0 THEN 1 ELSE 0 END) AS wins,
         COALESCE(SUM(realized_pnl_usd), 0) AS realized_pnl_usd,
         COALESCE(AVG(realized_pnl_usd), 0) AS average_pnl_usd
-        FROM paper_training_orders WHERE trader_id IN (?, ?) AND side = 'sell' AND status = 'filled'
+        FROM paper_training_orders WHERE trader_id = ? AND side = 'sell' AND status = 'filled'
           AND realized_pnl_usd IS NOT NULL AND entry_pattern IS NOT NULL GROUP BY trader_id, entry_pattern`)
         .bind(...trainingBotIds).all<{ trader_id: string; pattern: string; closed_trades: number; wins: number; realized_pnl_usd: number; average_pnl_usd: number }>(),
       env.MNEME_DB.prepare(`SELECT trader_id, day_utc, current_equity_usd, pnl_usd, return_pct, updated_at
-        FROM paper_training_daily_metrics WHERE trader_id IN (?, ?) ORDER BY day_utc DESC LIMIT 60`)
+        FROM paper_training_daily_metrics WHERE trader_id = ? ORDER BY day_utc DESC LIMIT 60`)
         .bind(...trainingBotIds).all<{ trader_id: string; day_utc: string; current_equity_usd: number; pnl_usd: number; return_pct: number; updated_at: string }>(),
       env.MNEME_DB.prepare(`SELECT event_id, trader_id, amount_usd, created_at
         FROM paper_training_capital_events WHERE applied_at IS NOT NULL ORDER BY created_at DESC LIMIT 30`)
@@ -109,8 +112,12 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         FROM paper_training_capital_events WHERE applied_at IS NOT NULL GROUP BY trader_id`)
         .all<{ trader_id: string; capital_added_usd: number }>(),
     ]);
-    const limitsRow = await env.MNEME_DB.prepare("SELECT daily_profit_target_pct, daily_loss_limit_pct FROM paper_training_settings WHERE id = 1")
-      .first<{ daily_profit_target_pct: number | null; daily_loss_limit_pct: number | null }>();
+    const limitsRow = await env.MNEME_DB.prepare(`SELECT daily_profit_target_pct, daily_loss_limit_pct, consensus_min_win_rate_pct,
+      consensus_min_closed_trades, consensus_min_traders, consensus_window_minutes, order_size_pct, min_liquidity_usd
+      FROM paper_training_settings WHERE id = 1`)
+      .first<{ daily_profit_target_pct: number | null; daily_loss_limit_pct: number | null; consensus_min_win_rate_pct: number | null;
+        consensus_min_closed_trades: number | null; consensus_min_traders: number | null; consensus_window_minutes: number | null;
+        order_size_pct: number | null; min_liquidity_usd: number | null }>();
     const dailyTargetPct = limitsRow?.daily_profit_target_pct ?? null;
     const dailyLossLimitPct = limitsRow?.daily_loss_limit_pct ?? null;
     const capitalAddedByTrader = new Map(capitalTotalResult.results.map((row) => [row.trader_id, row.capital_added_usd]));
@@ -125,7 +132,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
     const statsByTrader = new Map(walletResult.results.map((wallet) => [wallet.trader_id, { closedTrades: 0, wins: 0 }]));
     const statsResult = await env.MNEME_DB.prepare(`SELECT trader_id, COUNT(*) AS closed_trades,
       SUM(CASE WHEN realized_pnl_usd > 0 THEN 1 ELSE 0 END) AS wins
-      FROM paper_training_orders WHERE trader_id IN (?, ?) AND side = 'sell' AND status = 'filled' AND realized_pnl_usd IS NOT NULL GROUP BY trader_id`)
+      FROM paper_training_orders WHERE trader_id = ? AND side = 'sell' AND status = 'filled' AND realized_pnl_usd IS NOT NULL GROUP BY trader_id`)
       .bind(...trainingBotIds)
       .all<{ trader_id: string; closed_trades: number; wins: number }>();
     for (const row of statsResult.results) statsByTrader.set(row.trader_id, { closedTrades: row.closed_trades, wins: row.wins });
@@ -165,7 +172,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
 
     return Response.json({
       mode: "paper",
-      strategy: "O Conservador prioriza fluxo confirmado por traders com historico paper positivo e amostra suficiente. O Arriscado tambem observa ordens individuais grandes, recompras do mesmo trader e vendas em lote. Os dois analisam os 50 traders do Top e operam somente em simulacao.",
+      strategy: "Um robô só: entra quando a maioria dos traders de alto acerto do Top está comprando o mesmo token e sai quando a maioria desses traders vende. Os parâmetros vêm de Configurações. Tudo em simulação.",
       top50Flow: {
         windowMinutes: 5,
         activeTraders: top50FlowResult?.active_traders ?? 0,
@@ -179,8 +186,10 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         scoreMeaning: "etiqueta de execucao, nao probabilidade de lucro" },
       paperCapital: { walletCount: walletResult.results.length, totalAllocatedUsd: walletResult.results.reduce((sum, wallet) => sum + wallet.initial_usd, 0) },
       bots: [
-        { id: trainingBotIds[0], name: "MNEME Conservador", minBuyers: 3, minSellers: 3, minimumBuyVolumeUsd: 2_500, minimumSellVolumeUsd: 2_500, minimumPressurePct: 65, minimumSingleBuyUsd: 20_000, minimumSingleSellUsd: 20_000, minimumSinglePressurePct: 75, minimumRepeatBuys: 3, minimumBatchSellAssets: 3, allowBatchSell: false, minimumAccurateBuyers: 1, minimumAccuracySample: 8, minimumTraderWinRatePct: 60, buySizePct: 2, minimumLiquidityUsd: 25_000, maxAssetExposurePct: 10, maxPortfolioExposurePct: 100, buyCooldownMinutes: 5 },
-        { id: trainingBotIds[1], name: "MNEME Arriscado", minBuyers: 2, minSellers: 2, minimumBuyVolumeUsd: 1_000, minimumSellVolumeUsd: 1_000, minimumPressurePct: 55, minimumSingleBuyUsd: 5_000, minimumSingleSellUsd: 5_000, minimumSinglePressurePct: 55, minimumRepeatBuys: 2, minimumBatchSellAssets: 3, allowBatchSell: true, minimumAccurateBuyers: 0, minimumAccuracySample: 5, minimumTraderWinRatePct: 50, buySizePct: 4, minimumLiquidityUsd: 10_000, maxAssetExposurePct: 15, maxPortfolioExposurePct: 100, buyCooldownMinutes: 0 },
+        { id: trainingBotIds[0], name: "MNEME", minWinRatePct: limitsRow?.consensus_min_win_rate_pct ?? null,
+          minClosedTrades: limitsRow?.consensus_min_closed_trades ?? null, minTraders: limitsRow?.consensus_min_traders ?? null,
+          windowMinutes: limitsRow?.consensus_window_minutes ?? null, orderSizePct: limitsRow?.order_size_pct ?? null,
+          minLiquidityUsd: limitsRow?.min_liquidity_usd ?? null },
       ],
       generatedAt: new Date().toISOString(),
       capitalControlReady: true,
@@ -277,7 +286,7 @@ export const onRequestPost: PagesFunction<TrainingEnv> = async ({ env, request }
       env.MNEME_DB.prepare(`UPDATE paper_training_daily_metrics SET opening_equity_usd = opening_equity_usd + ?,
         current_equity_usd = current_equity_usd + ?, return_pct = CASE WHEN opening_equity_usd + ? > 0
           THEN pnl_usd / (opening_equity_usd + ?) * 100 ELSE 0 END, updated_at = ?
-        WHERE trader_id = ? AND day_utc = ? AND changes() = 1`).bind(amountUsd, amountUsd, amountUsd, amountUsd, now, botId, now.slice(0, 10)),
+        WHERE trader_id = ? AND day_utc = ? AND changes() = 1`).bind(amountUsd, amountUsd, amountUsd, amountUsd, now, botId, brasiliaDay(new Date(now))),
     ]);
     if ((results[0]?.meta?.changes ?? 0) === 0) {
       return Response.json({ ok: true, duplicate: true, message: "Este aporte já tinha sido registrado." }, { headers: jsonHeaders });

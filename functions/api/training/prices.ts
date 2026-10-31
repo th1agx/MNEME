@@ -18,7 +18,7 @@ interface DexPair {
   liquidity?: { usd?: number | null } | null;
 }
 
-const botIds = ["mneme-paper-conservative", "mneme-paper-risky"];
+const botIds = ["mneme-paper"];
 const headers = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
 const MAX_ADDRESSES_PER_REQUEST = 30;
 
@@ -26,7 +26,7 @@ export const onRequestGet: PagesFunction<TrainingPriceEnv> = async ({ env, reque
   if (request.method !== "GET") return Response.json({ error: "Método não permitido." }, { status: 405, headers });
   try {
     const result = await env.MNEME_DB.prepare(`SELECT trader_id, chain, token_address, quantity, cost_usd, entry_price_usd, mark_price_usd
-      FROM paper_training_positions WHERE trader_id IN (?, ?)`).bind(...botIds).all<OpenTrainingPosition>();
+      FROM paper_training_positions WHERE trader_id = ?`).bind(...botIds).all<OpenTrainingPosition>();
     const groups = new Map<string, Set<string>>();
     for (const position of result.results) {
       const chain = position.chain.toLowerCase();

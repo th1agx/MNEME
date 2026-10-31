@@ -95,13 +95,24 @@ const SECTIONS = [
 
 // Bot da nuvem (Treino Bot): lê estes valores do D1 a cada minuto. Aparece sempre que a API da nuvem responde.
 const CLOUD_SECTION = {
-  title: "Meta e limite do dia (bot na nuvem)",
-  text: "O bot da nuvem lê estes valores a cada minuto. Percentual do patrimônio na abertura do dia (UTC, 21h em Brasília). Ao atingir, para de comprar até o dia seguinte; vendas continuam.",
+  title: "Robô MNEME (nuvem)",
+  text: "Entra quando a maioria dos traders de alto acerto do Top compra o mesmo token e sai quando a maioria deles vende. O robô lê estes valores a cada minuto; enquanto a regra não estiver preenchida, ele só observa.",
   fields: [
+    { path: "cloud.minWinRatePct", label: "Taxa mínima de acerto do trader", type: "number", suffix: "%", min: 0, max: 100, step: "0.01", nullable: true,
+      hint: "Só conta como \"alto acerto\" o trader do Top com pelo menos este percentual de operações encerradas com lucro nos últimos 30 dias." },
+    { path: "cloud.minClosedTrades", label: "Operações mínimas para medir o acerto", type: "number", min: 1, step: "1", nullable: true,
+      hint: "Abaixo disso o acerto do trader ainda não é confiável e ele não conta." },
+    { path: "cloud.minTraders", label: "Traders de alto acerto comprando juntos", type: "number", min: 1, max: 50, step: "1", nullable: true,
+      hint: "Mínimo de compradores, que também precisam ser maioria sobre os de alto acerto que estão vendendo o mesmo token." },
+    { path: "cloud.windowMinutes", label: "Janela de tempo", type: "number", suffix: "min", min: 1, step: "1", nullable: true,
+      hint: "Quanto tempo para trás o robô olha para contar quem está comprando e vendendo." },
+    { path: "cloud.orderSizePct", label: "Tamanho de cada compra", type: "number", suffix: "% da carteira", min: 0, max: 100, step: "0.01", nullable: true },
+    { path: "cloud.minLiquidityUsd", label: "Liquidez mínima do token", type: "number", suffix: "US$", min: 0, nullable: true,
+      hint: "Em branco: não filtra por liquidez." },
     { path: "cloud.dailyProfitTargetPct", label: "Parar de comprar ao ganhar no dia", type: "number", suffix: "%", min: 0, step: "0.01", nullable: true,
       hint: "Em branco: sem meta." },
     { path: "cloud.dailyLossLimitPct", label: "Parar de comprar ao perder no dia", type: "number", suffix: "%", min: 0, max: 100, step: "0.01", nullable: true,
-      hint: "Em branco: sem limite." },
+      hint: "Em branco: sem limite. Meta e limite são % do patrimônio na abertura do dia (vira à meia-noite de Brasília); ao atingir, para de comprar e as saídas continuam." },
   ],
 };
 

@@ -8,6 +8,7 @@ const tone = (value) => Number(value) > 0 ? "positive" : Number(value) < 0 ? "ne
 const patternName = (value) => ({
   large_buy: "Compra de alto valor", crowd_buy: "Compra em grupo", large_and_crowd_buy: "Alto valor + grupo",
   large_sell: "Venda de alto valor", crowd_sell: "Venda em grupo", sell_batch: "Venda em lote",
+  consensus_buy: "Maioria de alto acerto comprando", consensus_exit: "Maioria de alto acerto vendeu",
   repeat_buy: "Recompras do mesmo trader", mixed_flow: "Fluxo conflitante", unconfirmed: "Sem confirmacao",
 }[value] ?? value ?? "-");
 const paramGroups = { entry: "Entrada", exit: "Saída", risk: "Risco", other: "Outros", sizing: "Dimensionamento (patrimônio atual)" };
@@ -45,7 +46,7 @@ const formatParam = (value, unit) => {
 };
 let paramFilter = "all";
 let current = null;
-let selectedBotId = "mneme-paper-conservative";
+let selectedBotId = "mneme-paper";
 let priceRefreshTimer = null;
 let dashboardRefreshTimer = null;
 let pendingCapitalEventId = null;
@@ -118,21 +119,18 @@ function render(data) {
   const profile = bots.find((bot) => bot.id === selectedBotId);
   const thousands = (value) => `US$ ${(Number(value) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil`;
   const ruleChips = profile ? [
-    `Gatilho: ${profile.minBuyers}+ compradores Top 50`,
-    `Volume mín.: ${thousands(profile.minimumBuyVolumeUsd)}`,
-    `Pressão compradora: ${profile.minimumPressurePct}%`,
-    `Ordem individual: ${thousands(profile.minimumSingleBuyUsd)}+`,
-    profile.minimumAccurateBuyers > 0 ? `Trader validado: ${profile.minimumTraderWinRatePct}%+ win rate (${profile.minimumAccuracySample}+ trades)` : `Recompras: ${profile.minimumRepeatBuys}+ do mesmo trader`,
-    ...(profile.allowBatchSell ? [`Venda em lote: ${profile.minimumBatchSellAssets}+ ativos`] : []),
-    `Tamanho: ${profile.buySizePct}% / entrada`,
-    `Liquidez mín.: ${thousands(profile.minimumLiquidityUsd)}`,
-    `Exposição máx.: ${profile.maxAssetExposurePct}% / ativo`,
-    profile.buyCooldownMinutes > 0 ? `Cooldown: ${profile.buyCooldownMinutes} min` : "Sem cooldown",
+    `Acerto mínimo do trader: ${profile.minWinRatePct == null ? "não definido" : `${pct(profile.minWinRatePct)}`}`,
+    `Amostra mínima: ${profile.minClosedTrades == null ? "não definida" : `${profile.minClosedTrades} operações`}`,
+    `Compradores de alto acerto: ${profile.minTraders == null ? "não definido" : `${profile.minTraders}+ em maioria`}`,
+    `Janela: ${profile.windowMinutes == null ? "não definida" : `${profile.windowMinutes} min`}`,
+    `Tamanho: ${profile.orderSizePct == null ? "não definido" : `${pct(profile.orderSizePct)} / entrada`}`,
+    `Liquidez mín.: ${profile.minLiquidityUsd == null ? "sem filtro" : thousands(profile.minLiquidityUsd)}`,
+    "Saída: quando a maioria dos traders da entrada vende",
   ] : [];
+  const incomplete = profile && [profile.minWinRatePct, profile.minClosedTrades, profile.minTraders, profile.windowMinutes, profile.orderSizePct].some((value) => value == null);
   const waiting = !positions.length && !(wallet?.closedTrades);
   document.querySelector("#trainingExplanation").innerHTML = `<div class="rule-chips">${ruleChips.map((chip) => `<span>${safe(chip)}</span>`).join("")}</div>
-    <p>${waiting ? "Sem posições abertas · aguardando confluência compradora do Top 50. " : ""}Entradas exigem confluência de traders do Top 50; saídas exigem confirmação do fluxo vendedor. PnL não realizado é marcado a mercado e realizado no fechamento. <a href="#trainingRules" class="rules-link">Parâmetros completos</a></p>`;
-  renderParams(bots, wallets, botName);
+    <p>${incomplete ? `<b>Regra incompleta: o robô só observa.</b> <a href="/configuracoes">Preencha em Configurações</a>. ` : waiting ? "Sem posições abertas · aguardando a maioria dos traders de alto acerto comprar o mesmo token. " : ""}Entra quando a maioria dos traders de alto acerto compra; sai quando a maioria deles vende. PnL não realizado é marcado a mercado e realizado no fechamento. <a href="#trainingRules" class="rules-link">Parâmetros completos</a></p>`;
 
   const headerLabels = {
     "#": "#", "Conta": "Conta", "Resultado total": "Lucro/prejuízo total", "Realizado": "Já realizado (vendas)", "Em aberto": "Ainda em aberto",
