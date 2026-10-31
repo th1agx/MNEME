@@ -98,3 +98,50 @@
   .params-table .param-differs { box-shadow:inset 2px 0 0 var(--warn); }
   .params-table .param-group th { padding:10px 12px 4px; }
 }
+.params-actions { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
+.params-version { color:var(--muted); font-size:11px; }
+.params-dialog { width:min(920px,calc(100% - 24px)); max-height:calc(100dvh - 24px); padding:0; color:var(--text); background:var(--panel); border:1px solid var(--line); border-radius:var(--r); box-shadow:0 20px 80px #0009; }
+.params-dialog::backdrop { background:#000a; }
+.params-dialog form { display:flex; flex-direction:column; max-height:calc(100dvh - 26px); }
+.params-dialog-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:16px 20px 10px; }
+.params-dialog-head h2 { margin:0; font-size:17px; }
+.params-dialog-head p { margin:4px 0 0; color:var(--muted); font-size:12px; }
+.params-dialog-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; padding:0 20px 12px; border-bottom:1px solid var(--line); }
+.params-presets { display:flex; flex-wrap:wrap; gap:6px; }
+.params-presets select, .params-presets input, .params-foot-row input, .params-input input { min-height:32px; padding:5px 8px; color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:var(--r); font:inherit; font-size:12px; }
+.params-presets input { width:150px; }
+.params-fields { overflow-y:auto; padding:6px 20px 12px; }
+.params-group { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px 16px; margin:10px 0 0; padding:0; border:0; }
+.params-group legend { margin-bottom:8px; color:var(--warn); font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; }
+.params-field { display:grid; gap:5px; padding:10px 12px; background:var(--bg); border:1px solid var(--line); border-radius:var(--r); }
+.params-field.changed { border-color:var(--warn); }
+.params-label { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; font-weight:500; }
+.params-label em { color:var(--warn); font-size:10px; font-style:normal; }
+.params-field small { color:var(--faint); font-size:11px; }
+.params-input { display:flex; align-items:center; gap:6px; }
+.params-input input { flex:1; min-width:0; text-align:right; font-variant-numeric:tabular-nums; }
+.params-input input:invalid { border-color:var(--down); }
+.params-input span { color:var(--muted); font-size:12px; }
+.params-toggle { display:flex; align-items:center; gap:8px; min-height:32px; font-size:12px; cursor:pointer; }
+.params-toggle input { width:16px; height:16px; accent-color:var(--warn); }
+.params-history { margin:0 20px 8px; color:var(--muted); font-size:12px; }
+.params-history summary { cursor:pointer; padding:6px 0; }
+.params-history ol { max-height:160px; overflow-y:auto; margin:0; padding-left:18px; }
+.params-history li { margin:4px 0; }
+.params-history li span { display:block; color:var(--faint); font-size:11px; }
+.params-dialog-foot { display:grid; gap:8px; align-self:stretch; max-width:none; margin:0; color:var(--text); padding:12px 20px 16px; border-top:1px solid var(--line); background:var(--panel); }
+.params-diffline { margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
+.params-diffline b { color:var(--text); }
+.params-foot-row { display:grid; grid-template-columns:2fr 1fr; gap:8px; }
+.params-dialog [disabled] { opacity:.5; cursor:not-allowed; }
+@media (max-width:640px) {
+  .params-dialog { width:100%; max-width:none; height:100dvh; max-height:none; margin:0; border-radius:0; }
+  .params-dialog form { max-height:100dvh; height:100%; }
+  .params-dialog-head, .params-dialog-bar, .params-dialog-foot { padding-left:14px; padding-right:14px; }
+  .params-fields { padding:4px 14px 10px; flex:1; }
+  .params-history { margin:0 14px 8px; }
+  .params-group { grid-template-columns:1fr; }
+  .params-presets, .params-presets select, .params-presets input { width:100%; }
+  .params-foot-row { grid-template-columns:1fr; }
+  .params-actions { width:100%; justify-content:space-between; }
+}

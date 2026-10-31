@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/brand/icon-32.png">
 <link rel="stylesheet" href="/assets/app.css">
-<link rel="stylesheet" href="/assets/training.css?v=20261031-params">
+<link rel="stylesheet" href="/assets/training.css?v=20261031-crud">
 </head>
 <body>
 <header class="app-bar">
@@ -79,7 +79,7 @@
     <div class="params-panel">
       <div class="params-toolbar">
         <div id="paramFilter" class="params-seg" role="group" aria-label="Filtrar parâmetros"><button type="button" data-group="all" aria-pressed="true">Todos</button><button type="button" data-group="entry" aria-pressed="false">Entrada</button><button type="button" data-group="exit" aria-pressed="false">Saída</button><button type="button" data-group="risk" aria-pressed="false">Risco</button><button type="button" data-group="sizing" aria-pressed="false">Dimensionamento</button></div>
-        <label class="params-diff"><input id="paramDiffOnly" type="checkbox"> Só diferenças</label>
+        <div class="params-actions"><label class="params-diff"><input id="paramDiffOnly" type="checkbox"> Só diferenças</label><span id="paramsVersionNote" class="params-version"></span><button id="openParams" class="btn small" type="button">Editar parâmetros</button></div>
       </div>
       <div class="table-wrap params-wrap"><table class="params-table"><thead id="paramHead"></thead><tbody id="paramRows"><tr><td colspan="3" class="empty">Carregando…</td></tr></tbody></table></div>
       <p class="training-note">Os sinais dos 50 traders do Top são agrupados por ativo em janelas de 5 minutos. O Conservador compra com fluxo de 3 compradores, pelo menos US$ 2.500 e pressão compradora de 65%, exigindo ao menos um trader com 8 saídas paper, acerto mínimo de 60% e retorno médio positivo. Também aceita compra individual de US$ 20.000 com 75% de pressão, desde que venha desse perfil validado. Vende com 3 vendedores, US$ 2.500 e pressão de 65%, ou venda individual de US$ 20.000 com pressão de 75% e trader validado. O Arriscado compra com 2 compradores, US$ 1.000 e pressão de 55%, ou considera uma ordem individual de US$ 5.000 com 55% de pressão ou duas compras do mesmo trader. Para vender, considera 2 vendedores, US$ 1.000 e pressão de 55%; também aceita ordem individual de US$ 5.000 com pressão de 55% ou venda em lote do mesmo trader em 3 ou mais ativos, com volume e pressão mínimos. Liquidez mínima: US$ 25.000 no Conservador e US$ 10.000 no Arriscado. Entradas: 2% e 4% da carteira; limites por ativo: 10% e 15%; exposição total máxima: 100%. As ordens são simuladas com taxa e slippage; nenhuma ordem real é enviada.</p>
@@ -95,6 +95,24 @@
     <div class="capital-dialog-actions"><button id="cancelCapitalDialog" class="btn" type="button">Cancelar</button><button id="submitCapital" class="btn primary" type="submit">Confirmar aporte</button></div>
   </form>
 </dialog>
-<script src="/assets/training.js?v=20261031-params"></script>
+<dialog id="paramsDialog" class="params-dialog" aria-labelledby="paramsTitle">
+  <form id="paramsForm" novalidate>
+    <header class="params-dialog-head"><div><h2 id="paramsTitle">Editar parâmetros</h2><p id="paramsStatus"></p></div><button id="closeParams" class="btn small" type="button" aria-label="Fechar">Fechar</button></header>
+    <div class="params-dialog-bar">
+      <div id="paramsBotTabs" class="params-seg" role="group" aria-label="Bot"></div>
+      <div class="params-presets"><select id="presetSelect" aria-label="Presets salvos"></select><input id="presetName" type="text" maxlength="40" placeholder="Nome do preset" aria-label="Nome do preset"><button id="presetLoad" class="btn small" type="button">Carregar</button><button id="presetSave" class="btn small" type="button">Salvar como preset</button><button id="presetUpdate" class="btn small" type="button">Atualizar</button><button id="presetDelete" class="btn small" type="button">Excluir</button></div>
+    </div>
+    <div id="paramsFields" class="params-fields"></div>
+    <details class="params-history"><summary>Histórico de alterações</summary><ol id="paramsHistory"></ol></details>
+    <footer class="params-dialog-foot">
+      <p id="paramsDiff" class="params-diffline"></p>
+      <div class="params-foot-row"><input id="paramsNote" type="text" maxlength="200" placeholder="Motivo da alteração (opcional)" aria-label="Motivo da alteração"><input id="paramsKey" type="password" autocomplete="off" placeholder="Chave administrativa" aria-label="Chave administrativa"></div>
+      <p id="paramsMessage" class="capital-message" role="status"></p>
+      <div class="capital-dialog-actions"><button id="paramsReset" class="btn" type="button">Restaurar padrão</button><button id="paramsCancel" class="btn" type="button">Cancelar</button><button id="paramsSave" class="btn primary" type="submit">Salvar</button></div>
+    </footer>
+  </form>
+</dialog>
+<script src="/assets/training.js?v=20261031-crud"></script>
+<script src="/assets/training-params.js?v=20261031-crud"></script>
 </body>
 </html>
