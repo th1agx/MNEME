@@ -13,6 +13,7 @@ let current = null;
 let selectedBotId = "mneme-paper-conservative";
 let priceRefreshTimer = null;
 let dashboardRefreshTimer = null;
+let pendingCapitalEventId = null;
 
 function render(data) {
   current = data;
@@ -49,14 +50,27 @@ function render(data) {
   const incidents = (data.incidents ?? []).filter((item) => item.botId === selectedBotId);
   const patterns = (data.patterns ?? []).filter((item) => item.botId === selectedBotId);
   const summary = [
-    ["Capital inicial (simulado)", money(wallet?.initialUsd ?? data.paperCapital?.totalAllocatedUsd)],
-    ["Saldo disponível para compras", money(wallet?.cashUsd)],
-    ["Valor atual das posições", money(wallet?.marketValueUsd)],
-    ["Patrimônio total (saldo + posições)", money(wallet?.equityUsd)],
-    ["Ganho/perda ainda em aberto", money(wallet?.unrealizedPnlUsd)],
-    ["Lucro/prejuízo já realizado", money(wallet?.realizedPnlUsd)],
+    ["Capital total aportado", money(wallet?.initialUsd ?? data.paperCapital?.totalAllocatedUsd)],
+    ["Saldo para novas compras", money(wallet?.cashUsd)],
+    ["Valor das posições abertas", money(wallet?.marketValueUsd)],
+    ["Patrimônio atual", money(wallet?.equityUsd)],
+    ["Resultado já realizado", money(wallet?.realizedPnlUsd)],
+    ["Resultado ainda em aberto", money(wallet?.unrealizedPnlUsd)],
   ];
   document.querySelector("#trainingSummary").innerHTML = summary.map(([label, value]) => `<div class="training-kpi"><span>${safe(label)}</span><b>${safe(value)}</b></div>`).join("");
+  const capitalButton = document.querySelector("#addCapitalButton");
+  capitalButton.disabled = !data.capitalControlReady;
+  capitalButton.title = data.capitalControlReady ? "Adicionar saldo simulado à carteira selecionada" : "Configure o Secret TRAINING_ADMIN_KEY nas configurações do projeto Pages";
+  document.querySelector("#capitalControlHelp").textContent = data.capitalControlReady
+    ? "Aporte simulado entra no saldo e no capital aportado, não como lucro."
+    : "Para habilitar, configure TRAINING_ADMIN_KEY como Secret de pelo menos 32 caracteres no projeto Pages. O aporte será simulado e não contará como lucro.";
+  document.querySelector("#capitalBot").innerHTML = wallets.map((item) => `<option value="${safe(item.botId)}">${safe(botName(item.botId))}</option>`).join("");
+  document.querySelector("#capitalBot").value = selectedBotId;
+  const capitalEvents = data.capitalEvents ?? [];
+  document.querySelector("#capitalEventCount").textContent = capitalEvents.length;
+  document.querySelector("#capitalRows").innerHTML = capitalEvents.length ? capitalEvents.map((event) => `<tr>
+    <td>${new Date(event.createdAt).toLocaleString("pt-BR")}</td><td>${safe(botName(event.botId))}</td><td class="num positive">+${money(event.amountUsd)}</td></tr>`).join("")
+    : `<tr><td colspan="3" class="empty">Nenhum aporte registrado.</td></tr>`;
   const positionLines = positions.map((position) => `${safe(position.symbol)}: custo de ${money(position.costUsd)}; valor agora de ${money(position.costUsd + position.unrealizedPnlUsd)}; variação aberta de ${money(position.unrealizedPnlUsd)}.`).join(" ");
   const profile = bots.find((bot) => bot.id === selectedBotId);
   const profileRules = profile ? `Regras desta carteira: compra individual a partir de ${money(profile.largeSignalUsd)} ou grupo de ${profile.crowdMinimumTraders}+ traders com ${money(profile.crowdMinimumVolumeUsd)}; limite de ${profile.maxAssetExposurePct}% por ativo e ${profile.maxPortfolioExposurePct}% total; intervalo de ${profile.buyCooldownMinutes} min por ativo.` : "";
@@ -194,6 +208,50 @@ document.querySelector("#botComparison").addEventListener("click", (event) => {
   if (!button || !current) return;
   selectedBotId = button.dataset.botId;
   render(current);
+});
+const capitalDialog = document.querySelector("#capitalDialog");
+document.querySelector("#addCapitalButton").addEventListener("click", () => {
+  if (!current?.capitalControlReady) return;
+  document.querySelector("#capitalBot").value = selectedBotId;
+  document.querySelector("#capitalMessage").textContent = "";
+  document.querySelector("#capitalMessage").className = "capital-message";
+  capitalDialog.showModal();
+});
+document.querySelector("#closeCapitalDialog").addEventListener("click", () => capitalDialog.close());
+document.querySelector("#cancelCapitalDialog").addEventListener("click", () => capitalDialog.close());
+document.querySelector("#capitalForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = document.querySelector("#submitCapital");
+  const message = document.querySelector("#capitalMessage");
+  const adminKey = document.querySelector("#capitalKey").value;
+  const amountUsd = Number(document.querySelector("#capitalAmount").value);
+  button.disabled = true;
+  message.textContent = "Registrando aporte no D1…";
+  message.className = "capital-message";
+  if (!pendingCapitalEventId) pendingCapitalEventId = crypto.randomUUID();
+  try {
+    const response = await fetch("/api/training", {
+      method: "POST",
+      headers: { accept: "application/json", "content-type": "application/json", authorization: `Bearer ${adminKey}` },
+      body: JSON.stringify({ botId: document.querySelector("#capitalBot").value, amountUsd, eventId: pendingCapitalEventId }),
+      cache: "no-store",
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error ?? "Não foi possível registrar o aporte.");
+    pendingCapitalEventId = null;
+    document.querySelector("#capitalKey").value = "";
+    capitalDialog.close();
+    const notice = document.querySelector("#capitalNotice");
+    notice.textContent = result.duplicate ? "Este aporte já estava registrado; não foi adicionado novamente." : `${money(amountUsd)} adicionados à carteira paper; o aporte não foi contado como lucro.`;
+    notice.classList.add("visible");
+    window.setTimeout(() => notice.classList.remove("visible"), 7000);
+    await refresh();
+  } catch (error) {
+    message.textContent = error instanceof Error ? error.message : "Não foi possível registrar o aporte.";
+    message.className = "capital-message error";
+  } finally {
+    button.disabled = false;
+  }
 });
 void refresh();
 void refreshPrices();

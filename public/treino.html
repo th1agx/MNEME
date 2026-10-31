@@ -25,41 +25,70 @@
   <div id="trainingStatus" class="training-status" role="status">Carregando resultados…</div>
   <section id="botComparison" class="bot-comparison" aria-label="Comparação dos bots"></section>
   <div id="botTabs" class="bot-tabs" role="tablist" aria-label="Selecionar bot"></div>
+  <div class="capital-toolbar">
+    <div><b>Ajuste de capital paper</b><p id="capitalControlHelp" class="muted">Aporte simulado entra no saldo e no capital aportado, não como lucro.</p></div>
+    <button id="addCapitalButton" class="btn primary" type="button" disabled>Adicionar capital</button>
+  </div>
+  <p id="capitalNotice" class="capital-notice" role="status"></p>
   <section id="trainingSummary" class="training-summary" aria-label="Resumo do treino"></section>
   <section id="trainingExplanation" class="training-explanation" aria-label="Como entender os valores"></section>
-  <section class="pane wide training-section">
+  <details class="training-details">
+    <summary>Desempenho detalhado <small>comparação e qualidade das vendas fechadas</small></summary>
+    <section class="pane wide training-section">
     <div class="training-heading"><div><h2>Comparação das carteiras <small>mesmos alertas, regras diferentes</small></h2><p class="muted">Cada bot começa com US$ 200.000 paper e mantém saldo, posições e histórico separados. Nenhum envia ordens reais.</p></div><label class="training-search">Filtrar <input id="walletSearch" type="search" placeholder="MNEME"></label></div>
     <div class="table-wrap"><table><thead><tr><th>#</th><th>Conta</th><th class="num">Resultado total</th><th class="num">Realizado</th><th class="num">Em aberto</th><th class="num">Retorno</th><th class="num">Hoje</th><th>Meta diária 30%</th><th>Estado</th><th class="num">Acerto</th><th class="num">Fechadas</th><th class="num">Abertas</th></tr></thead><tbody id="walletRows"><tr><td colspan="12" class="empty">Carregando…</td></tr></tbody></table></div>
-  </section>
-  <section class="pane wide training-section">
+    </section>
+    <section class="pane wide training-section">
     <h2>Qualidade por padrão <small>resultados após venda</small></h2>
     <p class="muted">A taxa de acerto só aparece com operações fechadas; o score abaixo mede força das regras, não probabilidade de lucro.</p>
     <div class="table-wrap"><table><thead><tr><th>Padrão de entrada</th><th class="num">Fechadas</th><th class="num">Acerto observado</th><th class="num">PnL realizado</th><th class="num">Média por saída</th></tr></thead><tbody id="patternPerformanceRows"><tr><td colspan="5" class="empty">Ainda não há saídas fechadas para comparar.</td></tr></tbody></table></div>
-  </section>
-  <section class="pane wide training-section">
+    </section>
+  </details>
+  <details class="training-details">
+    <summary>Memória do bot <small>histórico diário, aportes e decisões relevantes</small></summary>
+    <section class="pane wide training-section">
     <h2>Memória diária <small>resultados guardados para comparação</small></h2>
-    <p class="muted">O D1 guarda o histórico de cada carteira e as operações que produziram esses resultados. Os dados do dia atualizam durante o pregão; o registro permite avaliar e ajustar as regras depois, mas os bots não se reprogramam sozinhos.</p>
+    <p class="muted">O D1 mantém um resumo por bot e por dia, operações executadas, alertas recentes necessários para reconhecer padrões e decisões de alto interesse. Cotações não são armazenadas como histórico.</p>
     <div class="table-wrap"><table><thead><tr><th>Dia (UTC)</th><th>Bot</th><th class="num">Patrimônio registrado</th><th class="num">Resultado do dia</th><th class="num">Retorno do dia</th></tr></thead><tbody id="historyRows"><tr><td colspan="5" class="empty">Aguardando o primeiro registro diário.</td></tr></tbody></table></div>
-  </section>
-  <section class="pane wide training-section">
+    </section>
+    <section class="pane wide training-section">
+      <h2>Aportes paper <small id="capitalEventCount">0</small></h2>
+      <div class="table-wrap"><table><thead><tr><th>Data</th><th>Bot</th><th class="num">Valor adicionado</th></tr></thead><tbody id="capitalRows"><tr><td colspan="3" class="empty">Nenhum aporte registrado.</td></tr></tbody></table></div>
+    </section>
+    <section class="pane wide training-section">
     <h2>Padrões recentes <small id="patternCount">0</small></h2>
     <div class="table-wrap"><table><thead><tr><th>Horário</th><th>Ativo</th><th>Padrão</th><th>Decisão</th><th class="num">Força</th><th class="num">Compradores</th><th class="num">Vendedores</th><th class="num">Compra 5 min</th><th class="num">Venda 5 min</th></tr></thead><tbody id="patternRows"><tr><td colspan="9" class="empty">Aguardando alertas para classificar.</td></tr></tbody></table></div>
-  </section>
-  <section class="pane wide training-section">
+    </section>
+    <section class="pane wide training-section">
     <h2>Investigações <small id="incidentCount">0</small></h2>
     <div class="table-wrap"><table><thead><tr><th>Horário</th><th>Trader</th><th>Ocorrência</th><th>Diagnóstico</th></tr></thead><tbody id="incidentRows"><tr><td colspan="4" class="empty">Nenhuma carteira zerada.</td></tr></tbody></table></div>
-  </section>
-  <section class="pane wide training-section">
+    </section>
+  </details>
+  <details class="training-details">
+    <summary>Posições e movimentações <small>ativos abertos e histórico de ordens</small></summary>
+    <section class="pane wide training-section">
     <h2>Posições abertas <small id="positionCount">0</small></h2>
     <p class="muted">O bot acompanha cada ativo separadamente. Valor atual = quantidade × preço observado; variação = ganho ou perda em relação ao custo total, incluindo taxa. O ganho só é realizado depois da venda.</p>
     <div class="table-wrap"><table><thead><tr><th>Conta</th><th>Ativo</th><th>Rede</th><th class="num">Quantidade atual</th><th class="num">Preço médio de compra</th><th class="num">Preço usado agora</th><th class="num">Custo total (inclui taxa)</th><th class="num">Valor atual da posição</th><th class="num">Ganho/perda em aberto</th><th class="num">Variação da posição</th></tr></thead><tbody id="positionRows"><tr><td colspan="10" class="empty">Nenhuma posição aberta.</td></tr></tbody></table></div>
-  </section>
-  <section class="pane wide training-section">
+    </section>
+    <section class="pane wide training-section">
     <h2>Movimentações <small id="orderCount">0 recentes</small></h2>
     <div class="table-wrap"><table><thead><tr><th>Executada</th><th>Trader</th><th>Lado</th><th>Ativo</th><th>Rede</th><th class="num">Preço</th><th class="num">Valor</th><th class="num">Taxa</th><th>Padrão</th><th>Resultado</th><th>Situação</th></tr></thead><tbody id="orderRows"><tr><td colspan="11" class="empty">Aguardando movimentações.</td></tr></tbody></table></div>
-  </section>
-  <p class="training-note">Regras paper: compra individual a partir de US$ 5.000 ou pelo menos 3 compradores distintos com volume agregado de US$ 2.500 em 5 min e pressão compradora; venda individual de US$ 5.000, pressão de 3 vendedores ou venda em lote de 3 ativos pelo mesmo trader. Exige liquidez observada de US$ 10.000. Compras usam score 70+ e tamanho de 0,5% a 1,5% do saldo inicial, com limite de 2% por ativo, 25% de exposição total e intervalo de 15 min por ativo. Score é força heurística, não probabilidade de lucro. Slippage simulado: 0,5%; taxa: 0,1%. Nenhuma ordem real é enviada.</p>
+    </section>
+  </details>
+  <details class="training-details training-rules"><summary>Regras da simulação</summary><p class="training-note">Regras paper: compra individual a partir de US$ 5.000 ou pelo menos 3 compradores distintos com volume agregado de US$ 2.500 em 5 min e pressão compradora; venda individual de US$ 5.000, pressão de 3 vendedores ou venda em lote de 3 ativos pelo mesmo trader. Exige liquidez observada de US$ 10.000. Compras usam score 70+ e tamanho definido para cada carteira, com limite de exposição por ativo e total e intervalo por ativo. Score é força heurística, não probabilidade de lucro. Slippage simulado: 0,5%; taxa: 0,1%. Nenhuma ordem real é enviada.</p></details>
 </main>
+<dialog id="capitalDialog" class="capital-dialog">
+  <form id="capitalForm">
+    <div class="capital-dialog-heading"><div><h2>Adicionar capital paper</h2><p>Este aporte é simulado e não é registrado como lucro.</p></div><button id="closeCapitalDialog" class="btn small" type="button" aria-label="Fechar">Fechar</button></div>
+    <label class="capital-field">Carteira<select id="capitalBot" required></select></label>
+    <label class="capital-field">Valor em USD<input id="capitalAmount" type="number" min="10" max="1000000" step="0.01" value="10000" required></label>
+    <label class="capital-field">Chave administrativa<input id="capitalKey" type="password" autocomplete="off" required></label>
+    <p class="muted capital-key-help">Configure TRAINING_ADMIN_KEY como Secret de pelo menos 32 caracteres no projeto Pages. A chave digitada aqui fica somente nesta sessão e não é salva pelo navegador.</p>
+    <p id="capitalMessage" class="capital-message" role="status"></p>
+    <div class="capital-dialog-actions"><button id="cancelCapitalDialog" class="btn" type="button">Cancelar</button><button id="submitCapital" class="btn primary" type="submit">Confirmar aporte</button></div>
+  </form>
+</dialog>
 <script src="/assets/training.js?v=20261030-closed-metrics"></script>
 </body>
 </html>

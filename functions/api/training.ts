@@ -1,5 +1,6 @@
 interface TrainingEnv {
   MNEME_DB: D1Database;
+  TRAINING_ADMIN_KEY?: string;
 }
 
 interface WalletRow {
@@ -70,7 +71,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
       env.MNEME_DB.prepare("SELECT * FROM paper_training_positions WHERE trader_id IN (?, ?) ORDER BY updated_at DESC LIMIT 4000").bind(...trainingBotIds).all<PositionRow>(),
       env.MNEME_DB.prepare("SELECT * FROM paper_training_orders WHERE trader_id IN (?, ?) AND status != 'processing' ORDER BY executed_at DESC LIMIT 200").bind(...trainingBotIds).all<OrderRow>(),
     ]);
-    const [dailyResult, incidentResult, patternResult, patternPerformanceResult, dailyHistoryResult] = await Promise.all([
+    const [dailyResult, incidentResult, patternResult, patternPerformanceResult, dailyHistoryResult, capitalEventResult, capitalTotalResult] = await Promise.all([
       env.MNEME_DB.prepare(`SELECT * FROM paper_training_daily_metrics
         WHERE trader_id IN (?, ?) AND day_utc = ?`).bind(...trainingBotIds, new Date().toISOString().slice(0, 10)).all<{
           trader_id: string; day_utc: string; opening_equity_usd: number; current_equity_usd: number;
@@ -93,7 +94,14 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
       env.MNEME_DB.prepare(`SELECT trader_id, day_utc, current_equity_usd, pnl_usd, return_pct, updated_at
         FROM paper_training_daily_metrics WHERE trader_id IN (?, ?) ORDER BY day_utc DESC LIMIT 60`)
         .bind(...trainingBotIds).all<{ trader_id: string; day_utc: string; current_equity_usd: number; pnl_usd: number; return_pct: number; updated_at: string }>(),
+      env.MNEME_DB.prepare(`SELECT event_id, trader_id, amount_usd, created_at
+        FROM paper_training_capital_events WHERE applied_at IS NOT NULL ORDER BY created_at DESC LIMIT 30`)
+        .all<{ event_id: string; trader_id: string; amount_usd: number; created_at: string }>(),
+      env.MNEME_DB.prepare(`SELECT trader_id, COALESCE(SUM(amount_usd), 0) AS capital_added_usd
+        FROM paper_training_capital_events WHERE applied_at IS NOT NULL GROUP BY trader_id`)
+        .all<{ trader_id: string; capital_added_usd: number }>(),
     ]);
+    const capitalAddedByTrader = new Map(capitalTotalResult.results.map((row) => [row.trader_id, row.capital_added_usd]));
     const dailyByTrader = new Map(dailyResult.results.map((row) => [row.trader_id, row]));
 
     const positionsByTrader = new Map<string, PositionRow[]>();
@@ -122,6 +130,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         trader: wallet.trader_handle,
         sourceRank: wallet.last_rank,
         initialUsd: wallet.initial_usd,
+        capitalAddedUsd: capitalAddedByTrader.get(wallet.trader_id) ?? 0,
         cashUsd: wallet.cash_usd,
         marketValueUsd: marketValue,
         realizedPnlUsd: wallet.realized_pnl_usd,
@@ -154,6 +163,7 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         { id: trainingBotIds[1], name: "MNEME Arriscado", largeSignalUsd: 2_500, crowdMinimumTraders: 2, crowdMinimumVolumeUsd: 1_500, maxAssetExposurePct: 15, maxPortfolioExposurePct: 100, buyCooldownMinutes: 2 },
       ],
       generatedAt: new Date().toISOString(),
+      capitalControlReady: (env.TRAINING_ADMIN_KEY?.trim().length ?? 0) >= 32,
       wallets,
       positions: positionResult.results.map((position) => ({
         botId: position.trader_id,
@@ -209,8 +219,70 @@ export const onRequestGet: PagesFunction<TrainingEnv> = async ({ env, request })
         realizedPnlUsd: row.realized_pnl_usd, averagePnlUsd: row.average_pnl_usd,
       })),
       dailyHistory: dailyHistoryResult.results.map((row) => ({ botId: row.trader_id, day: row.day_utc, equityUsd: row.current_equity_usd, pnlUsd: row.pnl_usd, returnPct: row.return_pct, updatedAt: row.updated_at })),
+      capitalEvents: capitalEventResult.results.map((event) => ({
+        eventId: event.event_id, botId: event.trader_id, amountUsd: event.amount_usd, createdAt: event.created_at,
+      })),
     }, { headers: jsonHeaders });
   } catch {
     return Response.json({ error: "O banco do Treino Bot ainda não está pronto." }, { status: 503, headers: jsonHeaders });
+  }
+};
+
+function constantTimeEqual(left: string, right: string): boolean {
+  const encoder = new TextEncoder();
+  const a = encoder.encode(left);
+  const b = encoder.encode(right);
+  if (a.length !== b.length) return false;
+  let difference = 0;
+  for (let index = 0; index < a.length; index += 1) difference |= a[index] ^ b[index];
+  return difference === 0;
+}
+
+export const onRequestPost: PagesFunction<TrainingEnv> = async ({ env, request }) => {
+  const adminKey = env.TRAINING_ADMIN_KEY?.trim();
+  if (!adminKey || adminKey.length < 32) return Response.json({ error: "Configure TRAINING_ADMIN_KEY como Secret de pelo menos 32 caracteres nas configurações do Pages." }, { status: 503, headers: jsonHeaders });
+  const authorization = request.headers.get("authorization") ?? "";
+  const suppliedKey = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  if (!constantTimeEqual(suppliedKey, adminKey)) return Response.json({ error: "Chave administrativa inválida." }, { status: 401, headers: jsonHeaders });
+
+  let body: { botId?: unknown; amountUsd?: unknown; eventId?: unknown };
+  try { body = await request.json() as typeof body; } catch {
+    return Response.json({ error: "Envie os dados do aporte em JSON." }, { status: 400, headers: jsonHeaders });
+  }
+  const botId = typeof body.botId === "string" ? body.botId : "";
+  const amountUsd = typeof body.amountUsd === "number" ? body.amountUsd : Number(body.amountUsd);
+  const eventId = typeof body.eventId === "string" ? body.eventId : "";
+  if (!trainingBotIds.includes(botId as typeof trainingBotIds[number])) return Response.json({ error: "Bot inválido." }, { status: 400, headers: jsonHeaders });
+  if (!Number.isFinite(amountUsd) || amountUsd < 10 || amountUsd > 1_000_000 || Math.round(amountUsd * 100) !== amountUsd * 100) {
+    return Response.json({ error: "O aporte deve ser de US$ 10 a US$ 1.000.000, com até duas casas decimais." }, { status: 400, headers: jsonHeaders });
+  }
+  if (!/^[a-zA-Z0-9-]{20,80}$/.test(eventId)) return Response.json({ error: "Identificador do aporte inválido." }, { status: 400, headers: jsonHeaders });
+
+  try {
+    const wallet = await env.MNEME_DB.prepare("SELECT trader_id FROM paper_training_wallets WHERE trader_id = ?")
+      .bind(botId).first<{ trader_id: string }>();
+    if (!wallet) return Response.json({ error: "A carteira ainda não foi criada pelo Worker." }, { status: 409, headers: jsonHeaders });
+    const now = new Date().toISOString();
+    const results = await env.MNEME_DB.batch([
+      env.MNEME_DB.prepare(`INSERT OR IGNORE INTO paper_training_capital_events (event_id, trader_id, amount_usd, created_at)
+        VALUES (?, ?, ?, ?)`).bind(eventId, botId, amountUsd, now),
+      env.MNEME_DB.prepare(`UPDATE paper_training_wallets SET initial_usd = initial_usd + ?, cash_usd = cash_usd + ?, updated_at = ?
+        WHERE trader_id = ? AND changes() = 1`).bind(amountUsd, amountUsd, now, botId),
+      env.MNEME_DB.prepare(`UPDATE paper_training_capital_events SET applied_at = ?
+        WHERE event_id = ? AND applied_at IS NULL AND changes() = 1`).bind(now, eventId),
+      env.MNEME_DB.prepare(`UPDATE paper_training_daily_metrics SET opening_equity_usd = opening_equity_usd + ?,
+        current_equity_usd = current_equity_usd + ?, return_pct = CASE WHEN opening_equity_usd + ? > 0
+          THEN pnl_usd / (opening_equity_usd + ?) * 100 ELSE 0 END, updated_at = ?
+        WHERE trader_id = ? AND day_utc = ? AND changes() = 1`).bind(amountUsd, amountUsd, amountUsd, amountUsd, now, botId, now.slice(0, 10)),
+    ]);
+    if ((results[0]?.meta?.changes ?? 0) === 0) {
+      return Response.json({ ok: true, duplicate: true, message: "Este aporte já tinha sido registrado." }, { headers: jsonHeaders });
+    }
+    if ((results[1]?.meta?.changes ?? 0) !== 1 || (results[2]?.meta?.changes ?? 0) !== 1) {
+      return Response.json({ error: "Não foi possível aplicar o aporte à carteira." }, { status: 409, headers: jsonHeaders });
+    }
+    return Response.json({ ok: true, duplicate: false, botId, amountUsd, message: "Capital paper adicionado. O aporte não conta como lucro." }, { headers: jsonHeaders });
+  } catch {
+    return Response.json({ error: "Não foi possível registrar o aporte no D1." }, { status: 503, headers: jsonHeaders });
   }
 };
