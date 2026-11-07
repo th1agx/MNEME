@@ -187,6 +187,67 @@ class TestDicasEVelas:
         situacoes = [linha["situacao"] for linha in con.execute("SELECT situacao FROM dicas ORDER BY id")]
         assert situacoes == ["expirada", "pendente"]
 
+    def _telegram(self, respostas):
+        import httpx
+
+        from mneme.telegram import Telegram
+        pedidos = []
+
+        def responder(pedido):
+            pedidos.append(pedido)
+            resposta = respostas.pop(0) if respostas else 200
+            if isinstance(resposta, Exception):
+                raise resposta
+            return httpx.Response(resposta, json={"ok": resposta == 200})
+        return Telegram("123:segredo", "-100", httpx.Client(transport=httpx.MockTransport(responder))), pedidos
+
+    def test_fluxo_completo_sinal_registro_envio_e_resultado(self):
+        import json
+        con = banco.abrir(":memory:")
+        treinar(con, "a", 9, 1)
+        treinar(con, "b", 9, 1)
+        tg, pedidos = self._telegram([])
+        rodar_ciclo(con, ProvedorFalso([op("1", "a", "buy", 0), op("2", "b", "buy", 0)]), MercadoFalso(1.0),
+                    REGRA, SEM_LIMITES, AGORA + timedelta(minutes=1))
+        assert tg.enviar_pendentes(con, AGORA + timedelta(minutes=1)) == 1
+        rodar_ciclo(con, ProvedorFalso([op("3", "a", "sell", 2), op("4", "b", "sell", 2)]), MercadoFalso(1.5),
+                    REGRA, SEM_LIMITES, AGORA + timedelta(minutes=3))
+        assert tg.enviar_pendentes(con, AGORA + timedelta(minutes=3)) == 1
+        corpos = [json.loads(p.content) for p in pedidos]
+        assert [c["chat_id"] for c in corpos] == ["-100", "-100"]
+        assert corpos[0]["text"].startswith("🟢 $TKN · ENTRADA") and corpos[1]["text"].startswith("🔴 $TKN · SAÍDA")
+        assert "✅ Resultado da operação" in corpos[1]["text"]
+        assert [l["situacao"] for l in con.execute("SELECT situacao FROM dicas ORDER BY id")] == ["enviada", "enviada"]
+
+    def test_telegram_fora_do_ar_nao_perde_a_dica(self):
+        import httpx
+
+        from mneme.telegram import enfileirar
+        con = banco.abrir(":memory:")
+        enfileirar(con, "entrada", AGORA)
+        tg, _ = self._telegram([httpx.ConnectError("sem rede"), 502, RuntimeError("inesperado")])
+        for _ in range(3):
+            assert tg.enviar_pendentes(con, AGORA) == 0
+        linha = con.execute("SELECT situacao, tentativas FROM dicas").fetchone()
+        assert (linha["situacao"], linha["tentativas"]) == ("pendente", 3)
+        assert tg.enviar_pendentes(con, AGORA + timedelta(minutes=1)) == 1
+
+    def test_token_nao_aparece_no_log(self, caplog):
+        import logging
+
+        from mneme.__main__ import Segredos
+        log = logging.getLogger("teste-segredos")
+        token, chave = "123:" + "segredo", "chave" + "-api"
+        log.addFilter(Segredos([token, chave]))
+        with caplog.at_level(logging.INFO, logger="teste-segredos"):
+            log.info("falhou https://api.telegram.org/bot%s/sendMessage com %s", token, chave)
+            try:
+                raise RuntimeError(f"url bot{token}")
+            except RuntimeError:
+                log.exception("erro")
+        texto = caplog.text + "".join(r.exc_text or "" for r in caplog.records)
+        assert token not in texto and chave not in texto and "***" in texto
+
     def test_le_velas_da_binance(self):
         from mneme.conectores.binance import ler_velas
         ms = int(AGORA.timestamp() * 1000)

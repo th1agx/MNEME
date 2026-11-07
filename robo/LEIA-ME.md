@@ -44,6 +44,7 @@ No macOS, o LightGBM usa a libomp que vem com o scikit-learn (`mneme/openmp.py`)
 | `mneme/carteira.py` | Carteira simulada, meta e limite do dia |
 | `mneme/carteira_tecnicas.py` | Carteira simulada ao vivo por técnica e confluência, sem enviar ordens |
 | `mneme/motor/` | O robô multi-mercado: decisão, risco, sinal, execução simulada, diário e contexto da LLM |
+| `mneme/aprendizado.py` | Ciclo de aprendizado (E9): hipótese, teste no laboratório, veredito e nota no Vault; de hora em hora na A1 ([aprendizado.crontab](aprendizado.crontab)) |
 | `mneme/vault.py` | Knowledge Vault: notas em Markdown e Git, indexadas no RAG. Ver `docs/VAULT.md` |
 | `pine/mneme_confluencia.pine` | Confluência no gráfico do TradingView, gerada por `mneme.motor.pine` |
 | `mneme/ciclo.py` | Um ciclo completo do robô |

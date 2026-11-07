@@ -459,6 +459,31 @@ def importar_experimentos(v: Vault, registro: Path) -> int:
     return n
 
 
+def importar_hipoteses(v: Vault, fila: Path) -> int:
+    """Ciclo de aprendizado (mneme.aprendizado): cada hipótese testada vira uma nota, com o veredito do laboratório."""
+    if not fila.exists():
+        return 0
+    n = 0
+    for linha in fila.read_text(encoding="utf-8").splitlines():
+        try:
+            e = json.loads(linha)
+        except json.JSONDecodeError:
+            continue
+        h, r = e["hipotese"], e["resultado"]
+        candidata = e["veredito"] == "candidata"
+        corpo = (f"# Hipótese: {h['setup']} com filtro {h['filtro']}\n\n{h['par']}, aposta de {h['minutos']} min. Proposta por: {h['origem']}. Motivo: {h['motivo'] or 'não informado'}.\n\n"
+                 f"## Resultado do laboratório\n\n| Medida | Valor |\n|---|---|\n| Sinais | {r['sinais']} |\n| Acerto com o filtro | {r['acerto']:.2%} |\n"
+                 f"| Acerto sem o filtro | {r['acerto_sem_filtro']:.2%} |\n| Com 1 min de atraso | {r['acerto_com_atraso_1min']:.2%} |\n| Placebo | {r['placebo']:.2%} |\n"
+                 f"| Empate | {r['empate']:.2%} |\n| p ajustado (Holm, {e['testes_ate_agora']} hipóteses) | {e['p_ajustado']:.3f} |\n\nDados de {r['de'][:10]} a {r['ate'][:10]}. Testada em {e['quando'][:16]}.\n\n"
+                 f"## Veredito\n\n{'**Candidata.** Passou em tudo nos dados de desenvolvimento. Ainda precisa da área selada e da aprovação de uma pessoa.' if candidata else '**Rejeitada.** Não passou em pelo menos um critério; o resultado fica registrado para não ser testado de novo.'}")
+        mercado = {"BTCUSDT": "Bitcoin", "ETHUSDT": "Ethereum", "SOLUSDT": "Solana"}.get(h["par"])
+        v.escrever(Nota(f"Hipótese {h['setup']} com {h['filtro'].replace('_', ' ')} em {h['par']} {h['minutos']} min", "02-quantitative-research/hypotheses",
+                        "resultado-em-validacao" if candidata else "resultado-negativo", corpo, "laboratorio", "experimento", ["cripto"], [f"{h['minutos']}min"],
+                        relacionadas=[x for x in (mercado, "Ciclo de aprendizado") if x], extras={"veredito": e["veredito"], "origem": h["origem"]}))
+        n += 1
+    return n
+
+
 def importar_diario(v: Vault, diario: Path) -> int:
     """Lê o diário operacional em modo de leitura, sem nenhuma trava sobre ele. O Markdown só resume: o banco continua sendo a fonte."""
     if not diario.exists():
@@ -534,7 +559,8 @@ def ciclo(v: Vault, dados: Path, biblioteca: Biblioteca, backup_a_cada: timedelt
         resumo: dict = {"sync_inicio": v.sincronizar()}
         metodologias = Path(__file__).resolve().parents[1] / "conhecimento" / "metodologias.md"
         for nome, tarefa in (("base", lambda: importar_base(v, metodologias)), ("tecnicas", lambda: importar_tecnicas(v, dados / "laboratorio")), ("experimentos", lambda: importar_experimentos(v, dados / "laboratorio" / "experimentos.jsonl")),
-                             ("diario", lambda: importar_diario(v, dados / "operacao" / "diario.db")), ("noticias", lambda: importar_noticias(v, dados / "operacao" / "diario.db")), ("fontes", lambda: importar_fontes(v, biblioteca))):
+                             ("diario", lambda: importar_diario(v, dados / "operacao" / "diario.db")), ("noticias", lambda: importar_noticias(v, dados / "operacao" / "diario.db")), ("fontes", lambda: importar_fontes(v, biblioteca)),
+                             ("hipoteses", lambda: importar_hipoteses(v, dados / "aprendizado" / "hipoteses.jsonl"))):
             try:
                 resumo[nome] = tarefa()
             except (OSError, ValueError, KeyError, sqlite3.Error) as erro:

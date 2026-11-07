@@ -19,6 +19,55 @@ Definida pelo dono em 05/11/2026: construir, testar, medir e evoluir. Esta ordem
 | **E9** | Ciclo de aprendizado: hipótese, experimento e comparação | Uma hipótese percorre o ciclo sozinha, até a aprovação |
 | **E10** | Execução real controlada | Só com aprovação explícita do dono |
 
+## Estado real em 07/11/2026
+
+Execução permanente na Oracle A1 (Docker Compose, `restart: always`, health check por batimento). O Mac é só desenvolvimento e administração, e o Obsidian é a interface do Knowledge Vault. "Feito" exige evidência, não só código.
+
+| Entrega | Estado | Evidência | Bloqueio ou próximo passo |
+|---|---|---|---|
+| **E1** | Feito | Velas de 24 meses e ao vivo; indicadores conferidos com o TA-Lib | Mais ativos |
+| **E2** | Rodando | Trades, livro, funding e OI na A1 desde 05/11; após o reinício de 07/11 o serviço `fluxo` travava (imagem de 05/11 sem `resultados_macro`): imagem refeita, 0 reinícios | Medir o tamanho diário; virar atributo depois de acumular |
+| **E3** | Feito | Estudos refeitos com purga, embargo, placebo e correção de Holm (05/11) | |
+| **E4** | Feito, sem vantagem | LightGBM grava previsões sem operar; AUC de 0,517 a 0,544 | Área selada do candidato "20% mais confiantes" |
+| **E5** | Acumulando | Motor desde 06/11: cerca de 200 operadas e encerradas em expiração fixa, 62,2% de acerto (120 ganhos, 73 perdas, 7 empates), pior sequência de 7 perdas, drawdown de 7,15 numa banca de 100; 1.106 em sombra (59,1%) | Amostra pequena e de 2 dias: não prova vantagem. Mínimo de evidência configurado: 200 por estratégia |
+| **E6** | Parcial | Robô de traders na A1 com o Telegram (`@mneme_br_bot`, grupo MNEME) conferido por `getMe` e `getChat`. Fluxo sinal → registro → envio → resultado testado com o Telegram simulado (585 testes). Falha do Telegram (sem rede, erro 502, erro inesperado) não para o robô e deixa a dica na fila. Token e chaves trocados por `***` nos logs; varredura nos 9 serviços, nos logs do Vault e no journal da A1: 0 ocorrências | **Envio real ao grupo ainda não feito** (precisa de autorização para a mensagem de teste, ou de uma entrada real). **Os sinais do motor (CALL/PUT e com stop) não vão ao Telegram**: decidir quais modalidades publicar e com que critério (hoje são ~140 por dia, sem vantagem comprovada) |
+| **E7** | Funciona, sem ligação com a decisão | Biblioteca com 1.002 documentos, incluindo o Vault; a busca achou uma nota nova do Vault em 07/11 | Ligar o contexto à decisão com origem e validade gravadas |
+| **E8** | Rodando | Notícias e calendário na A1; leitor de LLM grava contexto assíncrono | LangGraph; medir se o contexto melhora a decisão |
+| **E9** | Primeiro incremento rodando | `mneme.aprendizado`: hipótese num vocabulário fechado (setup + filtro + par + tempo), teste contra o mesmo setup sem filtro, placebo, 1 min de atraso, Holm sobre todas as hipóteses; resultado vira nota no Vault. Roda de hora em hora na A1 (cron, prioridade mínima). 3 hipóteses testadas em 07/11, todas rejeitadas; a LLM propôs uma repetida e o ciclo usou a enumeração | A LLM ainda não estuda o Vault nem as operações; próxima etapa: hipóteses sobre as operações do motor e uso das notas como contexto |
+| **E10** | Bloqueado | | Só com vantagem estatística, validação fora da amostra e aprovação do dono |
+
+Também no escopo oficial, sem entrega concluída: TradingView com a leitura do MNEME, Quotex (sinais primeiro), Forex e ouro ao vivo, Solana on-chain.
+
+### Decisões que dependem do dono
+
+**Modelo da LLM local**, medido em 48 notícias rotuladas (A1, sem GPU):
+
+| Medida | Regra fixa | `qwen3:1.7b` (em uso) | `qwen2.5:3b` |
+|---|---:|---:|---:|
+| Tipo da informação | 70,8% | 68,8% | 43,8% |
+| Sentimento | 64,6% | 75,0% | 83,3% |
+| Notícia relevante: precisão / revocação | 55% / 76% | 44% / 100% | 100% / 29% |
+| Ativos citados | 76,0% | 28,1% | 69,1% |
+| Evidência literal conferida | | 97,9% | 45,8% |
+| Segundos por notícia | 0 | 35 | 29 |
+| Perguntas sobre técnicas respondidas certo | | 0 de 8 | 0 de 8 |
+
+Recomendação: manter o `qwen3:1.7b` para leitura de notícias, porque é o único com evidência quase sempre conferível, e manter a regra fixa para ativos e tipo. Nenhum dos dois serve para responder sobre técnicas: o E7 precisa melhorar o conteúdo e a busca antes de trocar de modelo. Um modelo maior não cabe com folga na memória da A1 junto com o resto.
+
+**Limites de risco do simulado** (`dados/operacao.json` na A1). Os valores atuais não foram decididos pelo dono:
+
+| Limite | Valor atual | Medido no motor (2 dias) | Observação |
+|---|---:|---:|---|
+| Meta do dia | 20% | | Muito acima do que a amostra sustenta |
+| Perda do dia | 10% | Pior drawdown: 7,15% | |
+| Operações por dia | 200 | 62 e 140 | |
+| Operações simultâneas | 100 | | |
+| Perdas seguidas | 8 | Pior sequência: 7 | Quase disparou |
+| Drawdown máximo | 40% | 7,15% | |
+| Risco por operação | 1% da banca | | |
+
+Recomendação: decidir os limites por mercado antes de qualquer sinal público do motor, partindo da pior sequência e do pior drawdown medidos ao longo de pelo menos 30 dias. O simulado não arrisca dinheiro, então os valores atuais podem seguir enquanto a amostra cresce.
+
 ## Dependências
 
 ```mermaid

@@ -1,0 +1,2 @@
+# MNEME ciclo de aprendizado (E9): uma hipótese por hora, prioridade mínima, uma de cada vez. Fora do caminho crítico.
+17 * * * * cd $HOME/mneme/robo && MNEME_DADOS_MERCADO=$HOME/mneme/robo/dados/mercado MNEME_LLM_URL=http://127.0.0.1:11434 PYTHONPATH=. flock -n dados/aprendizado.trava nice -n 15 ionice -c3 .venv/bin/python -W ignore -m mneme.aprendizado ciclo --llm >> dados/aprendizado.log 2>&1

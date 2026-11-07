@@ -31,6 +31,25 @@ def ler_configuracoes(url: str) -> tuple[Regra, LimitesDia] | None:
     return Regra.das_configuracoes(dados), LimitesDia(dados.get("dailyProfitTargetPct"), dados.get("dailyLossLimitPct"))
 
 
+class Segredos(logging.Filter):
+    """Troca tokens e chaves por *** em toda linha de log, inclusive nos tracebacks."""
+
+    def __init__(self, segredos: list[str]):
+        super().__init__()
+        self.segredos = [x for x in segredos if x]
+
+    def _limpar(self, texto: str) -> str:
+        for segredo in self.segredos:
+            texto = texto.replace(segredo, "***")
+        return texto
+
+    def filter(self, registro: logging.LogRecord) -> bool:
+        registro.msg, registro.args = self._limpar(registro.getMessage()), None
+        if registro.exc_info and not registro.exc_text:
+            registro.exc_text = self._limpar(logging.Formatter().formatException(registro.exc_info))
+        return True
+
+
 def travar(caminho: Path):
     """Um robô de traders por banco: a segunda cópia sai em vez de operar em dobro."""
     caminho.parent.mkdir(parents=True, exist_ok=True)
@@ -53,6 +72,9 @@ def main() -> None:
     # Sem o log de cada requisição: o endereço do provedor não deve aparecer na tela nem em logs.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     cfg = config.carregar()
+    filtro = Segredos([cfg.telegram_token, cfg.signals_api_key, cfg.signals_rest_url])
+    for saida in logging.getLogger().handlers:
+        saida.addFilter(filtro)
     trava = travar(cfg.banco.with_name("traders.trava"))  # noqa: F841 - fica aberta enquanto o robô roda
     batimento = cfg.banco.with_name("traders.batimento")
     con = banco.abrir(cfg.banco)
@@ -75,7 +97,11 @@ def main() -> None:
         regra, limites = lidas if lidas else (vazia, LimitesDia(None, None))
         try:
             resumo = rodar_ciclo(con, provedor, mercado, regra, limites, agora)
-            dicas = tg.enviar_pendentes(con, agora)
+            try:
+                dicas = tg.enviar_pendentes(con, agora)
+            except Exception:  # o Telegram nunca para o robô: a fila tenta de novo no próximo ciclo
+                log.exception("Envio das dicas falhou; elas seguem na fila.")
+                dicas = 0
             novas_velas = sum(velas.coletar(con, par, agora) for par in cfg.pares_velas)
             sinais = sum(ao_vivo.gravar_sinais(con, par, agora) for par in cfg.pares_velas)
             ao_vivo.conferir(con)

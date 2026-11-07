@@ -66,7 +66,7 @@ class Telegram:
                 try:
                     resposta = self.cliente.post(f"https://api.telegram.org/bot{self.token}/sendMessage",
                                                  json={"chat_id": self.grupo, "text": dica["texto"], "disable_web_page_preview": True})
-                except httpx.HTTPError:
+                except Exception:  # qualquer falha do Telegram: a dica fica na fila e o robô segue
                     break
                 if resposta.status_code != 200:
                     break
