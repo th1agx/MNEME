@@ -19,7 +19,7 @@ Estado real em 05/11/2026, com as linhas de Forex, ouro e do motor atualizadas e
 | Calendário: agenda, consenso, resultado, revisões e surpresa | Sim | Sim: lê 7 dias à frente, cada mudança vira versão | **Sim**, família `e_` | Sim: horários conferidos com CPI e FOMC, 30 mil eventos em 24 meses | Termos de uso da fonte (pendência externa) |
 | Notícias (10 fontes por RSS) | Sim | Sim, desde 05/11 | **Ligada, sem histórico**: colunas `n_` vazias antes da coleta | Parcial: fluxo testado, classificação sem amostra rotulada | Acumular meses para poder medir; classificação medida |
 | X (API oficial) | Sim, com teto de gasto | **Não: sem credencial** | **Não** | Só com dados simulados | Credencial e orçamento; tendências |
-| Provedor de sinais (traders) | Sim | Só no Mac | **Não** | Parcial | Migrar o robô |
+| Provedor de sinais (traders) | Sim | Sim, na A1 (serviço `traders`), desde 07/11 | **Não** | Parcial: reinício real da A1 testado | Telegram no `.env` da A1 |
 | Forex e ouro (EUR/USD, GBP/USD, USD/JPY, XAU/USD), histórico | Sim, 24 meses | Importação manual | **Sim**, no treino do motor | Sim: 1.008 medições, nenhuma acima do empate depois da correção | Termos da fonte |
 | Forex e ouro ao vivo | Só no gráfico do TradingView | **Não** no servidor | **Não** | Não | Fonte ao vivo para o motor |
 | Motor: decisão, risco, sinal, execução simulada e diário | Sim | Sim, desde 06/11 | Usa os pesos por modalidade | Testes de ponta a ponta; sem histórico ao vivo | Acumular operações; Telegram |
@@ -35,7 +35,7 @@ Estado real em 05/11/2026, com as linhas de Forex, ouro e do motor atualizadas e
 | Fontes externas de conhecimento | Sim: arXiv, ChartSchool, documentos locais | Pela biblioteca | Investopedia e SSRN bloqueados, não contornados | Ampliar o limite de 150 páginas |
 | LLM local | Sim: leitor de notícias com contexto assíncrono | Só registrado no diário | Sentimento melhor que a regra em 48 notícias; respostas sobre técnicas falham na conferência | Medir utilidade; corrigir respostas |
 | LangGraph | **Não** | Não | Não | Integração |
-| Knowledge Vault ([VAULT.md](../VAULT.md)) | Sim | Sim, a cada 10 min, desde 06/11 | Pelo RAG | Testes de ponta a ponta; backup restaurado | Abrir no Obsidian; reinício real da VM; cópia fora da VM |
+| Knowledge Vault ([VAULT.md](../VAULT.md)) | Sim | Sim, a cada 10 min, desde 06/11 | Pelo RAG | Testes de ponta a ponta; backup restaurado na A1 e no Mac; sincronização nos dois sentidos e conflito testados em 07/11; reinício real da A1 em 07/11 | Abrir no Obsidian do Mac |
 
 ## Técnicas
 

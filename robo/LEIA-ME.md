@@ -14,17 +14,24 @@ Esta é uma das estratégias. O motor multi-mercado está em `mneme/motor/`. A c
 
 Os parâmetros vêm da tela de **Configurações** do site (`/api/training/settings`). Sem eles, o robô só observa.
 
-## Como rodar no Mac
+## Onde roda
 
-Precisa do `uv` (gerenciador de Python). Na pasta `robo/`:
+O robô roda na **Oracle A1**, em Docker Compose ([compose.yaml](compose.yaml)): o serviço `traders` (seguir traders e teste ao vivo) e os demais serviços, todos com `restart: always`, health check por batimento e logs com rodízio. O Docker sobe sozinho quando a máquina reinicia. O `.env` da A1 (`~/mneme/.env`) guarda só as chaves do provedor de sinais e do Telegram. Uma trava impede duas cópias do robô de traders no mesmo banco.
+
+```bash
+ssh mneme-a1 'cd ~/mneme/robo && docker compose ps && docker compose logs --tail 20 traders'
+```
+
+## Desenvolvimento
+
+O computador de cada colaborador serve para desenvolver, administrar e ver o Vault no Obsidian. A configuração inteira é um comando: [colaborar/LEIA-ME.md](../colaborar/LEIA-ME.md). Na pasta `robo/`:
 
 ```bash
 uv sync
 uv run pytest -q
-bash rodar.sh
 ```
 
-O `rodar.sh` mantém o Mac acordado enquanto o robô roda (Ctrl+C para parar). O endereço e a chave do provedor de sinais vêm do `.env` da raiz (`SIGNALS_REST_URL`, `SIGNALS_API_KEY`).
+No macOS, o LightGBM usa a libomp que vem com o scikit-learn (`mneme/openmp.py`), sem Homebrew. O `rodar.sh` roda o robô só para teste, num banco separado (`dados/desenvolvimento.db`).
 
 ## Organização
 

@@ -288,3 +288,22 @@ class TestAoVivo:
     def test_sem_historico_suficiente_nao_grava(self, monkeypatch):
         con, ao_vivo = self.montar(monkeypatch, minutos_de_velas=100)
         assert ao_vivo.gravar_sinais(con, "SOLUSDT", AGORA) == 0
+
+
+class TestOperacao:
+    def test_segunda_copia_do_robo_nao_roda(self, tmp_path):
+        import pytest
+
+        from mneme.__main__ import travar
+
+        primeira = travar(tmp_path / "traders.trava")
+        with pytest.raises(SystemExit):
+            travar(tmp_path / "traders.trava")
+        primeira.close()
+        travar(tmp_path / "traders.trava").close()
+
+    def test_batimento_grava_a_hora_do_ciclo(self, tmp_path):
+        from mneme.__main__ import bater
+
+        bater(tmp_path / "traders.batimento", AGORA)
+        assert (tmp_path / "traders.batimento").read_text() == AGORA.isoformat()

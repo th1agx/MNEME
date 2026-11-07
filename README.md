@@ -164,6 +164,8 @@ docs/architecture/     Arquitetura, decisões e medições
 
 ## Rodando
 
+Colaborador do projeto: clone, crie o `.env` com o bloco de chaves recebido por e-mail e rode `bash colaborar/configurar.sh`. Isso configura o acesso à Oracle, o Python, os testes e o Knowledge Vault no Obsidian ([guia](colaborar/LEIA-ME.md)).
+
 <p align="center">
   <img src="docs/assets/terminal.svg" alt="Animação de terminal: resumo das velas, leitura de mercado do BTC e testes passando." width="100%">
 </p>

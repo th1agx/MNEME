@@ -41,18 +41,11 @@ Só a tabela de natureza dá crédito a uma nota, e ela é conferida em código.
 
 A aprovação exige pelo menos 1.000 operações, área selada, limite inferior líquido positivo e correção por múltiplos testes. Nota editada à mão que diga mais do que pode vale como `nao-verificado` no RAG e aparece na auditoria.
 
-## No computador
+## No computador dos colaboradores
 
-1. Instale o Obsidian:
+O computador só visualiza e edita: a Oracle continua operando com ele desligado. Depois de clonar o repositório e criar o `.env`, rode `bash colaborar/configurar.sh` (guia em [colaborar/LEIA-ME.md](../colaborar/LEIA-ME.md)). O Vault fica em `vault/`, ignorada pelo Git, e sincroniza a cada 10 minutos com `hub.git` na A1. No Obsidian, abra essa pasta com **Open folder as vault**.
 
-   ```bash
-   winget install Obsidian.Obsidian
-   ```
-
-2. No Obsidian, escolha **Open folder as vault** e abra `%USERPROFILE%\mneme-knowledge`.
-3. Para sincronizar, rode `%USERPROFILE%\mneme-knowledge-sincronizar.cmd`. Quem preferir pode instalar o plugin da comunidade **Git** no Obsidian, que usa o mesmo clone.
-
-Em outro computador, autorize a chave SSH e clone `mneme/robo/dados/vault/hub.git`.
+Conflito: vale a edição feita no computador, e o Git guarda a versão da Oracle no histórico (`git log --full-history`). Se a Oracle estiver fora de alcance, a sincronização espera o próximo ciclo. Backup diário local em `~/.mneme/vault-backups/` (14 pacotes).
 
 ## Regras de edição
 

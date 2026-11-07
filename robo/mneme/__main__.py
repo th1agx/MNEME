@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import fcntl
 import logging
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 import httpx
 
@@ -29,11 +31,30 @@ def ler_configuracoes(url: str) -> tuple[Regra, LimitesDia] | None:
     return Regra.das_configuracoes(dados), LimitesDia(dados.get("dailyProfitTargetPct"), dados.get("dailyLossLimitPct"))
 
 
+def travar(caminho: Path):
+    """Um robô de traders por banco: a segunda cópia sai em vez de operar em dobro."""
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    trava = caminho.open("w")
+    try:
+        fcntl.flock(trava, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        trava.close()
+        raise SystemExit(f"Outro robô de traders já usa {caminho.parent}; esta cópia não vai rodar.")
+    return trava
+
+
+def bater(batimento: Path, agora: datetime) -> None:
+    """Marca que o ciclo terminou; o health check do Docker lê este arquivo."""
+    batimento.write_text(agora.isoformat(), encoding="utf-8")
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
     # Sem o log de cada requisição: o endereço do provedor não deve aparecer na tela nem em logs.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     cfg = config.carregar()
+    trava = travar(cfg.banco.with_name("traders.trava"))  # noqa: F841 - fica aberta enquanto o robô roda
+    batimento = cfg.banco.with_name("traders.batimento")
     con = banco.abrir(cfg.banco)
     try:
         provedor: ProvedorSinais | None = ProvedorSinais(cfg.signals_rest_url, cfg.signals_api_key)
@@ -60,6 +81,7 @@ def main() -> None:
             ao_vivo.conferir(con)
             patrimonio = Carteira(con).patrimonio()
             con.commit()  # não deixa transação aberta entre ciclos, para o estudo poder gravar
+            bater(batimento, agora)
             log.info("operações novas %d · compras %d · vendas %d · dicas %d · velas %d · sinais %d · %s · patrimônio US$ %.2f%s%s",
                      resumo.operacoes_novas, resumo.compras, resumo.vendas, dicas, novas_velas, sinais, ao_vivo.resumo(con), patrimonio,
                      "" if lidas else " · sem Configurações (só observa)",

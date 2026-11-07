@@ -23,3 +23,6 @@ privado/
 !.claude/skills/context-engineering/
 !.claude/skills/backtest-expert/
 scripts/sigilo.sh
+
+# Knowledge Vault: as notas vêm da Oracle pelo colaborar/configurar.sh e não vão para o GitHub
+/vault/
