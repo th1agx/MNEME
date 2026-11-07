@@ -14,8 +14,8 @@ Definida pelo dono em 05/11/2026: construir, testar, medir e evoluir. Esta ordem
 | **E4** | LightGBM e XGBoost treinados com histórico; registro de experimentos | Comparados a referências simples, depois de custos |
 | **E5** | Decision Engine, Risk Engine e paper trading por estratégia | Nenhuma sequência ultrapassa os limites |
 | **E6** | Sinais com ciclo de vida, Telegram e avaliação | Todo sinal tem estado e resultado |
-| **E7** | Knowledge Engine com RAG | Responde com fontes e resultados medidos |
-| **E8** | Notícias e calendário, com Ollama e LangGraph | Coleta e sinais continuam com o LLM parado |
+| **E7** | Ligado à decisão, sem peso | Biblioteca com 1.002 documentos, incluindo o Vault. Desde 07/11, de hora em hora o ciclo do Vault consulta o RAG para cada uma das 42 estratégias do motor e grava 3 trechos como contexto (origem, confiabilidade, validade de 24 h); as decisões passaram a registrar esse conhecimento (conferido em decisões de SOL e ETH às 18:58 UTC). O motor só lê do SQLite e nunca espera o RAG | Relevância ainda fraca: para ETH 5 min, a busca trouxe a nota de ETH 15 min. Melhorar a busca e o conteúdo antes de o conhecimento pesar |
+| **E8** | Rodando e medido | Notícias e calendário na A1; o leitor (LLM) grava contexto com evidência conferida, e 184 decisões já o carregam. A nota "Efeito das notícias nas decisões" (Vault, `09-system-knowledge`) compara o acerto com a notícia a favor, contra e sem notícia: em sombra, 63,0% a favor (81) contra 52,3% contra (65), com intervalos de 95% sobrepostos | **Sem evidência ainda** de que a notícia ajuda. Só pode pesar com os intervalos separados numa amostra grande. LangGraph continua pendente |
 | **E9** | Ciclo de aprendizado: hipótese, experimento e comparação | Uma hipótese percorre o ciclo sozinha, até a aprovação |
 | **E10** | Execução real controlada | Só com aprovação explícita do dono |
 

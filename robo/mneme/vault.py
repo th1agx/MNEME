@@ -484,6 +484,40 @@ def importar_hipoteses(v: Vault, fila: Path) -> int:
     return n
 
 
+def anexar_conhecimento_ao_motor(dados: Path, biblioteca: Biblioteca, agora: datetime) -> int:
+    """E7: o motor recebe, como contexto rastreável, o que a biblioteca sabe de cada estratégia. Ele registra, não obedece."""
+    import pandas as pd
+
+    from .motor.conhecimento import anexar_conhecimento
+    from .motor.diario import Diario
+    from .motor.modalidades import carregar_configuracao
+    config = carregar_configuracao(dados / "operacao.json")
+    if config is None or not (dados / "operacao" / "diario.db").exists():
+        return 0
+    return anexar_conhecimento(Diario(dados / "operacao" / "diario.db"), biblioteca, config.estrategias, pd.Timestamp(agora))
+
+
+def escrever_efeito_do_contexto(v: Vault, diario: Path) -> int:
+    """E8: a nota que diz se a notícia ajudou ou atrapalhou as decisões já apuradas."""
+    if not diario.exists():
+        return 0
+    from .motor.conhecimento import efeito_do_contexto
+    from .motor.diario import Diario
+    d = Diario(diario)
+    linhas = []
+    for tipo in ("operada", "sombra"):
+        for g in efeito_do_contexto(d, tipo):
+            acerto = "-" if not g["decisoes"] else f"{g['acerto']:.1%}"
+            ic = "-" if not g["decisoes"] else f"{g['ic95'][0]:.1%} a {g['ic95'][1]:.1%}"
+            linhas.append(f"| {tipo} | {g['grupo']} | {g['decisoes']} | {acerto} | {ic} |")
+    corpo = ("# Efeito das notícias nas decisões do motor\n\nAcerto das decisões já apuradas, separado pela relação entre o sentimento das notícias vigentes e a direção da decisão. "
+             "Empates não contam. O contexto só pode passar a pesar na decisão se \"a favor\" ficar acima de \"contra\" com os intervalos separados, numa amostra grande.\n\n"
+             "| Decisão | Notícia | Decisões | Acerto | IC 95% |\n|---|---|---:|---:|---|\n" + "\n".join(linhas))
+    v.escrever(Nota("Efeito das notícias nas decisões", "09-system-knowledge", "experimento", corpo, "laboratorio", "experimento", ["cripto", "forex"],
+                    relacionadas=["Ciclo de aprendizado"]))
+    return 1
+
+
 def importar_diario(v: Vault, diario: Path) -> int:
     """Lê o diário operacional em modo de leitura, sem nenhuma trava sobre ele. O Markdown só resume: o banco continua sendo a fonte."""
     if not diario.exists():
@@ -560,7 +594,8 @@ def ciclo(v: Vault, dados: Path, biblioteca: Biblioteca, backup_a_cada: timedelt
         metodologias = Path(__file__).resolve().parents[1] / "conhecimento" / "metodologias.md"
         for nome, tarefa in (("base", lambda: importar_base(v, metodologias)), ("tecnicas", lambda: importar_tecnicas(v, dados / "laboratorio")), ("experimentos", lambda: importar_experimentos(v, dados / "laboratorio" / "experimentos.jsonl")),
                              ("diario", lambda: importar_diario(v, dados / "operacao" / "diario.db")), ("noticias", lambda: importar_noticias(v, dados / "operacao" / "diario.db")), ("fontes", lambda: importar_fontes(v, biblioteca)),
-                             ("hipoteses", lambda: importar_hipoteses(v, dados / "aprendizado" / "hipoteses.jsonl"))):
+                             ("hipoteses", lambda: importar_hipoteses(v, dados / "aprendizado" / "hipoteses.jsonl")),
+                             ("efeito_contexto", lambda: escrever_efeito_do_contexto(v, dados / "operacao" / "diario.db"))):
             try:
                 resumo[nome] = tarefa()
             except (OSError, ValueError, KeyError, sqlite3.Error) as erro:
@@ -578,6 +613,13 @@ def ciclo(v: Vault, dados: Path, biblioteca: Biblioteca, backup_a_cada: timedelt
             except (OSError, sqlite3.Error, ValueError) as erro:
                 resumo["rag"] = f"falhou: {erro}"
                 v.registrar("rag_falhou", erro=str(erro))
+        anexado = v.estado().get("conhecimento_motor")
+        if not anexado or v.relogio() - datetime.fromisoformat(anexado) >= timedelta(hours=1):
+            try:
+                resumo["conhecimento_motor"] = anexar_conhecimento_ao_motor(dados, biblioteca, v.relogio())
+                v.guardar_estado(conhecimento_motor=v.relogio().isoformat())
+            except (OSError, sqlite3.Error, ValueError, KeyError) as erro:
+                resumo["conhecimento_motor"] = f"falhou: {erro}"
         ultimo = v.estado().get("ultimo_backup")
         if not ultimo or v.relogio() - datetime.fromisoformat(ultimo) >= backup_a_cada:
             v.fazer_backup(biblioteca.caminho)

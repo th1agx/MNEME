@@ -16,6 +16,7 @@ from ..laboratorio.confluencia import grade_de_sinais
 from .decisao import decidir_operacao
 from .diario import Diario
 from .execucao import criar_executor
+from .conhecimento import chave_da_estrategia
 from .modalidades import ComStop, Configuracao, Estrategia, amplitude_media, carregar_configuracao, liquidar_fixa, liquidar_stop
 from .risco import Aprovacao, Estado, avaliar
 from .sinal import chave_da_decisao, como_dicionario, criar_sinal
@@ -79,7 +80,7 @@ class Motor:
         return resumo
 
     def _decidir(self, e: Estrategia, modelo: dict, linha: pd.Series, vela: pd.Timestamp, v: pd.DataFrame, agora: pd.Timestamp) -> str:
-        contexto = self.diario.contexto_vigente(ASSUNTOS.get(e.ativo, ()), agora)
+        contexto = self.diario.contexto_vigente(ASSUNTOS.get(e.ativo, ()) + (chave_da_estrategia(e),), agora)
         d = decidir_operacao(e, modelo, linha, vela, self.config.min_operacoes_evidencia, contexto)
         if d is None:
             return "sem_oportunidade"
