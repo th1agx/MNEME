@@ -14,7 +14,7 @@ from ..laboratorio.robustez import intervalo_por_dias
 from ..laboratorio.validacao import intervalo_wilson
 from .regua import ATUAL, REGUAS, Regua, amostra_minima
 
-DIMENSOES = ("estrategia", "ativo", "tipo", "horizonte", "faixa_hora", "dia_semana", "vol_quintil", "forca_quintil", "noticia", "motivo_recusa")
+DIMENSOES = ("estrategia", "ativo", "tipo", "horizonte", "faixa_hora", "dia_semana", "regime", "tendencia", "vol_quintil", "forca_quintil", "noticia", "motivo_recusa")
 
 
 def _leitura(g: pd.Series, minimo: int) -> str:

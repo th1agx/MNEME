@@ -99,6 +99,12 @@ def montar_dossie(diario: Path | str, armazem: ArmazemVelas) -> pd.DataFrame:
     regimes = [_regime(armazem, ativo, grupo["decidido_em"]) for ativo, grupo in d.groupby("ativo")]
     d = d.join(pd.concat(regimes))
     d["vol_quintil"] = _quintil(d["vol_pct_7d"])
+    # R1: regime do momento, só com o passado. Tendência pelo retorno da última hora medido em desvios (|z| ≥ 1),
+    # volatilidade pelo terço em que cai nos 7 dias anteriores.
+    d["tendencia"] = np.where(d["tendencia_60"].isna(), None,
+                              np.where(d["tendencia_60"] >= 1, "alta", np.where(d["tendencia_60"] <= -1, "baixa", "lateral")))
+    vol = np.where(d["vol_pct_7d"] < 1 / 3, "vol baixa", np.where(d["vol_pct_7d"] > 2 / 3, "vol alta", "vol media"))
+    d["regime"] = [None if t is None or np.isnan(p) else f"{v}-{t}" for v, t, p in zip(vol, d["tendencia"], d["vol_pct_7d"])]
     # Rótulo descritivo para recortar o passado: usa a distribuição do período todo. Um filtro por força que vire hipótese
     # precisa de limites calculados só com o passado, no executor.
     d["forca_quintil"] = _quintil(d.groupby("estrategia")["forca"].rank(pct=True))

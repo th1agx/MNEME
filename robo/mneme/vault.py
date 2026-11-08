@@ -566,7 +566,7 @@ def escrever_atribuicao_e9(v: Vault, diario: Path, mercado: Path) -> int:
         return 0
     regua = REGUAS[ATUAL]
     minimo = amostra_minima(regua, float(x["payout"].dropna().median()) if x["payout"].notna().any() else 0.85, familia=1)
-    nomes = {"estrategia": "Estratégia", "ativo": "Ativo", "horizonte": "Horizonte (min)", "faixa_hora": "Faixa de horário (UTC)",
+    nomes = {"estrategia": "Estratégia", "ativo": "Ativo", "horizonte": "Horizonte (min)", "faixa_hora": "Faixa de horário (UTC)", "regime": "Regime (volatilidade e tendência da última hora)",
              "vol_quintil": "Volatilidade da última hora (quintil nos 7 dias anteriores)", "noticia": "Notícia em relação à direção",
              "forca_quintil": "Força do sinal (quintil dentro da estratégia)", "motivo_recusa": "Motivo de ficar em sombra"}
     secoes = []
@@ -594,6 +594,37 @@ def escrever_atribuicao_e9(v: Vault, diario: Path, mercado: Path) -> int:
              + "\n\n".join(secoes))
     v.escrever(Nota("E9 - onde o motor acerta e erra", "09-system-knowledge", "experimento", corpo, "laboratorio", "experimento", ["cripto"],
                     relacionadas=["Plano E9 v2 - aprendizado contínuo", "Efeito das notícias nas decisões"]))
+    return 1
+
+
+def escrever_hipoteses_e9(v: Vault, caminho: Path) -> int:
+    """E9 v2 (A2): as hipóteses registradas, com a contrária de cada uma. O registro é a fonte; a nota só mostra."""
+    if not caminho.exists():
+        return 0
+    from .e9.hipoteses import Registro
+
+    todas = Registro(caminho).todas()
+    if not todas:
+        return 0
+
+    def mudanca(h: dict) -> str:
+        m = h["mudanca"]
+        texto = f"regra: {m['regra']}" if "regra" in m else f"{m['dimensao']}: operar só em {', '.join(map(str, m['operar_se']))}"
+        return _sanear(texto).replace("|", " · ")
+
+    linhas = [f"| {h['id']} | {h['registrada_em'][:16].replace('T', ' ')} | {_sanear(h['escopo'].get('estrategia', 'todas')).replace('|', ' · ')} | "
+              f"{mudanca(h)} | {'contrária de ' + h['contraria_de'] if h['contraria_de'] else h['origem']} | "
+              f"{'exploratória' if h['exploratoria'] else 'confirmatória'} | aguardando dados novos |" for h in todas]
+    detalhes = [f"### {h['id']}\n\n- Previsão: {_sanear(h['previsao'])}\n- O que a derrubaria: {_sanear(h['derrubaria'])}\n"
+                f"- Rivais: {', '.join(h['rivais'])}\n- Motivo: {_sanear(h['motivo'])}\n- Régua: {h['regua']}; dados a partir de {h['dados_a_partir_de'][:16]} UTC"
+                for h in todas if not h["contraria_de"]]
+    corpo = ("# E9: hipóteses registradas\n\nCada hipótese foi registrada **antes** de ver os dados que vão testá-la: o teste usa só decisões "
+             "posteriores ao registro, e a contrária é testada do mesmo jeito. Nada aqui muda o motor; aprovar é do dono. "
+             "Plano em [[Plano E9 v2 - aprendizado contínuo]]; de onde vieram, em [[E9 - onde o motor acerta e erra]].\n\n"
+             "| Id | Registrada (UTC) | Estratégia | Mudança | Origem | Tipo | Situação |\n|---|---|---|---|---|---|---|\n"
+             + "\n".join(linhas) + "\n\n## Detalhes\n\n" + "\n\n".join(detalhes))
+    v.escrever(Nota("E9 - hipóteses registradas", "09-system-knowledge", "hipotese", corpo, "laboratorio", "experimento", ["cripto"],
+                    relacionadas=["Plano E9 v2 - aprendizado contínuo", "E9 - onde o motor acerta e erra"]))
     return 1
 
 
@@ -676,7 +707,8 @@ def ciclo(v: Vault, dados: Path, biblioteca: Biblioteca, backup_a_cada: timedelt
                              ("hipoteses", lambda: importar_hipoteses(v, dados / "aprendizado" / "hipoteses.jsonl")),
                              ("efeito_contexto", lambda: escrever_efeito_do_contexto(v, dados / "operacao" / "diario.db")),
                              ("quadro", lambda: escrever_resumo_do_quadro(v, dados / "quadro" / "quadro.db", v.relogio())),
-                             ("e9_atribuicao", lambda: escrever_atribuicao_e9(v, dados / "operacao" / "diario.db", dados / "mercado"))):
+                             ("e9_atribuicao", lambda: escrever_atribuicao_e9(v, dados / "operacao" / "diario.db", dados / "mercado")),
+                             ("e9_hipoteses", lambda: escrever_hipoteses_e9(v, dados / "e9" / "hipoteses.jsonl"))):
             try:
                 resumo[nome] = tarefa()
             except (OSError, ValueError, KeyError, sqlite3.Error) as erro:

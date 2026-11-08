@@ -119,3 +119,13 @@ def test_nota_no_vault_e_descritiva_e_mostra_a_amostra(tmp_path):
     assert "exploratório" in texto and "amostra insuficiente" in texto and "régua v1" in texto
     assert "| ETHUSDT |" in texto and "Velas" in texto and "| ETHUSDT · expiracao_fixa · 1m · 5m |" in texto
     assert escrever_atribuicao_e9(v, tmp_path / "nao_existe.db", armazem.raiz) == 0
+
+
+def test_regime_combina_volatilidade_e_tendencia_do_momento(tmp_path):
+    diario, armazem = montar(tmp_path)
+    x = montar_dossie(diario, armazem)
+    assert set(x["tendencia"]) <= {"alta", "baixa", "lateral"}
+    assert set(x["regime"]) <= {f"{v}-{t}" for v in ("vol baixa", "vol media", "vol alta") for t in ("alta", "baixa", "lateral")}
+    esperado = np.where(x["tendencia_60"] >= 1, "alta", np.where(x["tendencia_60"] <= -1, "baixa", "lateral"))
+    assert (x["tendencia"].to_numpy() == esperado).all()
+    assert atribuir(x, "regime")["decisoes"].sum() == len(x)
