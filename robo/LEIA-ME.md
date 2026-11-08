@@ -46,6 +46,7 @@ No macOS, o LightGBM usa a libomp que vem com o scikit-learn (`mneme/openmp.py`)
 | `mneme/motor/` | O robô multi-mercado: decisão, risco, sinal, execução simulada, diário e contexto da LLM |
 | `mneme/aprendizado.py` | Ciclo de aprendizado (E9): hipótese, teste no laboratório, veredito e nota no Vault; de hora em hora na A1 ([aprendizado.crontab](aprendizado.crontab)) |
 | `mneme/vault.py` | Knowledge Vault: notas em Markdown e Git, indexadas no RAG. Ver `docs/VAULT.md` |
+| `mneme/quadro/` | Quadro de evidências (F1, em sombra): especialistas gravam evidências tipadas e restrições de risco por oportunidade, sem influir no motor. Serviço `quadro`, só leitura em `dados/` e escrita em `dados/quadro/`. `python -m mneme.quadro resumo` e `reproduzir --amostra 20`. Plano no Vault: `09-system-knowledge/Plano F1 - quadro de evidências` |
 | `pine/mneme_confluencia.pine` | Confluência no gráfico do TradingView, gerada por `mneme.motor.pine` |
 | `mneme/ciclo.py` | Um ciclo completo do robô |
 | `mneme/banco.py` | Esquema do banco (SQLite agora, Postgres no servidor) |

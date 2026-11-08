@@ -104,6 +104,40 @@ services:
       retries: 3
       start_period: 180s
 
+  # Quadro de evidências (F1, sombra). Não usa o volume comum: lê os dados só para leitura e escreve só em ./dados/quadro.
+  # O motor não lê nada daqui. Começa 20 s depois de cada minuto, quando o motor já decidiu.
+  # Perfil próprio: só sobe com `docker compose --profile sombra up -d --no-deps quadro`. Parado, fica parado, mesmo depois de reiniciar a A1.
+  quadro:
+    profiles: ["sombra"]
+    build: .
+    user: "${MNEME_UID:-1001}:${MNEME_GID:-1001}"
+    command: [".venv/bin/python", "-m", "mneme.quadro", "rodar"]
+    environment:
+      MNEME_DADOS_MERCADO: /dados/mercado
+      MNEME_DIARIO: /dados/operacao/diario.db
+      MNEME_OPERACAO: /dados/operacao.json
+      MNEME_MODELOS: /dados/modelos
+      MNEME_MODELOS_MOTOR: /dados/modelos/motor
+      MNEME_QUADRO: /quadro
+    volumes:
+      - ./dados:/dados:ro
+      - ./dados/quadro:/quadro
+    restart: unless-stopped
+    mem_limit: 500m
+    cpus: 0.5
+    cpu_shares: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", ".venv/bin/python", "-c", "import datetime as d,pathlib as p; t=d.datetime.fromisoformat(p.Path('/quadro/quadro.batimento').read_text()); raise SystemExit(0 if (d.datetime.now(d.timezone.utc)-t).total_seconds()<300 else 1)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+
   # A LLM lê as notícias no próprio ritmo e guarda o contexto. Se cair, o motor segue sem perceber.
   leitor:
     <<: *servico

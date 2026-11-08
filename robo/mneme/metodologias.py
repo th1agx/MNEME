@@ -119,20 +119,39 @@ def linhas_de_tendencia(v: pd.DataFrame, atr: pd.Series) -> pd.DataFrame:
 
 def perfil_de_volume(v: pd.DataFrame, atr: pd.Series, janela: int = 96, faixas: int = 24) -> pd.DataFrame:
     """Ponto de maior volume (POC) e área de valor de 70% nas últimas `janela` velas."""
-    tipico = ((v["maxima"] + v["minima"] + v["fechamento"]) / 3).to_numpy()
-    volume, f = v["volume"].to_numpy(), v["fechamento"].to_numpy()
+    tipico = ((v["maxima"] + v["minima"] + v["fechamento"]) / 3).to_numpy(dtype="float64")
+    volume, f = v["volume"].to_numpy(dtype="float64"), v["fechamento"].to_numpy(dtype="float64")
     poc, dentro = np.full(len(v), np.nan), np.full(len(v), np.nan)
-    for t in range(janela - 1, len(v)):
-        precos, pesos = tipico[t - janela + 1:t + 1], volume[t - janela + 1:t + 1]
-        if np.isnan(precos).any() or pesos.sum() == 0:
-            continue
-        hist, bordas = np.histogram(precos, faixas, weights=pesos)
-        meios = (bordas[:-1] + bordas[1:]) / 2
-        topo = int(hist.argmax())
-        poc[t] = meios[topo]
-        ordem = np.argsort(hist)[::-1]
-        escolhidas = ordem[:int(np.searchsorted(np.cumsum(hist[ordem]), 0.7 * hist.sum())) + 1]
-        dentro[t] = float(meios[escolhidas].min() <= f[t] <= meios[escolhidas].max())
+    if len(v) >= janela:
+        # Todas as janelas de uma vez, com as mesmas contas do np.histogram de faixas iguais: o resultado é idêntico ao laço.
+        precos = np.lib.stride_tricks.sliding_window_view(tipico, janela)
+        pesos = np.lib.stride_tricks.sliding_window_view(volume, janela)
+        validas = ~np.isnan(precos).any(axis=1) & (pesos.sum(axis=1) != 0)
+        linhas = np.flatnonzero(validas)
+        precos, pesos = precos[linhas], pesos[linhas]
+        primeira, ultima = precos.min(axis=1), precos.max(axis=1)
+        iguais = primeira == ultima
+        primeira, ultima = np.where(iguais, primeira - 0.5, primeira), np.where(iguais, ultima + 0.5, ultima)
+        bordas = np.linspace(primeira, ultima, faixas + 1, endpoint=True, axis=1)
+        indices = (((precos - primeira[:, None]) / (ultima - primeira)[:, None]) * faixas).astype(np.intp)
+        indices[indices == faixas] -= 1
+        indices -= precos < np.take_along_axis(bordas, indices, axis=1)
+        indices += (precos >= np.take_along_axis(bordas, indices + 1, axis=1)) & (indices != faixas - 1)
+        hist = np.bincount((indices + faixas * np.arange(len(linhas))[:, None]).ravel(), weights=pesos.ravel(),
+                           minlength=len(linhas) * faixas).reshape(len(linhas), faixas)
+        meios = (bordas[:, :-1] + bordas[:, 1:]) / 2
+        topo = hist.argmax(axis=1)
+        ordem = np.argsort(hist, axis=1)[:, ::-1]
+        acumulado = np.cumsum(np.take_along_axis(hist, ordem, axis=1), axis=1)
+        alvo = 0.7 * hist.sum(axis=1)
+        quantas = np.array([np.searchsorted(a, x) for a, x in zip(acumulado, alvo)], dtype=np.intp) + 1
+        escolhidos = np.take_along_axis(meios, ordem, axis=1)
+        dentro_da_conta = np.arange(faixas)[None, :] < quantas[:, None]
+        baixo = np.where(dentro_da_conta, escolhidos, np.inf).min(axis=1)
+        alto = np.where(dentro_da_conta, escolhidos, -np.inf).max(axis=1)
+        t = linhas + janela - 1
+        poc[t] = np.take_along_axis(meios, topo[:, None], axis=1)[:, 0]
+        dentro[t] = ((baixo <= f[t]) & (f[t] <= alto)).astype(float)
     return pd.DataFrame({"vp_dist_poc": (v["fechamento"] - poc) / _escala(atr), "vp_na_area_valor": dentro}, index=v.index)
 
 

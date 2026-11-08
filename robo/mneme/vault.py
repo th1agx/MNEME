@@ -497,6 +497,38 @@ def anexar_conhecimento_ao_motor(dados: Path, biblioteca: Biblioteca, agora: dat
     return anexar_conhecimento(Diario(dados / "operacao" / "diario.db"), biblioteca, config.estrategias, pd.Timestamp(agora))
 
 
+def escrever_resumo_do_quadro(v: Vault, banco: Path, agora: datetime) -> int:
+    """F1: o que o quadro de evidências registrou nos últimos 7 dias. Só descritivo; lido sem escrever no banco do quadro."""
+    if not banco.exists():
+        return 0
+    from types import SimpleNamespace
+
+    from .quadro.relatorio import resumo
+    con = sqlite3.connect(f"file:{banco}?mode=ro", uri=True, timeout=5)
+    con.row_factory = sqlite3.Row
+    try:
+        dias = [resumo(SimpleNamespace(con=con), f"{agora - timedelta(days=i):%Y-%m-%d}") for i in range(7)]
+    finally:
+        con.close()
+    linhas = []
+    for d in dias:
+        if not d["oportunidades"]:
+            continue
+        falhas = sum(p["n"] for p in d["pedidos"] if p["situacao"] in ("erro", "tempo_esgotado"))
+        total = sum(p["n"] for p in d["pedidos"]) or 1
+        linhas.append(f"| {d['dia']} | {d['oportunidades']} | {d['ligadas_ao_motor']} | {d['por_estado'].get('apurada', 0)} | {falhas / total:.2%} | {d['com_conflito']} |")
+    fontes = []
+    for nome, f in (dias[1] if len(dias) > 1 else dias[0])["fontes"].items():
+        fontes.append(f"| {nome} | {f['n']} | {f['acerto']:.1%} | {f['ic95'][0]:.1%} a {f['ic95'][1]:.1%} |")
+    corpo = ("# Quadro de evidências: resumo\n\nF1 em sombra: o quadro só registra; não decide nem opera. Plano em [[Plano F1 - quadro de evidências]].\n\n"
+             "| Dia (UTC) | Oportunidades | Ligadas ao motor | Apuradas | Falhas de especialista | Com conflito |\n|---|---:|---:|---:|---:|---:|\n" + "\n".join(linhas) +
+             "\n\n## Poder de cada fonte sozinha (dia anterior, só descritivo)\n\n| Fonte | Direções apuradas | Acerto | IC 95% |\n|---|---:|---:|---|\n" + "\n".join(fontes) +
+             "\n\nAusentes: " + "; ".join(dias[0]["ausentes"]) + ".")
+    v.escrever(Nota("Quadro de evidências - resumo", "09-system-knowledge", "experimento", corpo, "laboratorio", "experimento", ["cripto"],
+                    relacionadas=["Plano F1 - quadro de evidências"]))
+    return 1
+
+
 def escrever_efeito_do_contexto(v: Vault, diario: Path) -> int:
     """E8: a nota que diz se a notícia ajudou ou atrapalhou as decisões já apuradas."""
     if not diario.exists():
@@ -595,7 +627,8 @@ def ciclo(v: Vault, dados: Path, biblioteca: Biblioteca, backup_a_cada: timedelt
         for nome, tarefa in (("base", lambda: importar_base(v, metodologias)), ("tecnicas", lambda: importar_tecnicas(v, dados / "laboratorio")), ("experimentos", lambda: importar_experimentos(v, dados / "laboratorio" / "experimentos.jsonl")),
                              ("diario", lambda: importar_diario(v, dados / "operacao" / "diario.db")), ("noticias", lambda: importar_noticias(v, dados / "operacao" / "diario.db")), ("fontes", lambda: importar_fontes(v, biblioteca)),
                              ("hipoteses", lambda: importar_hipoteses(v, dados / "aprendizado" / "hipoteses.jsonl")),
-                             ("efeito_contexto", lambda: escrever_efeito_do_contexto(v, dados / "operacao" / "diario.db"))):
+                             ("efeito_contexto", lambda: escrever_efeito_do_contexto(v, dados / "operacao" / "diario.db")),
+                             ("quadro", lambda: escrever_resumo_do_quadro(v, dados / "quadro" / "quadro.db", v.relogio()))):
             try:
                 resumo[nome] = tarefa()
             except (OSError, ValueError, KeyError, sqlite3.Error) as erro:
