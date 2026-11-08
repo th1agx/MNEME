@@ -1,9 +1,11 @@
 ---
-name: mneme-portao-e9
-description: Use ao construir ou mudar o ciclo de aprendizado do MNEME (E9) - hipóteses automáticas, fábrica de experimentos, retreino, registro de modelos, campeão e desafiante, promoção, rollback - ou qualquer laço em que um agente melhora o próprio sistema. Define o que o agente pode mudar sozinho e o que é travado ou humano.
+name: mneme-portao-aprendizado
+description: Use ao construir ou mudar o ciclo de aprendizado do MNEME (E9): hipóteses automáticas, experimentos, retreino, versões, campeão e desafiante, promoção e rollback. Define o que o agente pode mudar sozinho e o que é travado ou humano.
 ---
 
 # Portão do E9: o que o agente pode mudar sozinho
+
+O produto é definido em `docs/PRODUCT_CHARTER.md`; esta skill não muda nada dele.
 
 O E9 está descrito no Vault (`09-system-knowledge/Proposta - inteligência híbrida multiagente`). Esta skill define as fronteiras do laço de melhoria. Ela não muda o Charter nem o roadmap.
 
@@ -60,3 +62,7 @@ O monitor só lê e relata: campeão atual, desafiantes em sombra, alarmes, laç
 ## Como relatar
 
 Para cada rodada: hipótese registrada (com data), superfícies tocadas, régua usada (versão), resultado por dimensão, número total de testes até aqui, decisão (rejeitada, sombra, aguardando aprovação) e como desfazer.
+
+## Crédito
+
+Adaptada de `harness-engineering` (v1.1.0, commit 8fc51c7) de Context Engineering Agent Skills Contributors ([muratcankoylan/Agent-Skills-for-Context-Engineering](https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering), MIT, © 2025). Reescrita para o MNEME. Origem detalhada e avisos de licença em `docs/skills/origens/mneme-portao-aprendizado.md`.

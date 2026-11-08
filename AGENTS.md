@@ -91,7 +91,7 @@ Vale para toda IA neste repositório. Antes de começar a tarefa, use a skill da
 | Ligar fonte externa, LLM, MCP ou skill externa | `mneme-revisao-injecao` |
 | Sessão longa, troca de tarefa ou queda de qualidade do agente | `context-engineering` |
 | Colaboração entre especialistas, quadro de evidências, Coordenador, papéis da LLM | `mneme-arquitetura-multiagente` |
-| Ciclo de aprendizado (E9): experimentos, retreino, versões, promoção, rollback | `mneme-portao-e9` |
+| Ciclo de aprendizado (E9): experimentos, retreino, versões, promoção, rollback | `mneme-portao-aprendizado` |
 | Avaliar componente da arquitetura antes de dizer que melhorou | `mneme-avaliacao` |
 | Formular ou registrar hipótese | `mneme-hipoteses` |
 | Quantas operações, dias ou pontos são precisos para provar um resultado | `mneme-poder-estatistico` |

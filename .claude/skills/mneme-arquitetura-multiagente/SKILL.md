@@ -57,3 +57,7 @@ Especialista é **papel**, não processo nem modelo novo. A pista rápida é alg
 ## Como relatar
 
 Para cada mudança de arquitetura, diga: a referência medida, o que a divisão acrescentou fora da amostra, o custo (CPU, RAM, tarefas da LLM), quem tem autoridade em cada decisão e o que acontece quando cada parte falha.
+
+## Crédito
+
+Adaptada de `multi-agent-patterns` (v2.1.0, commit 8fc51c7) de Context Engineering Agent Skills Contributors ([muratcankoylan/Agent-Skills-for-Context-Engineering](https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering), MIT, © 2025) e de `multi-agent-coordination` (commit 514d06b) de Magnus Hedemark ([magnus919/agent-skills](https://github.com/magnus919/agent-skills), MIT, © 2026). Reescrita para o MNEME, sem os scripts nem as referências. Origem detalhada e avisos de licença em `docs/skills/origens/mneme-arquitetura-multiagente.md`.

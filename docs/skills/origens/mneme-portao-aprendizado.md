@@ -1,3 +1,27 @@
+# Origem e licenças de `mneme-portao-aprendizado`
+
+```text
+Skill própria do MNEME, adaptada (não copiada) em 08/11/2026.
+
+Fonte (licença MIT, aviso em LICENSE):
+muratcankoylan/Agent-Skills-for-Context-Engineering, skills/harness-engineering/SKILL.md
+versão 1.1.0; commit do repositório 8fc51c7cbaf9; sha256 do arquivo lido dde3d8f46d4d09db...
+Copyright (c) 2025 Context Engineering Agent Skills Contributors
+
+Aproveitado: as quatro superfícies (travada, editável, só de acréscimo, humana); o laço com avaliação
+fora da superfície editável; proteção contra o agente burlar a métrica; busca disciplinada (novidade,
+poda, simplificação, rejeitadas preservadas); monitor só de leitura que cita a fonte.
+
+Adaptado: superfícies mapeadas para o laboratório, a área selada, o registro de experimentos, o ponteiro
+do campeão, o rollback e a aprovação do dono; orçamento de CPU da A1.
+
+Removido: laço de pesquisa para skills, fluxo de pull request, referências internas do repositório de
+origem e exemplos de terceiros.
+```
+
+## Avisos de licença das fontes
+
+```text
 MIT License
 
 Copyright (c) 2025 Context Engineering Agent Skills Contributors
@@ -22,3 +46,4 @@ SOFTWARE.
 
 ---
 
+```

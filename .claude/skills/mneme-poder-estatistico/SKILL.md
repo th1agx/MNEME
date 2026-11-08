@@ -5,6 +5,8 @@ description: Use para decidir quantas operações, sinais, dias ou pontos são n
 
 # Poder estatístico e tamanho de amostra no MNEME
 
+O produto é definido em `docs/PRODUCT_CHARTER.md`; esta skill não muda nada dele.
+
 Use junto com `mneme-auditoria-backtest` e `mneme-hipoteses`. O ambiente já tem scipy e numpy: não instale nada para isso.
 
 ## Regra
@@ -64,3 +66,7 @@ Quando o desenho não cabe numa fórmula (modelo, regime, várias estratégias j
 ## Como relatar
 
 Pergunta, unidade independente, efeito mínimo e o porquê, alfa corrigido, poder, n calculado com a faixa de sensibilidade, ajustes aplicados e quanto tempo de coleta isso significa.
+
+## Crédito
+
+Adaptada de `statistical-power` (v1.3) da K-Dense Inc. ([K-Dense-AI/claude-scientific-skills](https://github.com/K-Dense-AI/claude-scientific-skills), MIT, © 2025). Reescrita para o MNEME, sem instalações, scripts nem instrução de citação. Origem detalhada e avisos de licença em `docs/skills/origens/mneme-poder-estatistico.md`.

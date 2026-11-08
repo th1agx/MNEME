@@ -5,6 +5,8 @@ description: Use ao avaliar especialistas, o Coordenador, papéis da LLM, o quad
 
 # Avaliação de componentes do MNEME
 
+O produto é definido em `docs/PRODUCT_CHARTER.md`; esta skill não muda nada dele.
+
 Para backtest, modelo e estratégia, use também `mneme-auditoria-backtest`. Esta skill cobre a avaliação dos componentes da arquitetura (especialistas, Coordenador, papéis da LLM, quadro, filas).
 
 ## Regra
@@ -49,3 +51,7 @@ Não use pesos nem cortes inventados (como "0,7 passa"). Os critérios de passag
 ## Como relatar
 
 Linha de base (período e números), candidato (versão), casos (versão), resultado por dimensão com intervalo, falhas críticas, custo e o que ainda não foi medido.
+
+## Crédito
+
+Adaptada de `evaluation` (commit 8fc51c7) de Context Engineering Agent Skills Contributors ([muratcankoylan/Agent-Skills-for-Context-Engineering](https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering), MIT, © 2025). Reescrita para o MNEME, sem rubricas com peso nem o script. Origem detalhada e avisos de licença em `docs/skills/origens/mneme-avaliacao.md`.

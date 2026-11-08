@@ -1,11 +1,13 @@
 ---
 name: mneme-hipoteses
-description: Use ao formular, revisar ou registrar hipóteses do MNEME (E9, estudos, papéis Research e Strategy da LLM) - por exemplo "o funding prevê o próximo movimento" ou "o filtro de regime melhora a estratégia". Separa observação, hipótese, previsão e evidência, exige rivais e registro antes de ver o resultado.
+description: Use ao formular, revisar ou registrar hipóteses do MNEME (E9, estudos, papéis Research e Strategy da LLM). Separa observação, hipótese, previsão e evidência, exige rivais e registro antes de ver o resultado.
 ---
 
 # Hipóteses no MNEME
 
-Uma hipótese é uma proposta para ser contestada, não um resultado. Ela vira estratégia só depois do laboratório e do portão do E9 (`mneme-portao-e9`).
+O produto é definido em `docs/PRODUCT_CHARTER.md`; esta skill não muda nada dele.
+
+Uma hipótese é uma proposta para ser contestada, não um resultado. Ela vira estratégia só depois do laboratório e do portão do E9 (`mneme-portao-aprendizado`).
 
 ## Regra
 
@@ -59,3 +61,7 @@ Busca de literatura tem fronteira: registre onde procurou e quando. Diga "não e
 ## Como relatar
 
 Observação (com fonte), hipótese e rivais, previsões, plano registrado (data), resultado com intervalo, o que é confirmatório e o que é exploratório, e o status final (candidata, rejeitada, inconclusiva).
+
+## Crédito
+
+Adaptada de `hypothesis-generation` (v2.4) da K-Dense Inc. ([K-Dense-AI/claude-scientific-skills](https://github.com/K-Dense-AI/claude-scientific-skills), MIT, © 2025). Reescrita para o mercado, sem as partes de biomedicina, os validadores e a instrução de citação. Origem detalhada e avisos de licença em `docs/skills/origens/mneme-hipoteses.md`.

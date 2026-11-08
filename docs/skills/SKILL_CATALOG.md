@@ -30,12 +30,12 @@ Instaladas sem mudança no texto, com `LICENSE` e `ORIGEM.txt` na pasta.
 | `mneme-auditoria-backtest` | Ao criar, revisar ou relatar backtest, modelo ou estratégia | `agiprolabs/claude-trading-skills` e ideias públicas |
 | `mneme-revisao-injecao` | Ao ligar fonte externa, LLM, MCP ou skill externa | `basitalisandhu/agent-security-skills` |
 | `mneme-arquitetura-multiagente` | Ao desenhar ou mudar a colaboração entre especialistas, o quadro de evidências e o Coordenador | `muratcankoylan/Agent-Skills-for-Context-Engineering` (multi-agent-patterns) e `magnus919/agent-skills` (multi-agent-coordination), MIT |
-| `mneme-portao-e9` | Ao construir o ciclo de aprendizado: experimentos, retreino, versões, promoção e rollback | `muratcankoylan/Agent-Skills-for-Context-Engineering` (harness-engineering), MIT |
+| `mneme-portao-aprendizado` | Ao construir o ciclo de aprendizado: experimentos, retreino, versões, promoção e rollback | `muratcankoylan/Agent-Skills-for-Context-Engineering` (harness-engineering), MIT |
 | `mneme-avaliacao` | Antes de dizer que um componente da arquitetura melhorou | `muratcankoylan/Agent-Skills-for-Context-Engineering` (evaluation), MIT |
 | `mneme-hipoteses` | Ao formular ou registrar hipóteses do E9 e dos estudos | `K-Dense-AI/claude-scientific-skills` (hypothesis-generation), MIT |
 | `mneme-poder-estatistico` | Para saber quantas operações, dias ou pontos são precisos para provar um resultado | `K-Dense-AI/claude-scientific-skills` (statistical-power), MIT |
 
-As cinco acima são adaptações: cada pasta tem `LICENSE` com o aviso MIT das fontes e `ORIGEM.txt` com versão, commit ou impressão do arquivo lido e o que foi aproveitado, adaptado e removido. Nenhum script de terceiros foi copiado.
+As cinco acima são adaptações. Como toda skill `mneme-*`, a pasta tem só o `SKILL.md`, com a seção de crédito; a origem detalhada (versão, commit ou impressão do arquivo lido, o que foi aproveitado, adaptado e removido) e os avisos de licença MIT das fontes ficam em [`docs/skills/origens/`](origens/). Nenhum script de terceiros foi copiado.
 
 As skills `frontend-design` e `power` já existiam, tratam só de design visual e continuam fora do Git.
 
