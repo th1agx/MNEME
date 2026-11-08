@@ -90,6 +90,11 @@ Vale para toda IA neste repositório. Antes de começar a tarefa, use a skill da
 | Logs, métricas e alertas | `observability-and-instrumentation` |
 | Ligar fonte externa, LLM, MCP ou skill externa | `mneme-revisao-injecao` |
 | Sessão longa, troca de tarefa ou queda de qualidade do agente | `context-engineering` |
+| Colaboração entre especialistas, quadro de evidências, Coordenador, papéis da LLM | `mneme-arquitetura-multiagente` |
+| Ciclo de aprendizado (E9): experimentos, retreino, versões, promoção, rollback | `mneme-portao-e9` |
+| Avaliar componente da arquitetura antes de dizer que melhorou | `mneme-avaliacao` |
+| Formular ou registrar hipótese | `mneme-hipoteses` |
+| Quantas operações, dias ou pontos são precisos para provar um resultado | `mneme-poder-estatistico` |
 
 Skills de cripto e ações ensinam método. Antes de valer para Forex, ouro ou expiração fixa, o resultado precisa ser medido nessa modalidade. Scripts de skills de terceiros só rodam quando a tarefa pedir, sem chave privada e sem enviar ordem. Skill nova segue `docs/skills/SKILL_INTEGRATION_PLAN.md`.
 

@@ -1,0 +1,15 @@
+Skill própria do MNEME, adaptada (não copiada) em 08/11/2026.
+
+Fonte (licença MIT, aviso em LICENSE):
+muratcankoylan/Agent-Skills-for-Context-Engineering, skills/evaluation/SKILL.md
+commit do repositório 8fc51c7cbaf9; sha256 do arquivo lido 1f31cda0910dfd48...
+Copyright (c) 2025 Context Engineering Agent Skills Contributors
+
+Aproveitado: checagem determinística antes de qualquer julgamento; resultado por dimensão; linha de base
+antes da mudança; mesmos casos e orçamento; estratificação por dificuldade; avaliação contínua.
+
+Adaptado: dimensões do MNEME (correção temporal, cobertura, valor preditivo, calibração, contribuição
+incremental, custo na A1, segurança, reprodutibilidade) com falhas críticas que não se compensam.
+
+Removido: rubricas com pesos e corte de 0,7 (critérios do MNEME são estatísticos e escritos antes),
+LLM como juiz por padrão, números de pesquisas de navegação, script avaliador.
