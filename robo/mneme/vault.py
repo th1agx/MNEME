@@ -550,6 +550,53 @@ def escrever_efeito_do_contexto(v: Vault, diario: Path) -> int:
     return 1
 
 
+def escrever_atribuicao_e9(v: Vault, diario: Path, mercado: Path) -> int:
+    """E9 v2 (A1): onde o motor acerta e onde erra, por dimensão. Só descritivo: gera perguntas para hipóteses, não aprova nada."""
+    if not diario.exists():
+        return 0
+    import pandas as pd
+
+    from .dados.armazem import ArmazemVelas
+    from .e9.atribuicao import atribuir
+    from .e9.dossie import montar_dossie
+    from .e9.regua import ATUAL, REGUAS, amostra_minima
+
+    x = montar_dossie(diario, ArmazemVelas(mercado))
+    if x.empty:
+        return 0
+    regua = REGUAS[ATUAL]
+    minimo = amostra_minima(regua, float(x["payout"].dropna().median()) if x["payout"].notna().any() else 0.85, familia=1)
+    nomes = {"estrategia": "Estratégia", "ativo": "Ativo", "horizonte": "Horizonte (min)", "faixa_hora": "Faixa de horário (UTC)",
+             "vol_quintil": "Volatilidade da última hora (quintil nos 7 dias anteriores)", "noticia": "Notícia em relação à direção",
+             "forca_quintil": "Força do sinal (quintil dentro da estratégia)", "motivo_recusa": "Motivo de ficar em sombra"}
+    secoes = []
+    for modalidade, base_mod in x.groupby("modalidade"):
+        for tipo, base in base_mod.groupby("tipo"):
+            secoes.append(f"## {modalidade}, {tipo} ({len(base)} decisões)")
+            for dimensao, titulo in nomes.items():
+                if dimensao == "motivo_recusa" and tipo != "sombra":
+                    continue
+                t = atribuir(base, dimensao, regua)
+                linhas = [f"| {_sanear(r['valor']).replace('|', ' · ')} | {r['decisoes']} | {r['velas']} | {r['dias']} | "
+                          f"{'-' if pd.isna(r['acerto']) else f'{r.acerto:.1%}'} | "
+                          f"{'-' if pd.isna(r['ic95_baixo']) else f'{r.ic95_baixo:.1%} a {r.ic95_alto:.1%}'} | {'-' if pd.isna(r['empate']) else f'{r.empate:.1%}'} | "
+                          f"{r['expectativa_por_unidade']:+.3f} | {r['leitura']} |" for _, r in t.iterrows()]
+                secoes.append(f"### {titulo}\n\n| Valor | Decisões | Velas | Dias | Acerto | IC 95% | Empate | Expectativa/unid. | Leitura |\n"
+                              "|---|---:|---:|---:|---:|---|---:|---:|---|\n" + "\n".join(linhas))
+    inicio, fim = x["vela"].min(), x["vela"].max()
+    corpo = (f"# E9: onde o motor acerta e onde erra\n\nDossiê de {len(x)} decisões encerradas, de {inicio:%d/%m %H:%M} a {fim:%d/%m %H:%M} UTC. "
+             f"**Tudo aqui é exploratório:** um recorte que parece bom ou ruim vira pergunta para o E9, nunca conclusão. "
+             f"Melhoria só com hipótese registrada antes e teste na régua {regua.versao} ({regua.impressao()}), que pede ao menos "
+             f"{minimo} velas independentes para um efeito de {regua.efeito_minimo:.0%} acima do empate.\n\n"
+             "A amostra efetiva é o número de **velas** distintas (decisões na mesma vela andam juntas), e o intervalo é o mais largo entre "
+             "o de Wilson e o que sorteia dias inteiros. Com poucos dias, o intervalo por dias é instável: só semanas de dado o estreitam. "
+             "Volatilidade e notícia usam só o que se sabia no momento da decisão. Plano em [[Plano E9 v2 - aprendizado contínuo]].\n\n"
+             + "\n\n".join(secoes))
+    v.escrever(Nota("E9 - onde o motor acerta e erra", "09-system-knowledge", "experimento", corpo, "laboratorio", "experimento", ["cripto"],
+                    relacionadas=["Plano E9 v2 - aprendizado contínuo", "Efeito das notícias nas decisões"]))
+    return 1
+
+
 def importar_diario(v: Vault, diario: Path) -> int:
     """Lê o diário operacional em modo de leitura, sem nenhuma trava sobre ele. O Markdown só resume: o banco continua sendo a fonte."""
     if not diario.exists():
@@ -628,7 +675,8 @@ def ciclo(v: Vault, dados: Path, biblioteca: Biblioteca, backup_a_cada: timedelt
                              ("diario", lambda: importar_diario(v, dados / "operacao" / "diario.db")), ("noticias", lambda: importar_noticias(v, dados / "operacao" / "diario.db")), ("fontes", lambda: importar_fontes(v, biblioteca)),
                              ("hipoteses", lambda: importar_hipoteses(v, dados / "aprendizado" / "hipoteses.jsonl")),
                              ("efeito_contexto", lambda: escrever_efeito_do_contexto(v, dados / "operacao" / "diario.db")),
-                             ("quadro", lambda: escrever_resumo_do_quadro(v, dados / "quadro" / "quadro.db", v.relogio()))):
+                             ("quadro", lambda: escrever_resumo_do_quadro(v, dados / "quadro" / "quadro.db", v.relogio())),
+                             ("e9_atribuicao", lambda: escrever_atribuicao_e9(v, dados / "operacao" / "diario.db", dados / "mercado"))):
             try:
                 resumo[nome] = tarefa()
             except (OSError, ValueError, KeyError, sqlite3.Error) as erro:
