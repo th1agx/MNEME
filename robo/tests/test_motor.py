@@ -220,6 +220,7 @@ def test_sinal_de_expiracao_nao_tem_stop_e_entra_depois_da_decisao():
     assert isinstance(s, SinalExpiracao) and s.acao == "PUT" and not hasattr(s, "distancia_stop")
     assert pd.Timestamp(s.entrada_em) == TEMPO + pd.Timedelta(minutes=2) and pd.Timestamp(s.expira_em) == TEMPO + pd.Timedelta(minutes=7)
     assert s.empate == FIXA.empate and "hipótese" in texto_do_sinal(s)
+    assert s.fidelidade == "aproximacao-referencia" and "aproximação" in texto_do_sinal(s)
 
 
 def test_sinal_com_stop_nao_tem_expiracao_e_exige_amplitude():

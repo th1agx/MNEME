@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,11 +19,26 @@ def impressao_dos_dados(v: pd.DataFrame) -> str:
     return hashlib.sha256(soma).hexdigest()[:16]
 
 
+RAIZ = Path(__file__).resolve().parents[3]  # raiz do repositório (robo/mneme/laboratorio/registro.py)
+
+
 def commit_atual() -> str:
+    """Versão do código que gerou o resultado. Ordem: MNEME_COMMIT, git na pasta do código, arquivo VERSAO gravado no deploy.
+
+    Na A1 o código não é um checkout git, então o deploy grava o hash em VERSAO. Sem nenhum dos três, "desconhecido".
+    """
+    if os.getenv("MNEME_COMMIT", "").strip():
+        return os.environ["MNEME_COMMIT"].strip()
     try:
-        return subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5).stdout.strip() or "desconhecido"
+        saida = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5, cwd=RAIZ).stdout.strip()
+        if saida:
+            return saida
     except (OSError, subprocess.SubprocessError):
-        return "desconhecido"
+        pass
+    for arquivo in (RAIZ / "VERSAO", RAIZ / "robo" / "VERSAO"):
+        if arquivo.is_file() and arquivo.read_text(encoding="utf-8").strip():
+            return arquivo.read_text(encoding="utf-8").split()[0]
+    return "desconhecido"
 
 
 class Registro:
