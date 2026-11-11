@@ -701,6 +701,43 @@ def escrever_auditoria(v: Vault) -> dict:
     return r
 
 
+def importar_geradas(v: Vault, arquivo: Path) -> int:
+    """E9 generativo (mneme.core.pesquisa): uma nota-resumo com tudo o que foi tentado e uma nota por ideia que passou na exploração."""
+    if not arquivo.exists():
+        return 0
+    linhas = [json.loads(l) for l in arquivo.read_text(encoding="utf-8").splitlines() if l.strip()]
+    contagem = defaultdict(int)
+    for l in linhas:
+        contagem[l.get("veredito", "?")] += 1
+    falhas = defaultdict(int)
+    for l in linhas:
+        if l.get("etapa_falha"):
+            falhas[l["etapa_falha"]] += 1
+    medidas = sorted((l for l in linhas if (l.get("resultado") or {}).get("sinais")), key=lambda l: l["resultado"]["acerto"], reverse=True)[:10]
+    tabela = "\n".join(f"| {l['ideia'][:70]} | {l['braco']['par']} {l['braco']['minutos']} min | {l['resultado']['sinais']} | {l['resultado']['acerto']:.2%} | "
+                       f"{l['resultado']['placebo']:.2%} | {l['veredito']} |" for l in medidas)
+    corpo = (f"# E9 generativo: arquivo de descobertas e falhas\n\n{len(linhas)} tentativas. Vereditos: "
+             + ", ".join(f"{k} {n}" for k, n in sorted(contagem.items())) + ". Falhas por etapa: "
+             + (", ".join(f"{k} {n}" for k, n in sorted(falhas.items())) or "nenhuma") + ".\n\n## Melhores medidas\n\n"
+             "| Ideia | Braço | Sinais | Acerto | Placebo | Veredito |\n|---|---|---:|---:|---:|---|\n" + tabela +
+             "\n\nFonte completa: `dados/aprendizado/geradas.jsonl`. Promissora ainda precisa de confirmação, simulado ao vivo e aprovação de uma pessoa.")
+    v.escrever(Nota("E9 generativo - arquivo", "02-quantitative-research/hypotheses", "experimento", corpo, "laboratorio", "experimento", ["cripto"],
+                    relacionadas=["Ciclo de aprendizado"], extras={"tentativas": len(linhas)}))
+    n = 1
+    for l in linhas:
+        if l.get("veredito") not in ("promissora", "candidata"):
+            continue
+        r = l["resultado"]
+        corpo = (f"# {l['ideia']}\n\n{l['braco']['par']}, expiração de {l['braco']['minutos']} min. Fase: {l['fase']}. Gerada por: {l['fonte']}. Código: `{l['commit']}`.\n\n"
+                 f"## Mecanismo proposto\n\n{l.get('mecanismo') or 'não informado'}\n\n## Medida\n\n| Sinais | Acerto | Placebo | Atraso 1 min | Empate | p |\n|---:|---:|---:|---:|---:|---:|\n"
+                 f"| {r['sinais']} | {r['acerto']:.2%} | {r['placebo']:.2%} | {r['acerto_com_atraso_1min']:.2%} | {r['empate']:.2%} | {l['p']:.4f} |\n\n"
+                 f"Dados de {r['de'][:10]} a {r['ate'][:10]}.\n\n## Código\n\n```python\n{l['codigo']}\n```")
+        v.escrever(Nota(f"E9 gerada {l['id']} ({l['fase']})", "02-quantitative-research/hypotheses", "resultado-em-validacao", corpo, "laboratorio", "experimento",
+                        ["cripto"], relacionadas=["E9 generativo - arquivo"], extras={"veredito": l["veredito"]}))
+        n += 1
+    return n
+
+
 def ciclo(v: Vault, dados: Path, biblioteca: Biblioteca, backup_a_cada: timedelta = timedelta(days=1)) -> dict:
     """Um ciclo completo, com trava para nunca rodar dois ao mesmo tempo. Cada etapa falha sozinha, e nada aqui toca o robô."""
     v.raiz.mkdir(parents=True, exist_ok=True)
@@ -718,7 +755,8 @@ def ciclo(v: Vault, dados: Path, biblioteca: Biblioteca, backup_a_cada: timedelt
                              ("efeito_contexto", lambda: escrever_efeito_do_contexto(v, dados / "operacao" / "diario.db")),
                              ("quadro", lambda: escrever_resumo_do_quadro(v, dados / "quadro" / "quadro.db", v.relogio())),
                              ("e9_atribuicao", lambda: escrever_atribuicao_e9(v, dados / "operacao" / "diario.db", dados / "mercado")),
-                             ("e9_hipoteses", lambda: escrever_hipoteses_e9(v, dados / "e9" / "hipoteses.jsonl"))):
+                             ("e9_hipoteses", lambda: escrever_hipoteses_e9(v, dados / "e9" / "hipoteses.jsonl")),
+                             ("e9_generativo", lambda: importar_geradas(v, dados / "aprendizado" / "geradas.jsonl"))):
             try:
                 resumo[nome] = tarefa()
             except (OSError, ValueError, KeyError, sqlite3.Error) as erro:

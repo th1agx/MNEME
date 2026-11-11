@@ -1,2 +1,5 @@
 # MNEME ciclo de aprendizado (E9): uma hipótese por hora, prioridade mínima, uma de cada vez. Fora do caminho crítico.
 17 * * * * cd $HOME/mneme/robo && MNEME_DADOS_MERCADO=$HOME/mneme/robo/dados/mercado MNEME_LLM_URL=http://127.0.0.1:11434 PYTHONPATH=. flock -n dados/aprendizado.trava nice -n 15 ionice -c3 .venv/bin/python -W ignore -m mneme.aprendizado ciclo --llm >> dados/aprendizado.log 2>&1
+# E9 generativo (mneme.core.pesquisa): a LLM escreve uma estratégia, a sandbox (container sem rede) roda, a régua mede. Uma por hora.
+# As variáveis MNEME_LLM_API_* do .env (se existirem) ligam a LLM por API; sem elas, usa o Ollama local.
+47 * * * * cd $HOME/mneme/robo && set -a && . $HOME/mneme/.env && set +a && MNEME_DADOS_MERCADO=$HOME/mneme/robo/dados/mercado MNEME_LLM_URL=http://127.0.0.1:11434 PYTHONPATH=. flock -n dados/e9gen.trava nice -n 15 ionice -c3 .venv/bin/python -W ignore -m mneme.core.pesquisa ciclo >> dados/e9gen.log 2>&1
