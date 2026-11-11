@@ -9,7 +9,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from ..liquidacao import liquidar_digital, liquidar_posicao
+from ..digitais.liquidacao import liquidar_digital
+from ..mercados.liquidacao import liquidar_posicao
 from .validacao import empate, intervalo_wilson, p_acima_de, sharpe
 
 UM_MINUTO = pd.Timedelta(minutes=1)

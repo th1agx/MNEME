@@ -1,47 +1,10 @@
-"""Mercado de Solana: preço e liquidez pelo DexScreener. A execução real via Jupiter vem depois do simulado."""
+"""Caminho antigo, mantido para compatibilidade: o adaptador agora fica em `mneme.mercados.adaptadores.solana`.
 
-from __future__ import annotations
+É um apelido exato do módulo novo (o mesmo objeto em sys.modules), então importar, usar nomes privados e
+`monkeypatch` funcionam pelos dois caminhos.
+"""
+import sys
 
-from dataclasses import dataclass
+from ..mercados.adaptadores import solana as _modulo
 
-import httpx
-
-
-@dataclass(frozen=True)
-class Mercado:
-    preco_usd: float
-    liquidez_usd: float | None
-    variacao_24h_pct: float | None
-
-
-def ler_mercado(corpo: dict, token: str, rede: str) -> Mercado | None:
-    """Escolhe o par do token na rede certa com mais liquidez."""
-    pares = [par for par in corpo.get("pairs") or [] if isinstance(par, dict)
-             and str((par.get("baseToken") or {}).get("address", "")).lower() == token.lower()
-             and str(par.get("chainId", "")).lower() == rede.lower()]
-    if not pares:
-        return None
-    par = max(pares, key=lambda item: float((item.get("liquidity") or {}).get("usd") or 0))
-    try:
-        preco = float(par.get("priceUsd"))
-    except (TypeError, ValueError):
-        return None
-    if preco <= 0:
-        return None
-    liquidez = (par.get("liquidity") or {}).get("usd")
-    variacao = (par.get("priceChange") or {}).get("h24")
-    return Mercado(preco, float(liquidez) if liquidez is not None else None, float(variacao) if variacao is not None else None)
-
-
-class MercadoSolana:
-    def __init__(self, cliente: httpx.Client | None = None):
-        self.cliente = cliente or httpx.Client(timeout=6)
-
-    def mercado(self, token: str, rede: str) -> Mercado | None:
-        try:
-            resposta = self.cliente.get(f"https://api.dexscreener.com/latest/dex/tokens/{token}")
-            if resposta.status_code != 200:
-                return None
-            return ler_mercado(resposta.json(), token, rede)
-        except (httpx.HTTPError, ValueError):
-            return None
+sys.modules[__name__] = _modulo

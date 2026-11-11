@@ -1,99 +1,10 @@
-"""Velas de 1 minuto da Binance (API pública, sem chave). Só coleta: é a base dos modelos de aprendizado de máquina."""
+"""Caminho antigo, mantido para compatibilidade: o adaptador agora fica em `mneme.mercados.adaptadores.binance`.
 
-from __future__ import annotations
+É um apelido exato do módulo novo (o mesmo objeto em sys.modules), então importar, usar nomes privados e
+`monkeypatch` funcionam pelos dois caminhos.
+"""
+import sys
 
-import csv
-import io
-import sqlite3
-import zipfile
-from datetime import datetime, timezone
+from ..mercados.adaptadores import binance as _modulo
 
-import httpx
-
-URL = "https://api.binance.com/api/v3/klines"
-LIMITE = 1000  # máximo de velas por chamada
-
-
-def ler_velas(corpo: list) -> list[tuple]:
-    """Converte a resposta em linhas (abertura_em, abertura, máxima, mínima, fechamento, volume, negócios)."""
-    linhas = []
-    for vela in corpo:
-        try:
-            linhas.append((datetime.fromtimestamp(vela[0] / 1000, tz=timezone.utc).isoformat(), float(vela[1]), float(vela[2]),
-                           float(vela[3]), float(vela[4]), float(vela[5]), int(vela[8])))
-        except (IndexError, TypeError, ValueError):
-            continue
-    return linhas
-
-
-class VelasBinance:
-    def __init__(self, cliente: httpx.Client | None = None):
-        self.cliente = cliente or httpx.Client(timeout=10)
-
-    def arquivo_mensal(self, con: sqlite3.Connection, par: str, ano: int, mes: int) -> int:
-        """Baixa um mês inteiro de velas de 1 min do repositório público de dados da Binance (arquivo zip)."""
-        url = f"https://data.binance.vision/data/spot/monthly/klines/{par}/1m/{par}-1m-{ano}-{mes:02d}.zip"
-        try:
-            resposta = self.cliente.get(url, timeout=120)
-        except httpx.HTTPError:
-            return 0
-        if resposta.status_code != 200:
-            return 0
-        with zipfile.ZipFile(io.BytesIO(resposta.content)) as pacote:
-            texto = pacote.read(pacote.namelist()[0]).decode()
-        linhas = []
-        for campos in csv.reader(texto.splitlines()):
-            if not campos or not campos[0].isdigit():
-                continue
-            abertura = int(campos[0])
-            # Desde 2025 os arquivos vêm em microssegundos; antes, em milissegundos.
-            segundos = abertura / 1_000_000 if abertura > 10**14 else abertura / 1000
-            linhas.append((par, datetime.fromtimestamp(segundos, tz=timezone.utc).isoformat(), float(campos[1]), float(campos[2]),
-                           float(campos[3]), float(campos[4]), float(campos[5]), int(campos[8])))
-        con.executemany("""INSERT OR IGNORE INTO velas (par, abertura_em, abertura, maxima, minima, fechamento, volume, negocios)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""", linhas)
-        con.commit()
-        return len(linhas)
-
-    def historico(self, con: sqlite3.Connection, par: str, dias: int, agora: datetime) -> int:
-        """Baixa as velas fechadas dos últimos `dias`, em blocos de 1000, pulando o que já está gravado."""
-        fim = int(agora.replace(second=0, microsecond=0).timestamp() * 1000)
-        inicio = fim - dias * 24 * 60 * 60_000
-        gravadas = 0
-        while inicio < fim:
-            try:
-                resposta = self.cliente.get(URL, params={"symbol": par, "interval": "1m", "limit": LIMITE, "startTime": inicio})
-            except httpx.HTTPError:
-                break
-            if resposta.status_code != 200:
-                break
-            linhas = [linha for linha in ler_velas(resposta.json())
-                      if linha[0] < datetime.fromtimestamp(fim / 1000, tz=timezone.utc).isoformat()]
-            if not linhas:
-                break
-            con.executemany("""INSERT OR IGNORE INTO velas (par, abertura_em, abertura, maxima, minima, fechamento, volume, negocios)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""", [(par, *linha) for linha in linhas])
-            gravadas += len(linhas)
-            inicio = int(datetime.fromisoformat(linhas[-1][0]).timestamp() * 1000) + 60_000
-        con.commit()
-        return gravadas
-
-    def coletar(self, con: sqlite3.Connection, par: str, agora: datetime) -> int:
-        """Busca as velas fechadas desde a última gravada (ou as últimas 1000 na primeira vez)."""
-        ultima = con.execute("SELECT MAX(abertura_em) AS m FROM velas WHERE par = ?", (par,)).fetchone()["m"]
-        params: dict = {"symbol": par, "interval": "1m", "limit": LIMITE}
-        if ultima:
-            params["startTime"] = int(datetime.fromisoformat(ultima).timestamp() * 1000) + 60_000
-        try:
-            resposta = self.cliente.get(URL, params=params)
-        except httpx.HTTPError:
-            return 0
-        if resposta.status_code != 200:
-            return 0
-        # A vela do minuto atual ainda está aberta: só grava as fechadas.
-        minuto_atual = agora.replace(second=0, microsecond=0).isoformat()
-        linhas = [linha for linha in ler_velas(resposta.json()) if linha[0] < minuto_atual]
-        con.executemany("""INSERT OR IGNORE INTO velas (par, abertura_em, abertura, maxima, minima, fechamento, volume, negocios)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""", [(par, *linha) for linha in linhas])
-        con.commit()
-        return len(linhas)
+sys.modules[__name__] = _modulo

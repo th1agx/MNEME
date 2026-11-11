@@ -9,47 +9,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from ..liquidacao import liquidar_digital, liquidar_posicao, pnl_digital
+from ..digitais.liquidacao import liquidar_digital, pnl_digital
+from ..digitais.modalidade import ExpiracaoFixa
+from ..mercados.liquidacao import liquidar_posicao
+from ..mercados.modalidade import ComStop
 
-@dataclass(frozen=True)
-class ExpiracaoFixa:
-    """CALL ou PUT com prazo definido. Sem stop e sem alvo. O payout é hipótese até ser medido na corretora."""
-    payout: float
-    payout_medido: bool = False
-    tipo: str = "expiracao_fixa"
-
-    @property
-    def empate(self) -> float:
-        return 1 / (1 + self.payout)
-
-    def permite(self, direcao: int) -> bool:
-        return direcao in (1, -1)
-
-    def expectativa(self, evidencia: dict) -> float | None:
-        """Em unidades de aposta por operação: ganha o payout ou perde a aposta inteira."""
-        acerto = evidencia.get("acerto")
-        return None if acerto is None else acerto * self.payout - (1 - acerto)
-
-
-@dataclass(frozen=True)
-class ComStop:
-    """Posição com stop, alvo e tempo máximo. `vende` diz se dá para ficar vendido: à vista só compra. O custo é hipótese até ser medido."""
-    custo_bps: float
-    stop_atr: float
-    alvo_atr: float
-    vende: bool
-    custo_medido: bool = False
-    tipo: str = "com_stop"
-
-    def permite(self, direcao: int) -> bool:
-        return direcao == 1 or (direcao == -1 and self.vende)
-
-    def expectativa(self, evidencia: dict) -> float | None:
-        """Em unidades de risco (R) por operação, já com o custo desta modalidade."""
-        bruto, r_por_bps = evidencia.get("r_bruto"), evidencia.get("r_por_bps")
-        return None if bruto is None or r_por_bps is None else bruto - self.custo_bps * r_por_bps
-
-
+# Cada domínio define a própria modalidade (Motor 02: opções digitais; Motor 01: mercados). O motor é o núcleo comum.
 Modalidade = ExpiracaoFixa | ComStop
 
 

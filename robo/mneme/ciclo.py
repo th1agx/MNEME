@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 from . import acerto, telegram
 from .carteira import Carteira, LimitesDia, bloqueio_do_dia
-from .conectores.solana import Mercado, MercadoSolana
+from .mercados.adaptadores.solana import Mercado, MercadoSolana
 from .estrategias.seguir_traders import Regra, Sinal, decidir_entrada, decidir_saida
 from .sinais import Operacao, ProvedorIndisponivel, ProvedorSinais
 

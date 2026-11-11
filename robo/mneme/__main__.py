@@ -10,11 +10,12 @@ from pathlib import Path
 
 import httpx
 
-from . import ao_vivo, banco, config
+from . import banco, config
+from .digitais import ao_vivo
 from .carteira import Carteira, LimitesDia
 from .ciclo import rodar_ciclo
-from .conectores.binance import VelasBinance
-from .conectores.solana import MercadoSolana
+from .mercados.adaptadores.binance import VelasBinance
+from .mercados.adaptadores.solana import MercadoSolana
 from .estrategias.seguir_traders import Regra
 from .sinais import ProvedorIndisponivel, ProvedorSinais
 from .telegram import Telegram
