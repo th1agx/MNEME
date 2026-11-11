@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from ..liquidacao import liquidar_digital, liquidar_posicao, pnl_digital
 
 @dataclass(frozen=True)
 class ExpiracaoFixa:
@@ -115,42 +116,39 @@ def carregar_configuracao(caminho: Path | str) -> Configuracao | None:
     return Configuracao(d["modo"], float(d["banca"]), float(d["risco_por_operacao"]), int(d["min_operacoes_evidencia"]), Limites(**d["limites"]), tuple(estrategias))
 
 
+def _janela(v: pd.DataFrame, entrada_em: pd.Timestamp, minutos: int) -> pd.DataFrame:
+    """Uma linha por minuto do prazo, a partir da entrada. Minuto faltando vira vazio, como no laboratório."""
+    return v.reindex(pd.date_range(entrada_em, periods=minutos, freq="1min"))
+
+
 def liquidar_fixa(v: pd.DataFrame, entrada_em: pd.Timestamp, expiracao: int, direcao: int, payout: float) -> dict | None:
-    """Entra na abertura e fecha no fechamento do último minuto do prazo. Empate devolve a aposta. Sem preço nos dois pontos, não apura."""
-    fim = entrada_em + pd.Timedelta(minutes=expiracao - 1)
-    if entrada_em not in v.index or fim not in v.index:
+    """Entra na abertura e fecha no fechamento do último minuto do prazo. Empate devolve a aposta. Sem preço nos dois pontos, não apura.
+
+    A regra está em `mneme.liquidacao`, a mesma do laboratório.
+    """
+    w = _janela(v, entrada_em, expiracao)
+    d = liquidar_digital(w["abertura"].to_numpy(dtype=float), w["fechamento"].to_numpy(dtype=float), 0, expiracao, direcao)
+    if d is None:
         return None
-    entrada, saida = float(v.at[entrada_em, "abertura"]), float(v.at[fim, "fechamento"])
-    variacao = (saida - entrada) * direcao
-    resultado = "ganho" if variacao > 0 else "perda" if variacao < 0 else "empate"
-    return {"resultado": resultado, "pnl": payout if resultado == "ganho" else -1.0 if resultado == "perda" else 0.0, "preco_entrada": entrada, "preco_saida": saida, "encerrado_por": "expiracao"}
+    return {"resultado": d.resultado, "pnl": pnl_digital(d.resultado, payout), "preco_entrada": d.preco_entrada, "preco_saida": d.preco_saida, "encerrado_por": "expiracao"}
 
 
 def liquidar_stop(v: pd.DataFrame, entrada_em: pd.Timestamp, tempo_max: int, direcao: int, distancia_stop: float, distancia_alvo: float, custo_bps: float) -> dict | None:
-    """Stop e alvo contam a partir da entrada real. Se os dois caem no mesmo minuto, vale o stop: no minuto não dá para saber a ordem, e o pior caso é o honesto."""
-    fim = entrada_em + pd.Timedelta(minutes=tempo_max - 1)
-    trecho = v[(v.index >= entrada_em) & (v.index <= fim)]
-    if trecho.empty or trecho.index[0] != entrada_em or distancia_stop <= 0:
+    """Stop, alvo e tempo a partir da entrada real, pela regra de `mneme.liquidacao` (a mesma do laboratório).
+
+    Vela que abre além do stop sai na abertura (gap). Até 11/11/2026 o motor saía no preço do stop, o que era otimista.
+    Se stop e alvo caem no mesmo minuto, vale o stop. Prazo ainda não terminado nas velas disponíveis: não apura.
+    """
+    w = _janela(v, entrada_em, tempo_max)
+    p = liquidar_posicao(*(w[k].to_numpy(dtype=float) for k in ("abertura", "maxima", "minima", "fechamento")), 0, tempo_max, direcao,
+                         distancia_stop, distancia_alvo)
+    if p is None:
         return None
-    entrada = float(trecho["abertura"].iloc[0])
-    stop, alvo = entrada - direcao * distancia_stop, entrada + direcao * distancia_alvo
-    maximas, minimas = trecho["maxima"].to_numpy(), trecho["minima"].to_numpy()
-    bateu_stop = minimas <= stop if direcao == 1 else maximas >= stop
-    bateu_alvo = maximas >= alvo if direcao == 1 else minimas <= alvo
-    i_stop = int(np.argmax(bateu_stop)) if bateu_stop.any() else None
-    i_alvo = int(np.argmax(bateu_alvo)) if bateu_alvo.any() else None
-    if i_stop is not None and (i_alvo is None or i_stop <= i_alvo):
-        saida, motivo = stop, "stop"
-    elif i_alvo is not None:
-        saida, motivo = alvo, "alvo"
-    elif trecho.index[-1] == fim:
-        saida, motivo = float(trecho["fechamento"].iloc[-1]), "tempo"
-    else:
-        return None  # o prazo ainda não terminou nas velas disponíveis
-    custo_r = custo_bps / 1e4 * entrada / distancia_stop
-    bruto = (saida - entrada) * direcao / distancia_stop
+    custo_r = custo_bps / 1e4 * p.preco_entrada / distancia_stop
+    bruto = (p.preco_saida - p.preco_entrada) * direcao / distancia_stop
     pnl = bruto - custo_r
-    return {"resultado": "ganho" if pnl > 0 else "perda", "pnl": pnl, "preco_entrada": entrada, "preco_saida": saida, "encerrado_por": motivo, "pnl_bruto": bruto, "custo_r": custo_r}
+    return {"resultado": "ganho" if pnl > 0 else "perda", "pnl": pnl, "preco_entrada": p.preco_entrada, "preco_saida": p.preco_saida,
+            "encerrado_por": p.motivo, "pnl_bruto": bruto, "custo_r": custo_r}
 
 
 def amplitude_media(v: pd.DataFrame, candle: int, periodo: int = 14) -> pd.Series:

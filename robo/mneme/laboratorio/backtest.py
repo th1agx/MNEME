@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from ..liquidacao import liquidar_digital, liquidar_posicao
 from .validacao import empate, intervalo_wilson, p_acima_de, sharpe
 
 UM_MINUTO = pd.Timedelta(minutes=1)
@@ -48,18 +49,16 @@ def apostas_direcao(v: pd.DataFrame, sinal: pd.Series, minutos: int, payout: flo
     linhas = []
     livre_em = 0
     for i in np.flatnonzero(sinal):
+        if i < livre_em:
+            continue
         entrada = i + 1 + atraso_velas
-        saida = entrada + minutos - 1  # fechamento de `saida` é exatamente `minutos` depois da abertura de `entrada`
-        if i < livre_em or saida >= len(v):
+        d = liquidar_digital(abertura, fechamento, entrada, minutos, int(sinal[i]))
+        if d is None:
             continue
-        preco_entrada, preco_saida = abertura[entrada], fechamento[saida]
-        if np.isnan(preco_entrada) or np.isnan(preco_saida):
+        livre_em = entrada + minutos  # fechamento de `entrada + minutos - 1` é exatamente `minutos` depois da abertura
+        if d.resultado == "empate":
             continue
-        livre_em = saida + 1
-        variacao = (preco_saida - preco_entrada) * sinal[i]
-        if variacao == 0:
-            continue
-        ganhou = variacao > 0
+        ganhou = d.resultado == "ganho"
         linhas.append((v.index[i], int(sinal[i]), ganhou, payout if ganhou else -1.0))
     return pd.DataFrame(linhas, columns=["quando", "direcao", "ganhou", "retorno"])
 
@@ -126,35 +125,16 @@ def operacoes_posicao(v: pd.DataFrame, sinal: pd.Series, atr: pd.Series, alvo_at
     livre_em = 0
     for i in np.flatnonzero(sinal):
         lado = int(sinal[i])
-        if i < livre_em or i + 1 >= len(v) or (so_compra and lado < 0) or np.isnan(atr[i]) or np.isnan(a[i + 1]):
+        if i < livre_em or (so_compra and lado < 0) or np.isnan(atr[i]):
             continue
-        entrada = a[i + 1]
-        alvo, stop = entrada + lado * alvo_atr * atr[i], entrada - lado * stop_atr * atr[i]
-        ultimo = min(i + velas_max, len(v) - 1)
-        preco, motivo, fim = None, "tempo", ultimo
-        for j in range(i + 1, ultimo + 1):
-            if np.isnan(h[j]):
-                continue
-            if (lado > 0 and a[j] <= stop) or (lado < 0 and a[j] >= stop):
-                preco, motivo, fim = a[j], "stop", j
-                break
-            bateu_stop = l[j] <= stop if lado > 0 else h[j] >= stop
-            bateu_alvo = h[j] >= alvo if lado > 0 else l[j] <= alvo
-            if bateu_stop:
-                preco, motivo, fim = stop, "stop", j
-                break
-            if bateu_alvo:
-                preco, motivo, fim = alvo, "alvo", j
-                break
-        if preco is None:
-            preco = c[fim]
-            if np.isnan(preco):
-                continue
+        p = liquidar_posicao(a, h, l, c, i + 1, velas_max, lado, stop_atr * atr[i], alvo_atr * atr[i])
+        if p is None:
+            continue
         ida = 1 + lado * (custo.taxa + custo.slippage)
         volta = 1 - lado * (custo.taxa + custo.slippage)
-        retorno = lado * ((preco * volta) / (entrada * ida) - 1)
-        linhas.append((v.index[i], lado, motivo, fim - i, retorno))
-        livre_em = fim + 1
+        retorno = lado * ((p.preco_saida * volta) / (p.preco_entrada * ida) - 1)
+        linhas.append((v.index[i], lado, p.motivo, p.saida - i, retorno))
+        livre_em = p.saida + 1
     return pd.DataFrame(linhas, columns=["quando", "lado", "saida", "velas", "retorno"])
 
 
