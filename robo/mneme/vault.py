@@ -454,6 +454,8 @@ def importar_experimentos(v: Vault, registro: Path) -> int:
             if "expiracao_fixa" in str(nome):
                 relacionadas.append("Expiração fixa")
             mercados = [ultimo["resultado"].get("mercado", "")] if ultimo["resultado"].get("mercado") else []
+        elif isinstance(ultimo["resultado"], dict) and ultimo["resultado"].get("natureza") in ("resultado-negativo", "resultado-em-validacao", "hipotese"):
+            natureza = ultimo["resultado"]["natureza"]  # o próprio estudo diz o que é: negativo também é conhecimento
         v.escrever(Nota(f"Experimento {familia} - {nome}", "02-quantitative-research/experiments", natureza, corpo, "laboratorio", "experimento", mercados, relacionadas=relacionadas, extras={"execucoes": len(lista)}))
         n += 1
     return n
