@@ -470,12 +470,20 @@ def importar_hipoteses(v: Vault, fila: Path) -> int:
         except json.JSONDecodeError:
             continue
         h, r = e["hipotese"], e["resultado"]
-        candidata = e["veredito"] == "candidata"
+        fase = e.get("fase", "legado")
+        candidata = e["veredito"] in ("candidata", "promissora")
+        linha_p = {"exploracao": f"| p do teste (exploração, tentativa {e['testes_ate_agora']}, sem correção) | {e['p_ajustado']:.3f} |",
+                   "confirmacao": f"| p ajustado (Holm entre {e['testes_ate_agora']} confirmações) | {e['p_ajustado']:.3f} |"}.get(
+            fase, f"| p ajustado (Holm, {e['testes_ate_agora']} hipóteses, régua antiga) | {e['p_ajustado']:.3f} |")
+        texto_veredito = {
+            "promissora": "**Promissora.** Passou na exploração. Ainda precisa da confirmação num período que a exploração não viu e da aprovação de uma pessoa.",
+            "candidata": "**Candidata.** Passou na exploração e na confirmação. Ainda precisa da aprovação de uma pessoa.",
+        }.get(e["veredito"], "**Rejeitada.** Não passou em pelo menos um critério; o resultado fica registrado para não ser testado de novo.")
         corpo = (f"# Hipótese: {h['setup']} com filtro {h['filtro']}\n\n{h['par']}, aposta de {h['minutos']} min. Proposta por: {h['origem']}. Motivo: {h['motivo'] or 'não informado'}.\n\n"
-                 f"## Resultado do laboratório\n\n| Medida | Valor |\n|---|---|\n| Sinais | {r['sinais']} |\n| Acerto com o filtro | {r['acerto']:.2%} |\n"
+                 f"## Resultado do laboratório ({fase})\n\n| Medida | Valor |\n|---|---|\n| Sinais | {r['sinais']} |\n| Acerto com o filtro | {r['acerto']:.2%} |\n"
                  f"| Acerto sem o filtro | {r['acerto_sem_filtro']:.2%} |\n| Com 1 min de atraso | {r['acerto_com_atraso_1min']:.2%} |\n| Placebo | {r['placebo']:.2%} |\n"
-                 f"| Empate | {r['empate']:.2%} |\n| p ajustado (Holm, {e['testes_ate_agora']} hipóteses) | {e['p_ajustado']:.3f} |\n\nDados de {r['de'][:10]} a {r['ate'][:10]}. Testada em {e['quando'][:16]}.\n\n"
-                 f"## Veredito\n\n{'**Candidata.** Passou em tudo nos dados de desenvolvimento. Ainda precisa da área selada e da aprovação de uma pessoa.' if candidata else '**Rejeitada.** Não passou em pelo menos um critério; o resultado fica registrado para não ser testado de novo.'}")
+                 f"| Empate | {r['empate']:.2%} |\n{linha_p}\n\nDados de {r['de'][:10]} a {r['ate'][:10]}. Testada em {e['quando'][:16]}. Código: {e.get('commit', 'desconhecido')}.\n\n"
+                 f"## Veredito\n\n{texto_veredito}")
         mercado = {"BTCUSDT": "Bitcoin", "ETHUSDT": "Ethereum", "SOLUSDT": "Solana"}.get(h["par"])
         v.escrever(Nota(f"Hipótese {h['setup']} com {h['filtro'].replace('_', ' ')} em {h['par']} {h['minutos']} min", "02-quantitative-research/hypotheses",
                         "resultado-em-validacao" if candidata else "resultado-negativo", corpo, "laboratorio", "experimento", ["cripto"], [f"{h['minutos']}min"],

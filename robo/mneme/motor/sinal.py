@@ -33,6 +33,9 @@ class SinalExpiracao:
     empate: float
     expectativa: float | None
     motivo: str
+    # O preço vem de uma fonte de referência (Binance, Dukascopy), não da corretora de opções. Enquanto não houver
+    # registro na própria plataforma, todo resultado desta modalidade é aproximação.
+    fidelidade: str = "aproximacao-referencia"
 
 
 @dataclass(frozen=True)
@@ -86,6 +89,8 @@ def texto_do_sinal(s: Sinal) -> str:
     """A mensagem não mostra probabilidade: o número só existiria com calibração validada, e hipótese de payout ou custo vem dita."""
     if isinstance(s, SinalExpiracao):
         payout = f"{s.payout:.0%}" + ("" if s.payout_medido else " (hipótese)")
-        return "\n".join([f"SINAL · {s.ativo} · {s.acao}", f"Entrada: {s.entrada_em[11:16]} UTC · Expiração: {s.expiracao_min} min", f"Referência: {s.preco_referencia:g}", f"Payout: {payout} · Empate: {s.empate:.2%}", f"Por quê: {s.motivo}", AVISO])
+        fidelidade = ("Fidelidade: aproximação (preço de referência, não da corretora)" if s.fidelidade == "aproximacao-referencia"
+                      else f"Fidelidade: {s.fidelidade}")
+        return "\n".join([f"SINAL · {s.ativo} · {s.acao}", f"Entrada: {s.entrada_em[11:16]} UTC · Expiração: {s.expiracao_min} min", f"Referência: {s.preco_referencia:g}", f"Payout: {payout} · Empate: {s.empate:.2%}", fidelidade, f"Por quê: {s.motivo}", AVISO])
     custo = f"{s.custo_bps:g} bps" + ("" if s.custo_medido else " (hipótese)")
     return "\n".join([f"SINAL · {s.ativo} · {s.acao}", f"Entrada: {s.entrada_em[11:16]} UTC · Tempo máximo: {s.tempo_max_min} min", f"Referência: {s.preco_referencia:g}", f"Stop: {s.distancia_stop:g} · Alvo: {s.distancia_alvo:g} · Custo: {custo}", f"Por quê: {s.motivo}", AVISO])
