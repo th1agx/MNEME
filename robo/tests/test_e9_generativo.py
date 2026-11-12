@@ -153,3 +153,18 @@ def test_vault_resume_o_arquivo(tmp_path):
     assert importar_geradas(v, arquivo.caminho) >= 1
     nota = (v.trabalho / "02-quantitative-research" / "hypotheses" / "E9 generativo - arquivo.md").read_text(encoding="utf-8")
     assert "2 tentativas" in nota and "seguranca 1" in nota
+
+
+def test_sandbox_aceita_os_nomes_de_coluna_em_ingles_com_o_mesmo_resultado():
+    """O modelo pequeno insiste em close/high; os apelidos são os mesmos dados e dão o mesmo sinal."""
+    v = velas(n=800)
+    pt = SandboxLocal().executar("def sinal(v):\n    r = v['fechamento'] - v['abertura']\n    return (r > 0).astype(int) - (r < 0).astype(int)", v)
+    en = SandboxLocal().executar("def sinal(v):\n    r = v['close'] - v['open']\n    return (r > 0).astype(int) - (r < 0).astype(int)", v)
+    assert pt.erro is None and en.erro is None and pt.sinal.equals(en.sinal)
+    faixa = SandboxLocal().executar("def sinal(v):\n    return ((v['high'] - v['low']) > (v['maxima'] - v['minima']).rolling(5).mean()).astype(int)", v)
+    assert faixa.erro is None
+
+
+def test_sandbox_avisa_as_colunas_que_existem_quando_a_ideia_pede_outra():
+    r = SandboxLocal().executar("def sinal(v):\n    return v['vwap'] * 0", velas(n=300))
+    assert r.erro and "colunas disponíveis" in r.erro and "fechamento" in r.erro

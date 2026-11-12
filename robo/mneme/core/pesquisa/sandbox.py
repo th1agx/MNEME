@@ -43,8 +43,18 @@ try:
     ns = {"__builtins__": SEGUROS, "np": np, "pd": pd, "math": math}
     exec(compile(open(f"{pasta}/codigo.py").read(), "codigo_gerado", "exec"), ns)
 
+    # Apelidos em inglês dos mesmos dados: modelos pequenos insistem em close/high. Não muda nenhum valor.
+    APELIDOS = {"open": "abertura", "high": "maxima", "low": "minima", "close": "fechamento"}
+
     def rodar(dados):
-        s = ns["sinal"](dados.copy())
+        dados = dados.copy()
+        for apelido, coluna in APELIDOS.items():
+            if coluna in dados and apelido not in dados:
+                dados[apelido] = dados[coluna]
+        try:
+            s = ns["sinal"](dados)
+        except KeyError as erro:
+            raise KeyError(f"{erro}; colunas disponíveis: {', '.join(map(str, dados.columns))}") from None
         s = pd.Series(s, index=dados.index) if not isinstance(s, pd.Series) else s.reindex(dados.index)
         return np.sign(pd.to_numeric(s, errors="coerce").fillna(0)).astype("int8")
 
