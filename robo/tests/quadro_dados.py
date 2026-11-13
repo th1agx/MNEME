@@ -61,6 +61,9 @@ def montar(tmp_path, estrategias=(("expiracao_fixa", 5, 5),), ativo="ETHUSDT", c
         gravar_eventos(eventos, ativo)
     coord = Coordenador(raiz, Quadro(dados / "quadro" / "quadro.db"), dados / "operacao" / "diario.db", dados / "operacao.json", pasta_motor,
                         dados / "modelos", relogio=lambda: AGORA + timedelta(seconds=20), usar_cache=usar_cache, especialistas=especialistas)
+    # Os cenários não devem depender do espaço usado no computador que roda a suíte.
+    # O teste de disco cheio define um limite próprio e continua cobrindo essa proteção.
+    coord.quadro.limite_disco = 1.0
     return coord, dados, v
 
 

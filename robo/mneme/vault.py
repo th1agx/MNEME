@@ -13,7 +13,6 @@ Nota não é prova. A natureza diz o que cada documento é, e a LLM nunca aprova
 from __future__ import annotations
 
 import argparse
-import fcntl
 import hashlib
 import json
 import os
@@ -27,6 +26,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
+
+from .travas import travar_exclusivo
 
 from .biblioteca import Biblioteca, Documento
 from .config import PASTA_DADOS
@@ -741,9 +742,9 @@ def importar_geradas(v: Vault, arquivo: Path) -> int:
 def ciclo(v: Vault, dados: Path, biblioteca: Biblioteca, backup_a_cada: timedelta = timedelta(days=1)) -> dict:
     """Um ciclo completo, com trava para nunca rodar dois ao mesmo tempo. Cada etapa falha sozinha, e nada aqui toca o robô."""
     v.raiz.mkdir(parents=True, exist_ok=True)
-    with (v.raiz / "ciclo.trava").open("w") as trava:
+    with (v.raiz / "ciclo.trava").open("a+") as trava:
         try:
-            fcntl.flock(trava, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            travar_exclusivo(trava)
         except BlockingIOError:
             return {"situacao": "ja_rodando"}
         v.iniciar()

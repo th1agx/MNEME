@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import fcntl
 import logging
 import time
 from datetime import datetime, timezone
@@ -19,6 +18,7 @@ from .mercados.adaptadores.solana import MercadoSolana
 from .estrategias.seguir_traders import Regra
 from .sinais import ProvedorIndisponivel, ProvedorSinais
 from .telegram import Telegram
+from .travas import travar_exclusivo
 
 log = logging.getLogger("mneme")
 
@@ -54,9 +54,9 @@ class Segredos(logging.Filter):
 def travar(caminho: Path):
     """Um robô de traders por banco: a segunda cópia sai em vez de operar em dobro."""
     caminho.parent.mkdir(parents=True, exist_ok=True)
-    trava = caminho.open("w")
+    trava = caminho.open("a+")
     try:
-        fcntl.flock(trava, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        travar_exclusivo(trava)
     except BlockingIOError:
         trava.close()
         raise SystemExit(f"Outro robô de traders já usa {caminho.parent}; esta cópia não vai rodar.")

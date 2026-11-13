@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
+import stat
 import sqlite3
 import subprocess
 from datetime import datetime, timedelta, timezone
@@ -46,7 +48,7 @@ def rag(tmp_path):
 
 
 def _git(pasta, *args):
-    return subprocess.run(["git", *args], cwd=pasta, text=True, capture_output=True, check=True).stdout
+    return subprocess.run(["git", *args], cwd=pasta, text=True, encoding="utf-8", capture_output=True, check=True).stdout
 
 
 def _computador(v, tmp_path, nome="pc"):
@@ -394,7 +396,7 @@ def test_recupera_o_vault_perdido_a_partir_do_hub(v, tmp_path, rag):
     v.escrever(Nota("A", "06-trading-journal", "experimento", "x"))
     v.salvar("um")
     v.sincronizar()
-    shutil.rmtree(v.trabalho)
+    shutil.rmtree(v.trabalho, onexc=lambda func, caminho, erro: (os.chmod(caminho, stat.S_IWRITE), func(caminho)))
     novo = Vault(v.raiz, relogio=lambda: AGORA)
     novo.iniciar()
     assert (novo.trabalho / "06-trading-journal/A.md").exists()
@@ -414,11 +416,11 @@ def test_rag_que_cai_no_meio_e_refeito_no_proximo_ciclo(v, tmp_path, monkeypatch
 
 
 def test_dois_ciclos_ao_mesmo_tempo_nao_rodam(v, tmp_path):
-    import fcntl
+    from mneme.travas import travar_exclusivo
 
     b = Biblioteca(tmp_path / "rag.db", embedder=_embedder)
-    with (v.raiz / "ciclo.trava").open("w") as trava:
-        fcntl.flock(trava, fcntl.LOCK_EX)
+    with (v.raiz / "ciclo.trava").open("a+") as trava:
+        travar_exclusivo(trava)
         assert ciclo(v, tmp_path, b) == {"situacao": "ja_rodando"}
 
 
