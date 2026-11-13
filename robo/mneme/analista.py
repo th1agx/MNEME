@@ -21,7 +21,7 @@ from pathlib import Path
 import httpx
 import pandas as pd
 
-from .noticias import ATIVOS, _ativos
+from .noticias import ATIVOS, _ativos, filtrar_fontes_habilitadas
 
 URL_PADRAO = os.getenv("MNEME_LLM_URL", "http://llm:11434")
 MODELO_PADRAO = os.getenv("MNEME_LLM_MODELO", "qwen3:1.7b")
@@ -205,6 +205,7 @@ PERGUNTAS_TECNICAS = (
 
 def avaliar_leituras(gabarito: dict, noticias: pd.DataFrame, cliente: ClienteLLM | None) -> dict:
     """Mede LLM e regra atual nas mesmas notícias. Sem cliente, mede só a regra."""
+    noticias = filtrar_fontes_habilitadas(noticias)
     linhas = noticias.assign(curto=noticias["id"].str[:8]).drop_duplicates("curto").set_index("curto")
     medidas: dict[str, list] = {"regra": [], "llm": []}
     erros, tempos = [], []

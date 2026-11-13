@@ -30,12 +30,16 @@ class ArmazemEventos:
             return 0
         eventos = pd.DataFrame(linhas)
         for coluna in ("ocorrido_em", "recebido_em"):
-            eventos[coluna] = pd.to_datetime(eventos[coluna], utc=True).astype("datetime64[ms, UTC]")
-        for dia, grupo in eventos.groupby(eventos["ocorrido_em"].dt.strftime("%Y-%m-%d")):
+            valores = eventos[coluna] if coluna in eventos else [pd.NaT] * len(eventos)
+            eventos[coluna] = pd.to_datetime(valores, utc=True).astype("datetime64[ms, UTC]")
+        if tipo == "noticias" and eventos["recebido_em"].isna().any():
+            raise ValueError("noticias requer recebido_em real para manter o corte point-in-time")
+        particao = "recebido_em" if tipo == "noticias" else "ocorrido_em"
+        for dia, grupo in eventos.groupby(eventos[particao].dt.strftime("%Y-%m-%d")):
             pasta = self._pasta(tipo, par) / str(dia)
             pasta.mkdir(parents=True, exist_ok=True)
             self._contador += 1
-            destino = pasta / f"parte-{grupo['ocorrido_em'].iloc[0]:%H%M%S}-{os.getpid()}-{self._contador}.parquet"
+            destino = pasta / f"parte-{grupo[particao].iloc[0]:%H%M%S}-{os.getpid()}-{self._contador}.parquet"
             temporario = destino.with_suffix(".tmp")
             grupo.to_parquet(temporario, index=False, compression="zstd")
             os.replace(temporario, destino)
@@ -63,18 +67,24 @@ class ArmazemEventos:
     def ler(self, tipo: str, par: str, inicio: datetime | None = None, fim: datetime | None = None,
             como_de: datetime | None = None) -> pd.DataFrame:
         """Eventos de `inicio` até antes de `fim`. Com `como_de`, só o que já tinha chegado naquele instante."""
-        arquivos = [a for a in self._arquivos(tipo, par)
-                    if (inicio is None or self._dia(a) >= f"{inicio:%Y-%m-%d}") and (fim is None or self._dia(a) <= f"{fim:%Y-%m-%d}")]
+        arquivos = self._arquivos(tipo, par)
+        if tipo != "noticias":
+            arquivos = [a for a in arquivos
+                        if (inicio is None or self._dia(a) >= f"{inicio:%Y-%m-%d}") and (fim is None or self._dia(a) <= f"{fim:%Y-%m-%d}")]
         eventos = self._unir(tipo, arquivos)
         if eventos.empty:
             return eventos
+        coluna_tempo = "recebido_em" if tipo == "noticias" else "ocorrido_em"
         if inicio is not None:
-            eventos = eventos[eventos["ocorrido_em"] >= pd.Timestamp(inicio)]
+            eventos = eventos[eventos[coluna_tempo] >= pd.Timestamp(inicio)]
         if fim is not None:
-            eventos = eventos[eventos["ocorrido_em"] < pd.Timestamp(fim)]
+            eventos = eventos[eventos[coluna_tempo] < pd.Timestamp(fim)]
         if como_de is not None:
             limite = pd.Timestamp(como_de)
-            eventos = eventos[(eventos["ocorrido_em"] <= limite) & (eventos["recebido_em"].isna() | (eventos["recebido_em"] <= limite))]
+            if tipo == "noticias":
+                eventos = eventos[eventos["recebido_em"].notna() & (eventos["recebido_em"] <= limite)]
+            else:
+                eventos = eventos[(eventos["ocorrido_em"] <= limite) & (eventos["recebido_em"].isna() | (eventos["recebido_em"] <= limite))]
         return eventos.reset_index(drop=True)
 
     def ultimo(self, tipo: str, par: str, coluna: str):

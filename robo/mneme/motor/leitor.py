@@ -10,6 +10,7 @@ import pandas as pd
 
 from ..analista import ClienteLLM, leitura_da_regra, ler_noticia
 from ..dados.eventos import ArmazemEventos
+from ..noticias import filtrar_fontes_habilitadas
 from .diario import Diario
 
 log = logging.getLogger("mneme.motor.leitor")
@@ -20,7 +21,7 @@ JANELA = timedelta(hours=24)
 
 def ler_proxima(cliente: ClienteLLM, eventos: ArmazemEventos, diario: Diario, agora: pd.Timestamp) -> bool:
     """Lê a notícia recente mais nova que ainda não foi lida. Os ativos vêm da regra, que acerta mais neles, e o sentimento da LLM, com evidência conferida no texto."""
-    noticias = eventos.ler("noticias", "GLOBAL")
+    noticias = filtrar_fontes_habilitadas(eventos.ler("noticias", "GLOBAL"))
     if noticias.empty:
         return False
     recentes = noticias[(noticias["recebido_em"] >= agora - JANELA) & (noticias["recebido_em"] <= agora)].sort_values("recebido_em", ascending=False)
@@ -28,6 +29,11 @@ def ler_proxima(cliente: ClienteLLM, eventos: ArmazemEventos, diario: Diario, ag
         marca = f"leitura:{n['id']}"
         if diario.contexto_lido(marca):
             continue
+        suspeito = n.get("suspeito", False)
+        if pd.notna(suspeito) and bool(suspeito):
+            diario.gravar_contexto(marca, "__lida__", "marca", {"verificada": False, "motivo": "texto_suspeito_ignorado"},
+                                  "regra:injecao", agora, agora + JANELA)
+            return True
         regra = leitura_da_regra(n["titulo"], n["resumo"], n["categoria"])
         leitura = ler_noticia(cliente, n["titulo"], n["resumo"])
         origem = f"llm:{cliente.modelo}"

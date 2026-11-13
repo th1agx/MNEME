@@ -70,32 +70,29 @@ Cada método vira regra testável. Quando a regra é subjetiva e não pode ser e
 
 | Fonte | Uso | Situação medida em 05/11/2026 |
 |---|---|---|
-| RSS do Fed | Comunicados oficiais | Acessível da A1 |
-| BCB | Séries e comunicados | SGS acessível da A1 |
-| GDELT DOC 2.0 | Notícias globais, 2017 em diante | **Exige uma consulta a cada 5 s**; a A1 recebeu 429. Só manchetes e metadados; alguns modos limitados a 3 meses |
+| RSS do Federal Reserve, ECB e BEA | Títulos, resumos curtos, links e datas de comunicados oficiais | Habilitados no coletor após revisão de termos; política e limites em [NEWS_SOURCES.md](../sources/NEWS_SOURCES.md) |
+| Bloomberg, Financial Times, CNBC, CoinDesk, The Block, Decrypt e Cointelegraph | Fontes editoriais avaliadas para notícias de mercado | Desabilitadas até confirmar permissão compatível com coleta automatizada, retenção e uso preditivo; ver [NEWS_SOURCES.md](../sources/NEWS_SOURCES.md) |
 | Redes sociais | Narrativa | Sem fonte gratuita definida; |
 | Calendário econômico | Agenda, consenso e surpresa | Agendas oficiais acessíveis; ver [MARKET_DATA_ENGINE](MARKET_DATA_ENGINE.md) e [ADR-0014](ADR/0014-calendario-economico.md) |
 
-### As 12 etapas
+O `mneme.inteligencia` é o único serviço de coleta de notícias e consulta cada feed habilitado a cada cinco minutos. O Hugin integrado ao coletor faz a admissão determinística; o Munin anota candidatos a eventos e a disponibilidade do grupo sem declarar confirmação ou independência. Não há um segundo processo CORVO, API de coleta ou banco separado. Texto RSS é conteúdo não confiável: títulos suspeitos são guardados para auditoria, mas não são enviados ao LLM.
+
+O contrato temporal dos artigos RSS é `publicado_em` (data informada pela fonte), `recebido_em` (primeira leitura pelo MNEME) e `ocorrido_em` (nulo se a fonte não identifica o instante do fato). Features `n_*` usam somente `recebido_em` e ignoram registros sem hora de recebimento; o previsor consulta artigos em corte point-in-time. O mesmo caminho de atributos é usado no treino e na previsão ao vivo, quando o manifesto do modelo solicita as colunas `n_*`.
+
+### Etapas da análise de notícias
 
 | # | Etapa | Executor | Saída |
 |---|---|---|---|
-| 1 | Detectar | Coletor | Notícia com `ocorrido_em` e `recebido_em` |
-| 2 | Verificar a fonte | Código + tabela de fontes | Confiabilidade |
-| 3 | Confirmar data e hora | Código, com outras fontes | Data ou rejeição |
-| 4 | Esperado ou surpresa | Agenda, consenso; LLM como apoio | Grau de surpresa |
-| 5 | Significado econômico | LLM + RAG, com fontes | Interpretação, sempre marcada como tal |
-| 6 | Reações anteriores | Estudo de eventos, com números | Distribuição histórica |
-| 7 | Ativos afetados | Lista fechada + LLM | Ativos candidatos |
-| 8 | Dados reais | Atributos | Preço, volume, volatilidade atuais |
-| 9 | Já precificado? | Compara o movimento desde o fato | Movimento já ocorrido |
-| 10 | Cenários | Código, a partir do histórico | Cenários sem probabilidade inventada |
-| 11 | Risco e retorno | Código | Razão estimada |
-| 12 | Sinal, esperar ou não operar | **Coordenador + Risk Engine** | Decisão |
+| 1 | Ler feed permitido | `mneme.inteligencia` | Artigo com fonte, `publicado_em` e `recebido_em` |
+| 2 | Admitir ou descartar | Hugin determinístico | Motivo, relevância e temas candidatos |
+| 3 | Agrupar cobertura | Munin determinístico | Candidato com disponibilidade pela chegada mais tardia |
+| 4 | Calcular atenção | Atributos `n_*` | Menções, anomalia, sentimento, fontes, concentração e rumor |
+| 5 | Prever | Modelo de ML que declara as colunas `n_*` | Probabilidade e incerteza medidas |
+| 6 | Interpretar contexto | LLM + RAG, quando chamado pelo leitor | Explicação assíncrona, sem autoridade de decisão |
 
 ### Tipos de informação
 
-Toda evidência leva um único tipo: **fato confirmado, informação preliminar, rumor, opinião, previsão ou interpretação do modelo**. Rumor e opinião nunca geram operação sozinhos. Uma notícia isolada nunca vira certeza de movimento.
+O coletor distingue **publicação institucional**, reportagem, informação preliminar, rumor, opinião, previsão e especulação. A identidade de uma fonte oficial não confirma afirmações de terceiros nela citadas. O pipeline não cria `fato confirmado` automaticamente: confirmação e independência exigem evidência própria. Rumor e opinião não geram operação sozinhos; uma notícia isolada nunca vira certeza de movimento.
 
 ### Exemplo hipotético
 

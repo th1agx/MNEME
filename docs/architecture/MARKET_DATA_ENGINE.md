@@ -16,6 +16,12 @@
 
 Uma consulta "como de T" só devolve dados com `recebido_em <= T`. Em histórico importado, usa-se `publicado_em`, marcando que não foi coletado ao vivo. Séries macro revisadas guardam cada revisão: usar o PIB revisado para decidir na data original é vazamento.
 
+### Notícias RSS
+
+Nos artigos RSS, `publicado_em` é a data declarada pelo feed; ela não prova quando o evento ocorreu. `ocorrido_em` permanece nulo até existir uma fonte que identifique o instante do evento. `recebido_em` registra a primeira leitura do artigo pelo MNEME e é a coluna usada para particionamento, janelas (`inicio`/`fim`) e cortes point-in-time. Itens sem data de publicação ou com data futura são recusados pelo coletor. Registros antigos, particionados originalmente por `ocorrido_em`, continuam legíveis: a consulta filtra pelo `recebido_em` e varre todas as partições legadas.
+
+O `mneme.inteligencia` continua sendo o único ciclo de coleta. Nele, o Hugin determinístico filtra relevância e duplicatas e o Munin anota agrupamentos candidatos; esses rótulos não confirmam a alegação nem a independência das fontes. Veja [NEWS_SOURCES.md](../sources/NEWS_SOURCES.md) para permissões, retenção e feeds habilitados.
+
 ## Fontes
 
 | Dado | Fonte | Chave | Testado | Observações |

@@ -97,7 +97,7 @@ def test_responder_ignora_trecho_suspeito_e_nao_chama_o_modelo_sem_contexto():
 
 
 def test_avaliacao_compara_regra_e_llm_nas_mesmas_noticias():
-    noticias = pd.DataFrame({"id": ["aaaaaaaa11", "bbbbbbbb22"], "titulo": ["Bitcoin crashes 6%", "Local bakery opens"], "resumo": ["", ""], "categoria": ["cripto", "portal"]})
+    noticias = pd.DataFrame({"id": ["aaaaaaaa11", "bbbbbbbb22"], "fonte": ["fed", "bea"], "titulo": ["Bitcoin crashes 6%", "Local bakery opens"], "resumo": ["", ""], "categoria": ["cripto", "portal"]})
     gabarito = {"aaaaaaaa": {"tipo": "fato", "relevante": True, "sentimento": -1, "ativos": ["BTC"]}, "bbbbbbbb": {"tipo": "fato", "relevante": False, "sentimento": 0, "ativos": []}, "naoexiste": {"tipo": "fato", "relevante": True, "sentimento": 0, "ativos": []}}
 
     def certo(corpo):
@@ -108,6 +108,18 @@ def test_avaliacao_compara_regra_e_llm_nas_mesmas_noticias():
     r = avaliar_leituras(gabarito, noticias, cliente)
     assert r["llm"]["n"] == 2 and r["llm"]["sentimento"] == 1.0 and r["llm"]["evidencia_verificada"] == 1.0 and r["erros"] == []
     assert r["regra"]["n"] == 2
+
+
+def test_avaliacao_ignora_fontes_legadas_desabilitadas_antes_do_llm():
+    noticias = pd.DataFrame({"id": ["aaaaaaaa11"], "fonte": ["coindesk"], "titulo": ["Bitcoin crashes 6%"], "resumo": [""], "categoria": ["cripto"]})
+    cliente, pedidos = _cliente({"tipo": "fato", "relevante": True, "sentimento": -1, "ativos": ["BTC"], "evidencia": "Bitcoin crashes"})
+    gabarito = {"aaaaaaaa": {"tipo": "fato", "relevante": True, "sentimento": -1, "ativos": ["BTC"]}}
+
+    resultado = avaliar_leituras(gabarito, noticias, cliente)
+
+    assert resultado["llm"]["n"] == 0
+    assert resultado["regra"]["n"] == 0
+    assert pedidos == []
 
 
 def test_regra_e_comparada_nos_mesmos_termos():

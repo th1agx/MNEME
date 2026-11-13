@@ -1,6 +1,6 @@
 # Matriz de rastreabilidade
 
-Estado real em 05/11/2026, com as linhas de Forex, ouro e do motor atualizadas em 06/11/2026. O que está pendente aqui continua no escopo, como define [PRODUCT_CHARTER.md](../PRODUCT_CHARTER.md). Código existente não conta como funcionalidade: uma capacidade só está completa quando seus dados são coletados, guardados, processados e chegam a quem precisa deles.
+Estado registrado em 12/11/2026. O que está pendente aqui continua no escopo, como define [PRODUCT_CHARTER.md](../PRODUCT_CHARTER.md). Código existente não conta como funcionalidade: uma capacidade só está completa quando seus dados são coletados, guardados, processados e chegam a quem precisa deles. Esta revisão foi feita no checkout local; não comprova estado do serviço ou artefatos remotos.
 
 **Validada** quer dizer que o componente funciona. Não quer dizer que dá lucro.
 
@@ -17,7 +17,7 @@ Estado real em 05/11/2026, com as linhas de Forex, ouro e do motor atualizadas e
 | Liquidações | Sim | Conectado, sem evento recebido | **Não** | **Não** | Confirmar com evento real |
 | Calendário: FOMC | Sim | Sim, 57 reuniões | **Sim** | Sim: datas e fuso conferidos | |
 | Calendário: agenda, consenso, resultado, revisões e surpresa | Sim | Sim: lê 7 dias à frente, cada mudança vira versão | **Sim**, família `e_` | Sim: horários conferidos com CPI e FOMC, 30 mil eventos em 24 meses | Termos de uso da fonte (pendência externa) |
-| Notícias (10 fontes por RSS) | Sim | Sim, desde 05/11 | **Ligada, sem histórico**: colunas `n_` vazias antes da coleta | Parcial: fluxo testado, classificação sem amostra rotulada | Acumular meses para poder medir; classificação medida |
+| Notícias (Fed, ECB, BEA) | Sim: um ciclo em `mneme.inteligencia`, Hugin e candidatos Munin integrados | **Não confirmado no serviço remoto**; requer implantação e leitura do batimento/Parquet no serviço | **Código ligado**: treino e previsor usam o caminho `n_*` se o manifesto pedir as colunas; artefatos remotos não inspecionados | Testes locais cobrem feed → gate → Parquet → atenção → entrada de modelo simulada. Consulta HTTP pontual local respondeu nas três fontes e admitiu 1 artigo Fed; classificação e ganho preditivo ainda precisam de amostra medida | Validar serviço implantado; acumular amostra; medir classificação e ganho preditivo fora da amostra |
 | X (API oficial) | Sim, com teto de gasto | **Não: sem credencial** | **Não** | Só com dados simulados | Credencial e orçamento; tendências |
 | Provedor de sinais (traders) | Sim | Sim, na A1 (serviço `traders`), desde 07/11 | **Não** | Parcial: reinício real da A1 testado | Telegram no `.env` da A1 |
 | Forex e ouro (EUR/USD, GBP/USD, USD/JPY, XAU/USD), histórico | Sim, 24 meses | Importação manual | **Sim**, no treino do motor | Sim: 1.008 medições, nenhuma acima do empate depois da correção | Termos da fonte |

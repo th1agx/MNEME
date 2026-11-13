@@ -9,16 +9,25 @@ from __future__ import annotations
 import hashlib
 import html
 import re
+import unicodedata
 import xml.etree.ElementTree as ET
+from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from urllib.parse import urlsplit
 
 import httpx
 import numpy as np
 import pandas as pd
 
-AGENTE = {"user-agent": "Mozilla/5.0 (compatible; MNEME-research)"}
+from .corvo.gate import Decision, IntakeGate, NewsItem, Pressure, canonical_url
+
+AGENTE = {"user-agent": "MNEME-news-collector/0.1"}
+MAX_BYTES_FEED = 5_000_000
+MAX_IDADE_OFICIAL_SEG = 7 * 24 * 3600
+_CONFIABILIDADE = {"alta": 0.9, "media": 0.7, "baixa": 0.5}
 
 
 @dataclass(frozen=True)
@@ -33,14 +42,17 @@ FONTES = (
     Fonte("fed", "https://www.federalreserve.gov/feeds/press_all.xml", "oficial", "alta"),
     Fonte("ecb", "https://www.ecb.europa.eu/rss/press.html", "oficial", "alta"),
     Fonte("bea", "https://apps.bea.gov/rss/rss.xml", "oficial", "alta"),
-    Fonte("bloomberg", "https://feeds.bloomberg.com/markets/news.rss", "portal", "alta"),
-    Fonte("ft", "https://www.ft.com/rss/home", "portal", "alta"),
-    Fonte("cnbc", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114", "portal", "media"),
-    Fonte("coindesk", "https://www.coindesk.com/arc/outboundfeeds/rss/", "cripto", "media"),
-    Fonte("theblock", "https://www.theblock.co/rss.xml", "cripto", "media"),
-    Fonte("decrypt", "https://decrypt.co/feed", "cripto", "media"),
-    Fonte("cointelegraph", "https://cointelegraph.com/rss", "cripto", "media"),
 )
+FONTES_HABILITADAS = frozenset(fonte.id for fonte in FONTES)
+
+
+def filtrar_fontes_habilitadas(noticias: pd.DataFrame) -> pd.DataFrame:
+    """Mantém só fontes aprovadas para coleta, atributos e interpretação no MNEME."""
+    if noticias.empty:
+        return noticias
+    if "fonte" not in noticias:
+        return noticias.iloc[0:0]
+    return noticias.loc[noticias["fonte"].isin(FONTES_HABILITADAS)]
 
 ATIVOS = {
     "BTC": r"\bBTC\b|\bbitcoin\b", "ETH": r"\bETH\b|\bether\b|\bethereum\b", "SOL": r"\bSOL\b|\bsolana\b",
@@ -82,12 +94,10 @@ def _ativos(texto: str) -> list[str]:
 
 
 def classificar(titulo: str, resumo: str, categoria: str) -> dict:
-    """Regras simples e explicáveis. Só comunicado de fonte oficial sai como fato."""
+    """Classifica o tipo de evidência sem tratar a identidade da fonte como confirmação."""
     texto = f"{titulo} {resumo}"
-    if categoria == "oficial":
-        tipo = "fato"
-    else:
-        tipo = next((nome for nome, padrao in _TIPOS if re.search(padrao, titulo, re.I)), "reportagem")
+    tipo = next((nome for nome, padrao in _TIPOS if re.search(padrao, titulo, re.I)),
+                "publicacao_institucional" if categoria == "oficial" else "reportagem")
     positivos, negativos = len(_POSITIVO.findall(titulo)), len(_NEGATIVO.findall(titulo))
     temas = [t for t, p in TEMAS.items() if re.search(p, texto, re.I)]
     ativos = _ativos(texto)
@@ -109,8 +119,33 @@ def _data(valor: str | None) -> datetime | None:
 
 
 def ler_feed(corpo: bytes | str, fonte: Fonte, agora: datetime) -> list[dict]:
-    """Aceita RSS e Atom. Publicação com data futura ou sem data usa a hora de chegada, que é o que de fato se sabia."""
-    raiz = ET.fromstring(corpo)
+    """Aceita RSS/Atom sem inventar data de publicação ou de ocorrência ausente."""
+    instante_recebimento = pd.Timestamp(agora)
+    if instante_recebimento.tzinfo is None:
+        raise ValueError("a hora de coleta precisa ter fuso horário")
+    dados = corpo if isinstance(corpo, bytes) else corpo.encode("utf-8")
+    if len(dados) > MAX_BYTES_FEED:
+        raise ValueError("feed excede o limite de tamanho")
+    # XML permits declarations in UTF-16/32, where an ASCII byte search misses DTD/ENTITY.
+    # Decode those encodings only for this guard; in ASCII-compatible encodings the
+    # prohibited markup retains its ASCII bytes.
+    if dados.startswith((b"\x00\x00\xfe\xff", b"\xff\xfe\x00\x00")):
+        texto_xml = dados.decode("utf-32")
+    elif dados.startswith((b"\xfe\xff", b"\xff\xfe")):
+        texto_xml = dados.decode("utf-16")
+    elif dados.startswith(b"\x00\x00\x00<"):
+        texto_xml = dados.decode("utf-32-be")
+    elif dados.startswith(b"<\x00\x00\x00"):
+        texto_xml = dados.decode("utf-32-le")
+    elif dados.startswith(b"\x00<"):
+        texto_xml = dados.decode("utf-16-be")
+    elif dados.startswith(b"<\x00"):
+        texto_xml = dados.decode("utf-16-le")
+    else:
+        texto_xml = dados.decode("ascii", errors="ignore")
+    if re.search(r"<!\s*(?:DOCTYPE|ENTITY)\b", texto_xml, re.I):
+        raise ValueError("feed com DOCTYPE/ENTITY recusado")
+    raiz = ET.fromstring(dados)
     itens = []
     for e in raiz.iter():
         nome = e.tag.rsplit("}", 1)[-1]
@@ -123,42 +158,97 @@ def ler_feed(corpo: bytes | str, fonte: Fonte, agora: datetime) -> list[dict]:
         titulo = limpar(campos.get("title"), 300)
         if not titulo:
             continue
-        link = (campos.get("link") or campos.get("guid") or campos.get("id") or titulo).strip()
+        link = (campos.get("link") or campos.get("guid") or campos.get("id") or "").strip()
+        partes = urlsplit(link)
+        try:
+            porta = partes.port
+        except ValueError:
+            continue
+        if partes.scheme.lower() != "https" or not partes.hostname or partes.username or partes.password or porta not in (None, 443):
+            continue
+        link = canonical_url(link)
         publicada = _data(campos.get("pubDate") or campos.get("published") or campos.get("updated") or campos.get("date"))
-        if publicada is None or publicada > agora:
-            publicada = agora
         resumo = limpar(campos.get("description") or campos.get("summary") or campos.get("encoded"))
-        itens.append({"id": hashlib.sha256(link.encode()).hexdigest()[:20], "ocorrido_em": pd.Timestamp(publicada), "recebido_em": agora, "fonte": fonte.id,
+        publicado_em = pd.Timestamp(publicada) if publicada is not None else pd.NaT
+        futuro = publicada is not None and pd.Timestamp(publicada) > instante_recebimento
+        itens.append({"id": hashlib.sha256(link.encode()).hexdigest()[:20], "publicado_em": publicado_em, "ocorrido_em": pd.NaT,
+                      "recebido_em": instante_recebimento, "fonte": fonte.id,
                       "categoria": fonte.categoria, "confiabilidade": fonte.confiabilidade, "titulo": titulo, "resumo": resumo, "url": link,
+                      "hash_titulo_sha256": hashlib.sha256(" ".join(unicodedata.normalize("NFKC", titulo).casefold().split()).encode("utf-8")).hexdigest(),
+                      "publicacao_apos_recebimento": bool(futuro), "source_independence": "unverified",
                       **classificar(titulo, resumo, fonte.categoria)})
     return itens
 
 
 class ColetorNoticias:
-    def __init__(self, cliente: httpx.Client | None = None, fontes: tuple[Fonte, ...] = FONTES):
+    def __init__(self, cliente: httpx.Client | None = None, fontes: tuple[Fonte, ...] = FONTES,
+                 relogio: Callable[[], datetime] | None = None):
         self.cliente = cliente or httpx.Client(timeout=20, headers=AGENTE, follow_redirects=True)
         self.fontes = fontes
+        self.relogio = relogio or (lambda: datetime.now(timezone.utc))
 
     def coletar(self, agora: datetime) -> tuple[list[dict], dict[str, str]]:
-        """Devolve as notícias e o estado de cada fonte. Uma fonte fora do ar não atrapalha as outras."""
+        """Coleta em série uma vez por rodada e passa cada artigo pelo Hugin local do MNEME."""
+        instante = pd.Timestamp(agora)
+        if instante.tzinfo is None:
+            raise ValueError("a hora de coleta precisa ter fuso horário")
         noticias, estado = [], {}
+        agora_gate = [instante.timestamp()]
+        gate = IntakeGate(clock=lambda: agora_gate[0])
         for fonte in self.fontes:
+            descartes: Counter[str] = Counter()
             try:
-                resposta = self.cliente.get(fonte.url)
-                resposta.raise_for_status()
-                itens = ler_feed(resposta.content, fonte, agora)
-                noticias.extend(itens)
-                estado[fonte.id] = f"ok: {len(itens)}"
-            except (httpx.HTTPError, ET.ParseError) as erro:
+                with self.cliente.stream("GET", fonte.url) as resposta:
+                    resposta.raise_for_status()
+                    partes = bytearray()
+                    for parte in resposta.iter_bytes():
+                        partes.extend(parte)
+                        if len(partes) > MAX_BYTES_FEED:
+                            raise ValueError("feed excede o limite de tamanho")
+                recebido = self.relogio()
+                instante_recebimento = pd.Timestamp(recebido)
+                if instante_recebimento.tzinfo is None:
+                    raise ValueError("a hora real de recebimento precisa ter fuso horário")
+                agora_gate[0] = instante_recebimento.timestamp()
+                itens = ler_feed(bytes(partes), fonte, recebido)
+                aceitos = []
+                for artigo in itens:
+                    publicada = artigo["publicado_em"]
+                    if pd.isna(publicada):
+                        descartes["data_ausente"] += 1
+                        continue
+                    if artigo["publicacao_apos_recebimento"]:
+                        descartes["data_futura"] += 1
+                        continue
+                    item = NewsItem(fonte.id, artigo["url"], artigo["titulo"], publicada.timestamp(), artigo["resumo"],
+                                    _CONFIABILIDADE[fonte.confiabilidade], MAX_IDADE_OFICIAL_SEG)
+                    veredito = gate.admit(item, Pressure.NORMAL)
+                    if veredito.decision is Decision.DROP:
+                        descartes[veredito.reason] += 1
+                        continue
+                    artigo.update({"hugin_veredito": veredito.decision.value, "hugin_motivo": veredito.reason,
+                                   "hugin_relevancia": veredito.relevance, "hugin_temas": list(veredito.topics),
+                                   "hugin_versao": "hugin-v1"})
+                    aceitos.append(artigo)
+                noticias.extend(aceitos)
+                total_descartes = sum(descartes.values())
+                motivos = ", ".join(f"{motivo}={quantidade}" for motivo, quantidade in sorted(descartes.items()))
+                estado[fonte.id] = f"ok: {len(aceitos)} aceitas; {total_descartes} descartadas" + (f" ({motivos})" if motivos else "")
+            except (httpx.HTTPError, ET.ParseError, ValueError, UnicodeError) as erro:
                 estado[fonte.id] = f"falhou: {erro.__class__.__name__}"
         return noticias, estado
 
 
 def agrupar_eventos(noticias: pd.DataFrame, parecido: float = 0.6, janela_horas: int = 24) -> pd.Series:
-    """Agrupa manchetes sobre o mesmo evento, na ordem de chegada. Várias fontes iguais contam como um evento, com confirmação."""
+    """Agrupa manchetes por hora de chegada; cobertura agrupada não prova confirmação independente."""
+    if "recebido_em" not in noticias:
+        return pd.Series(dtype="int64", index=noticias.index)
+    noticias = noticias[noticias["recebido_em"].notna()]
+    if noticias.empty:
+        return pd.Series(dtype="int64", index=noticias.index)
     palavras = noticias["titulo"].str.lower().str.findall(r"[a-zà-ú0-9]{4,}").map(set)
     grupos, ativos = [], []
-    tempos = noticias["recebido_em"].fillna(noticias["ocorrido_em"])
+    tempos = noticias["recebido_em"]
     for i, (conjunto, tempo) in enumerate(zip(palavras, tempos)):
         ativos = [g for g in ativos if tempo - g[2] <= pd.Timedelta(hours=janela_horas)]
         grupo = next((g[0] for g in ativos if conjunto and len(conjunto & g[1]) / len(conjunto | g[1]) >= parecido), None)
@@ -179,9 +269,12 @@ def medidas_de_atencao(textos: pd.DataFrame, ativo: str, indice: pd.DatetimeInde
     if textos.empty:
         return vazio
     sobre = textos[textos["ativos"].map(lambda a: ativo in list(a))]
+    if "recebido_em" not in sobre:
+        return vazio
+    sobre = sobre[sobre["recebido_em"].notna()]
     if sobre.empty:
         return vazio
-    chegada = sobre["recebido_em"].fillna(sobre["ocorrido_em"])
+    chegada = sobre["recebido_em"]
     tabela = pd.DataFrame({"um": 1.0, "sentimento": sobre["sentimento"].to_numpy(dtype=float), "rumor": sobre["tipo"].isin(["rumor", "especulacao"]).to_numpy(dtype=float),
                            "fonte": sobre["fonte"].to_numpy()}, index=pd.DatetimeIndex(chegada)).sort_index()
     largura = pd.Timedelta(janela)
@@ -220,10 +313,14 @@ def com_noticias(x: pd.DataFrame, noticias: pd.DataFrame, par: str, base_dias: i
     """
     colunas = {"mencoes": "n_mencoes", "anomalia": "n_anomalia", "sentimento": "n_sentimento", "fontes": "n_fontes", "concentracao": "n_concentracao", "fracao_rumor": "n_fracao_rumor"}
     saida = pd.DataFrame(np.nan, index=x.index, columns=list(colunas.values()))
+    noticias = filtrar_fontes_habilitadas(noticias)
     if not noticias.empty:
         limpas = noticias[~noticias["suspeito"].astype(bool)] if "suspeito" in noticias else noticias
+        if "recebido_em" not in limpas:
+            return x.join(saida)
+        limpas = limpas[limpas["recebido_em"].notna()]
         if not limpas.empty:
-            inicio = limpas["recebido_em"].fillna(limpas["ocorrido_em"]).min()
+            inicio = limpas["recebido_em"].min()
             fechamentos = x.index + pd.Timedelta(minutes=1)
             coberto = fechamentos >= inicio
             if coberto.any():

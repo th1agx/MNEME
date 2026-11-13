@@ -19,11 +19,12 @@ import httpx
 import pandas as pd
 
 from .config import PASTA_DADOS, RAIZ
+from .corvo.events import anotar_eventos_candidatos
 from .dados.armazem import agora_utc
 from .dados.calendario import FonteCalendario
 from .dados.eventos import ArmazemEventos
 from .dados.resultados_macro import ResultadosAoVivo
-from .noticias import ATIVOS, ColetorNoticias, agrupar_eventos, medidas_de_atencao
+from .noticias import ATIVOS, ColetorNoticias, agrupar_eventos, filtrar_fontes_habilitadas, medidas_de_atencao
 from .social import CONSULTAS, FonteX, GastoExcedido, Limites
 
 log = logging.getLogger("mneme.inteligencia")
@@ -40,11 +41,16 @@ class Inteligencia:
         self.eventos = ArmazemEventos(raiz)
         self.resultados = resultados
         self.noticias, self.calendario, self.x, self.relogio = noticias or ColetorNoticias(), calendario or FonteCalendario(), x, relogio
+        # O ciclo é a autoridade do relógio também para o instante em que o download terminou.
+        self.noticias.relogio = relogio
         self.batimento = Path(raiz) / "inteligencia.batimento"
         self.ultimos: dict[str, datetime] = {}
         self.ultimo_post: dict[str, str] = {}
         # Todas as já vistas: feeds trazem itens antigos, e regravá-los falsificaria a hora em que a notícia chegou.
-        self.conhecidas = set(self.eventos.ler("noticias", "GLOBAL").get("id", pd.Series(dtype=str)))
+        historico_inicial = self.eventos.ler("noticias", "GLOBAL")
+        self.conhecidas = set(historico_inicial.get("id", pd.Series(dtype=str)))
+        # Munin needs complete groups so a late bridge cannot alter hidden members.
+        self.historico_munin = filtrar_fontes_habilitadas(historico_inicial).reset_index(drop=True)
 
     def _na_hora(self, nome: str, minutos: int, agora: datetime) -> bool:
         if nome in self.ultimos and agora - self.ultimos[nome] < timedelta(minutes=minutos):
@@ -61,8 +67,15 @@ class Inteligencia:
             itens, estado = self.noticias.coletar(agora)
             # Grava só o que é novo: reler o feed não pode reescrever a hora em que a notícia chegou.
             novas = [i for i in itens if i["id"] not in self.conhecidas]
+            if novas:
+                historico = self.historico_munin
+                if not historico.empty:
+                    historico = historico[historico["recebido_em"] <= pd.Timestamp(agora)]
+                novas = anotar_eventos_candidatos(novas, historico.to_dict("records"))
             self.eventos.gravar("noticias", "GLOBAL", novas)
             self.conhecidas |= {i["id"] for i in novas}
+            if novas:
+                self.historico_munin = pd.concat([self.historico_munin, pd.DataFrame(novas)], ignore_index=True)
             resultado.update(noticias_novas=len(novas), fontes=estado)
         if self._na_hora("calendario", MINUTOS_CALENDARIO, agora):
             for nome, ler in (("semana", lambda: self.calendario.semana(agora)), ("fomc", lambda: self.calendario.fomc(agora))):
@@ -100,12 +113,15 @@ class Inteligencia:
 
     def atencao(self, ativo: str, indice: pd.DatetimeIndex, tipo: str = "noticias") -> pd.DataFrame:
         """Medidas para o processo central. Considera só o que já tinha chegado em cada instante."""
-        return medidas_de_atencao(self.eventos.ler(tipo, "GLOBAL", inicio=indice[0].to_pydatetime() - timedelta(days=8)), ativo, indice)
+        eventos = self.eventos.ler(tipo, "GLOBAL", inicio=indice[0].to_pydatetime() - timedelta(days=8))
+        if tipo == "noticias":
+            eventos = filtrar_fontes_habilitadas(eventos)
+        return medidas_de_atencao(eventos, ativo, indice)
 
 
 def resumo(raiz: Path | str) -> None:
     eventos = ArmazemEventos(raiz)
-    n = eventos.ler("noticias", "GLOBAL")
+    n = filtrar_fontes_habilitadas(eventos.ler("noticias", "GLOBAL"))
     if n.empty:
         print("Sem notícias ainda.")
         return

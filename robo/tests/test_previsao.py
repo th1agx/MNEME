@@ -404,6 +404,39 @@ def test_previsor_grava_uma_vez_e_o_placar_confere(tmp_path):
     assert fechado["certas"] == int(subiu == (gravada["direcao"] == 1))
 
 
+def test_previsor_entrega_noticia_sem_ocorrido_em_ao_modelo_com_atributo_n(tmp_path):
+    v = passeio(8000)
+    n_hoje = int((v.index.hour * 60 + v.index.minute + 1)[7000:].tolist().index(
+        next(m for m in (v.index.hour * 60 + v.index.minute + 1)[7000:] if m % 15 == 0)
+    )) + 7000
+    corte = v.iloc[:n_hoje + 1]
+    agora = _preparar_armazem(tmp_path, corte)
+    vela = corte.index[-1]
+    chegada = vela.to_pydatetime() + timedelta(minutes=1)
+    ArmazemEventos(tmp_path).gravar("noticias", "GLOBAL", [{
+        "id": "noticia-corvo-1", "publicado_em": vela - timedelta(days=2), "ocorrido_em": None,
+        "recebido_em": chegada, "fonte": "fed", "titulo": "Bitcoin ETF inflows hit new record",
+        "resumo": "", "ativos": ["BTC"], "sentimento": 1, "tipo": "reportagem", "suspeito": False,
+    }])
+
+    class ModeloComNoticias:
+        manifesto = {"id": "teste-noticias", "par": "BTCUSDT", "horizonte": 15, "colunas": ["n_mencoes"]}
+
+        def __init__(self):
+            self.entrada = None
+
+        def prever(self, atributos):
+            self.entrada = atributos.copy()
+            return np.array([0.6]), np.array([0.6])
+
+    modelo = ModeloComNoticias()
+    previsor = Previsor(tmp_path, [modelo], lambda: agora, Fora(), Fora())
+
+    assert previsor.ciclo() == 1
+    assert modelo.entrada is not None
+    assert modelo.entrada["n_mencoes"].iloc[0] == 1
+
+
 def test_previsor_nao_preve_com_dado_velho(tmp_path):
     artefato = _modelo(tmp_path)
     agora = _preparar_armazem(tmp_path, passeio(7000))
