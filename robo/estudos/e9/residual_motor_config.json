@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "date_column": "date",
+  "strategy_column": "strategy_return",
+  "return_unit": "decimal",
+  "frequency": "daily",
+  "primary_model": {"name": "vies_de_alta", "baseline_columns": ["always_call_return"]},
+  "sensitivity_models": [
+    {"name": "momento", "baseline_columns": ["momentum_return"]},
+    {"name": "mercado", "baseline_columns": ["market_return"]},
+    {"name": "vies_mais_momento", "baseline_columns": ["always_call_return", "momentum_return"]}
+  ],
+  "regime_columns": ["volatility_regime"],
+  "rolling_window": 63,
+  "minimum_observations": 60,
+  "minimum_regime_observations": 20,
+  "minimum_rolling_windows": 12,
+  "hac_lags": "auto",
+  "include_series": false,
+  "data_declarations": {
+    "baseline_selection": "predeclared",
+    "strategy_return_basis": "net",
+    "baseline_return_basis": "net",
+    "analysis_scope": "in_sample",
+    "universe_data": "not_applicable"
+  }
+}

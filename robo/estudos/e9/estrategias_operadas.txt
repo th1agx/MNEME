@@ -1,0 +1,9 @@
+BTCUSDT|expiracao_fixa|15m|15m
+BTCUSDT|expiracao_fixa|5m|15m
+ETHUSDT|expiracao_fixa|15m|15m
+ETHUSDT|expiracao_fixa|1m|5m
+ETHUSDT|expiracao_fixa|5m|15m
+ETHUSDT|expiracao_fixa|5m|5m
+SOLUSDT|expiracao_fixa|15m|15m
+SOLUSDT|expiracao_fixa|1m|5m
+SOLUSDT|expiracao_fixa|5m|15m
