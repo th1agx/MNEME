@@ -1,0 +1,5 @@
+{
+  "_nota": "Copie para dados/digitais/cenario.json na VPS. Só as estratégias listadas aparecem no card da extensão (serviço sinais).",
+  "estrategias": ["ETHUSDT|expiracao_fixa|5m|5m"],
+  "cenario": "ETH · vela de 5 min · expiração de 5 min"
+}

@@ -152,6 +152,21 @@ services:
       retries: 3
       start_period: 120s
 
+  # Sinais do cenário escolhido (dados/digitais/cenario.json) para o card da extensão do Chrome. Só lê o diário do motor.
+  # Publicado só em 127.0.0.1 da VPS: a extensão chega pelo túnel SSH (colaborar/tunel-sinais.sh). Chave no .env (MNEME_SINAIS_LER).
+  sinais:
+    <<: *servico
+    command: [".venv/bin/python", "-m", "mneme.digitais.servidor_sinais"]
+    env_file: ../.env
+    environment:
+      MNEME_DADOS: /dados
+      MNEME_DADOS_MERCADO: /dados/mercado
+    ports:
+      - "127.0.0.1:8787:8787"
+    mem_limit: 150m
+    cpus: 0.1
+    cpu_shares: 256
+
   # A LLM lê as notícias no próprio ritmo e guarda o contexto. Se cair, o motor segue sem perceber.
   leitor:
     <<: *servico

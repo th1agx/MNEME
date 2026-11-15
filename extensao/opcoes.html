@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>MNEME Sinais: opções</title>
+<style>
+  body { font: 14px/1.5 -apple-system, Segoe UI, Roboto, sans-serif; max-width: 520px; margin: 32px auto; padding: 0 16px; color: #1b1f27; }
+  label { display: block; margin-top: 14px; font-weight: 600; }
+  input { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; }
+  button { margin-top: 16px; padding: 8px 16px; }
+  .ok { color: #13a85b; }
+</style>
+</head>
+<body>
+  <h1>MNEME Sinais</h1>
+  <p>O card só mostra os sinais. Quem decide entrar e clica na corretora é você.</p>
+  <label>Endereço do MNEME (o túnel SSH) <input id="site" placeholder="http://127.0.0.1:8787"></label>
+  <label>Chave de leitura dos sinais <input id="chave" type="password" autocomplete="off"></label>
+  <button id="salvar">Salvar</button> <span id="estado"></span>
+  <script src="opcoes.js"></script>
+</body>
+</html>
