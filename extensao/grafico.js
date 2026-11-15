@@ -192,7 +192,7 @@
                 vwap: (leitura.linhas.vwap || []).filter((p) => Date.parse(p.t) >= inicioVis && Date.parse(p.t) <= Date.parse(recorte[recorte.length - 1].t)) } };
     const velas = [...recorte];
     if (noAgora && vivo && Date.parse(vivo.t) > Date.parse(velas[velas.length - 1].t)) velas.push({ ...vivo, aoVivo: true });
-    const base = { ...leituraVis, velas: velas.filter((v) => !v.aoVivo) };
+    const base = { ...leituraVis, velas };
     const lim = L.limites(base);
     if (vivo) { lim.pmin = Math.min(lim.pmin, vivo.min); lim.pmax = Math.max(lim.pmax, vivo.max); }
     const e = L.escala(lim, area);
@@ -209,7 +209,7 @@
 
     // Velas (a última, ao vivo, pisca levemente).
     for (const v of velas) {
-      const x = v.aoVivo ? e.corte - meia - 2 : e.x(v.t) + meia, sobe = v.fe >= v.ab, cor = sobe ? COR.alta : COR.baixa;
+      const x = e.x(v.t) + meia, sobe = v.fe >= v.ab, cor = sobe ? COR.alta : COR.baixa;
       ctx.save(); if (v.aoVivo) ctx.globalAlpha = 0.65 + 0.35 * Math.abs(Math.sin(agoraMs / 500));
       linha([[x, e.y(v.max)], [x, e.y(v.min)]], cor, 1);
       const y1 = e.y(Math.max(v.ab, v.fe)), y2 = e.y(Math.min(v.ab, v.fe));
