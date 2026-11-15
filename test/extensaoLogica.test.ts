@@ -47,3 +47,35 @@ describe("card da extensão", () => {
     expect(L.corretora("iqoption.com")).toBe("iqoption");
   });
 });
+
+describe("camada de gráfico", () => {
+  const l = {
+    candle: 5, expiracao: 5,
+    velas: [{ t: "2026-11-16T14:00:00Z", max: 101, min: 99 }, { t: "2026-11-16T14:05:00Z", max: 102, min: 100 }],
+    previsao: { prob_sobe: 0.58, direcao: "CALL", sigma_1min: 0.0005, tecnicas: { alta: 13, baixa: 4, total: 23 },
+      cone: [{ t: "2026-11-16T14:11:00Z", lo95: 98, hi95: 104, lo68: 99, hi68: 103 }] },
+    anterior: { prob_sobe: 0.6, subiu: true, dentro_68: true, realizado: 101 },
+  };
+  type Lim = { pmin: number; pmax: number; t0: number; t1: number };
+  type Esc = { x(t: string | number): number; y(p: number): number };
+  const G = () => (globalThis as unknown as { MnemeLogica: { limites(l: unknown): Lim; escala(l: Lim, a: unknown): Esc; resumo(l: unknown): string[][] } }).MnemeLogica;
+
+  it("cabe velas e cone e converte para pixel", () => {
+    const lim = G().limites(l);
+    expect(lim.pmin).toBeLessThan(98);
+    expect(lim.pmax).toBeGreaterThan(104);
+    const e = G().escala(lim, { x: 0, y: 0, w: 1000, h: 500 });
+    expect(e.x(lim.t0)).toBe(0);
+    expect(e.y(lim.pmax)).toBe(0);
+    expect(e.y(lim.pmin)).toBe(500);
+    expect(e.x("2026-11-16T14:05:00Z")).toBeLessThan(e.x("2026-11-16T14:11:00Z"));
+  });
+
+  it("monta o painel de leitura", () => {
+    const r = Object.fromEntries(G().resumo(l));
+    expect(r["Técnicas"]).toBe("alta 13/23");
+    expect(r["Subir em 5 min"]).toBe("58%");
+    expect(r["Sinal"]).toBe("▲ CALL");
+    expect(r["Vela anterior"]).toContain("direção ✓");
+  });
+});

@@ -11,7 +11,7 @@
     {
       "matches": ["https://qxbroker.com/*", "https://*.qxbroker.com/*", "https://quotex.com/*", "https://*.quotex.com/*",
                   "https://iqoption.com/*", "https://*.iqoption.com/*"],
-      "js": ["logica.js", "conteudo.js"],
+      "js": ["logica.js", "grafico.js", "conteudo.js"],
       "run_at": "document_idle"
     }
   ]

@@ -29,9 +29,10 @@
       .msg{font-size:12px;color:#9aa4b2;text-align:center;margin-top:8px}
       .min .corpo{display:none}
     </style>
-    <div class="card"><div class="topo"><span>MNEME · sinais</span><button title="minimizar">–</button></div><div class="corpo"></div></div>`;
+    <div class="card"><div class="topo"><span>MNEME · sinais</span><span><button class="graf" title="leitura no gráfico">📈</button><button class="min" title="minimizar">–</button></span></div><div class="corpo"></div></div>`;
   const card = raiz.querySelector(".card"), corpo = raiz.querySelector(".corpo");
-  raiz.querySelector(".topo button").onclick = () => card.classList.toggle("min");
+  raiz.querySelector(".topo .min").onclick = () => card.classList.toggle("min");
+  raiz.querySelector(".topo .graf").onclick = () => globalThis.MnemeGrafico && globalThis.MnemeGrafico.alternar();
 
   // Arrastar pelo topo.
   let arrasto = null;

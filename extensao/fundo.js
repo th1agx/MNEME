@@ -15,6 +15,10 @@ chrome.runtime.onMessage.addListener((pedido, _remetente, responder) => {
         const r = await fetch(`${site}/api/sinais`, { headers: { "x-mneme-chave": chave }, cache: "no-store" });
         return responder(r.ok ? await r.json() : { erro: `MNEME respondeu ${r.status}` });
       }
+      if (pedido.tipo === "leitura") {
+        const r = await fetch(`${site}/api/leitura`, { headers: { "x-mneme-chave": chave }, cache: "no-store" });
+        return responder(r.ok ? await r.json() : { erro: `MNEME respondeu ${r.status}` });
+      }
       if (pedido.tipo === "entrada") {
         const r = await fetch(`${site}/api/sinais/entrada`, { method: "POST", headers: { "x-mneme-chave": chave, "content-type": "application/json" },
           body: JSON.stringify(pedido.entrada) });

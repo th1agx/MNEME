@@ -92,3 +92,35 @@ def test_nao_escreve_no_diario(ambiente):
 def test_caminho_desconhecido_e_404(ambiente):
     _, _, base, _ = ambiente
     assert pedir(f"{base}/api/outra")[0] == 404
+
+
+def test_leitura_do_grafico_pelo_servidor(tmp_path):
+    import sys
+    from pathlib import Path
+
+    from mneme.dados.armazem import ArmazemVelas
+    from mneme.laboratorio.confluencia import grade_de_sinais
+    sys.path.insert(0, str(Path(__file__).parent))
+    from test_e9_mapa import mercado
+
+    v = mercado(n=6000)
+    v.index = v.index + (pd.Timestamp("2026-11-10", tz="UTC") - v.index[0])
+    tabela = v.reset_index(names="abertura_em").assign(recebido_em=lambda d: d["abertura_em"] + pd.Timedelta(minutes=1), origem="teste", negocios=10)
+    ArmazemVelas(tmp_path / "mercado").gravar("ETHUSDT", tabela, pd.Timestamp("2026-12-01", tz="UTC").to_pydatetime())
+    (tmp_path / "modelos").mkdir()
+    tecnicas = list(grade_de_sinais(v.head(3000), 5).columns)
+    (tmp_path / "modelos" / "ETHUSDT_expiracao_fixa_5m_5m.json").write_text(json.dumps({"tecnicas": tecnicas, "pesos": [0.1] * len(tecnicas), "intercepto": 0.0, "corte": 0.02}))
+    cenario = tmp_path / "cenario.json"
+    cenario.write_text(json.dumps({"estrategias": ["ETHUSDT|expiracao_fixa|5m|5m"], "cenario": "ETH 5 min"}))
+    Diario(tmp_path / "diario.db")
+    agora = v.index[-1] + pd.Timedelta(minutes=1, seconds=5)
+    s = Servidor(tmp_path / "diario.db", cenario, tmp_path / "entradas.db", CHAVE, relogio=lambda: agora.to_pydatetime(),
+                 mercado=tmp_path / "mercado", modelos=tmp_path / "modelos")
+    http = criar_servidor(s, "127.0.0.1", 0)
+    threading.Thread(target=http.serve_forever, daemon=True).start()
+    try:
+        status, r = pedir(f"http://127.0.0.1:{http.server_address[1]}/api/leitura")
+    finally:
+        http.shutdown()
+    assert status == 200 and r["ativo"] == "ETHUSDT" and len(r["velas"]) > 10 and r["previsao"]["cone"]
+    assert s.leitura() is s.leitura()  # cache: o mesmo minuto não recalcula

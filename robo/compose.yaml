@@ -163,8 +163,8 @@ services:
       MNEME_DADOS_MERCADO: /dados/mercado
     ports:
       - "127.0.0.1:8787:8787"
-    mem_limit: 150m
-    cpus: 0.1
+    mem_limit: 400m
+    cpus: 0.5  # a leitura do gráfico recalcula as técnicas uma vez por minuto
     cpu_shares: 256
 
   # A LLM lê as notícias no próprio ritmo e guarda o contexto. Se cair, o motor segue sem perceber.
