@@ -138,6 +138,20 @@ services:
       retries: 3
       start_period: 180s
 
+  # Moedas (Yahoo, sem volume) e ouro (PAXG da Binance como aproximação, com a origem marcada) ao vivo, de graça e sem chave.
+  forex:
+    <<: *servico
+    command: [".venv/bin/python", "-m", "mneme.dados.forex_ao_vivo"]
+    mem_limit: 250m
+    cpus: 0.2
+    cpu_shares: 256
+    healthcheck:
+      test: ["CMD", ".venv/bin/python", "-c", "import datetime as d,json,pathlib as p; t=d.datetime.fromisoformat(json.loads(p.Path('/dados/mercado/forex.batimento').read_text())['quando']); raise SystemExit(0 if (d.datetime.now(d.timezone.utc)-t).total_seconds()<300 else 1)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
   # A LLM lê as notícias no próprio ritmo e guarda o contexto. Se cair, o motor segue sem perceber.
   leitor:
     <<: *servico

@@ -639,6 +639,39 @@ def escrever_hipoteses_e9(v: Vault, caminho: Path) -> int:
     return 1
 
 
+def escrever_variantes_e9(v: Vault, caminho: Path) -> int:
+    """Variantes ao vivo contra o motor, só com o mercado depois do registro. Acompanhamento: a decisão vem com a amostra mínima."""
+    if not caminho.exists():
+        return 0
+    p = json.loads(caminho.read_text(encoding="utf-8"))
+    registro = p.get("registro", {})
+    minimo = p.get("amostra_minima_por_variante")
+
+    def celula(x, chave="0.85"):
+        return "-" if x is None else f"{x[chave]:+.3f}" if isinstance(x, dict) else "-"
+
+    linhas = []
+    for nome in ("motor", "V1a", "V1b", "V2", "V3", "V4"):
+        r = p.get(nome) or {}
+        ic = (r.get("expectativa_ic95") or {}).get("0.85")
+        par = r.get("pareado_contra_motor") or {}
+        linhas.append(f"| {nome} | {_sanear(registro.get('variantes', {}).get(nome, 'referência: decisões do motor'))} | {r.get('apostas', 0)} | "
+                      f"{'-' if r.get('acerto') is None else f'{r['acerto']:.1%}'} | {celula(r.get('expectativa'))} | "
+                      f"{'-' if not ic else f'{ic[0]:+.3f} a {ic[1]:+.3f}'} | "
+                      f"{'-' if not par else f'{par['diferenca']:+.4f} ({par['ic95'][0]:+.4f} a {par['ic95'][1]:+.4f})'} |")
+    corpo = (f"# E9: variantes ao vivo\n\nRegistradas em {registro.get('registrado_em', '?')[:16]} UTC. Só contam apostas **depois** do registro: é "
+             f"previsão de verdade, não releitura do passado. Período: {p.get('desde', '')[:16]} a {p.get('ate', '')[:16]} UTC. "
+             f"Payout de 85% (empate de 54,05%).\n\n**Isto é acompanhamento.** A decisão sobre cada variante só sai quando ela tiver "
+             f"{minimo} apostas (mínimo da régua v1 para uma família de 5), e a promoção é do dono.\n\n"
+             "| Variante | Regra | Apostas | Acerto | Expectativa a 85% | IC 95% | Diferença por oportunidade contra o motor (IC) |\n"
+             "|---|---|---:|---:|---:|---|---|\n" + "\n".join(linhas) +
+             "\n\nMoedas vêm do Yahoo (sem volume). O ouro vem do PAXG da Binance, como aproximação do XAU/USD, marcado na origem de cada vela. "
+             "Plano em [[E9 - vantagem residual do motor]].")
+    v.escrever(Nota("E9 - variantes ao vivo", "09-system-knowledge", "experimento", corpo, "laboratorio", "experimento", ["cripto", "forex", "ouro"],
+                    relacionadas=["E9 - vantagem residual do motor", "E9 - confirmação C1 (ETH e filtro de volatilidade)"]))
+    return 1
+
+
 def importar_diario(v: Vault, diario: Path) -> int:
     """Lê o diário operacional em modo de leitura, sem nenhuma trava sobre ele. O Markdown só resume: o banco continua sendo a fonte."""
     if not diario.exists():
@@ -757,6 +790,7 @@ def ciclo(v: Vault, dados: Path, biblioteca: Biblioteca, backup_a_cada: timedelt
                              ("quadro", lambda: escrever_resumo_do_quadro(v, dados / "quadro" / "quadro.db", v.relogio())),
                              ("e9_atribuicao", lambda: escrever_atribuicao_e9(v, dados / "operacao" / "diario.db", dados / "mercado")),
                              ("e9_hipoteses", lambda: escrever_hipoteses_e9(v, dados / "e9" / "hipoteses.jsonl")),
+                             ("e9_variantes", lambda: escrever_variantes_e9(v, dados / "e9" / "variantes" / "placar.json")),
                              ("e9_generativo", lambda: importar_geradas(v, dados / "aprendizado" / "geradas.jsonl"))):
             try:
                 resumo[nome] = tarefa()
