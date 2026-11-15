@@ -40,6 +40,18 @@
   window.addEventListener("mousemove", (e) => { if (!arrasto) return; host.style.right = `${arrasto.r - (e.clientX - arrasto.x)}px`; host.style.bottom = `${arrasto.b - (e.clientY - arrasto.y)}px`; });
   window.addEventListener("mouseup", () => { arrasto = null; });
 
+  // Depois de recarregar a extensão, a cópia antiga deste script perde a ligação: ela se desliga sozinha, sem erro.
+  const timers = [];
+  function enviar(msg, cb) {
+    try {
+      if (!chrome.runtime || !chrome.runtime.id) throw new Error("sem contexto");
+      chrome.runtime.sendMessage(msg, cb);
+    } catch (e) {
+      timers.forEach(clearInterval);
+      host.remove();
+    }
+  }
+
   function bip(alto) {
     try {
       const ctx = new AudioContext(), o = ctx.createOscillator(), g = ctx.createGain();
@@ -51,7 +63,7 @@
   let sinais = [], erro = "", desvio = 0, ultimoAvisado = "", ultimaFase = "", respondidos = new Set();
 
   function buscar() {
-    chrome.runtime.sendMessage({ tipo: "sinais" }, (r) => {
+    enviar({ tipo: "sinais" }, (r) => {
       if (chrome.runtime.lastError || !r) { erro = "extensão sem resposta"; return; }
       if (r.erro) { erro = r.erro; return; }
       erro = ""; sinais = r.sinais || [];
@@ -63,7 +75,7 @@
     const campo = raiz.querySelector("input");
     const p = entrou ? L.payout(campo ? campo.value : "") : null;
     if (entrou && p === null) { campo && (campo.style.outline = "2px solid #e0384b"); return; }
-    chrome.runtime.sendMessage({ tipo: "entrada", entrada: { sinal_id: sinal.id, entrou, payout: p, corretora: CORRETORA } }, () => {});
+    enviar({ tipo: "entrada", entrada: { sinal_id: sinal.id, entrou, payout: p, corretora: CORRETORA } }, () => {});
     respondidos.add(sinal.id);
     desenhar();
   }
@@ -102,7 +114,7 @@
   }
 
   buscar();
-  setInterval(buscar, 2000);
+  timers.push(setInterval(buscar, 2000));
   // Não redesenha enquanto a pessoa digita o payout.
-  setInterval(() => { if (raiz.activeElement && raiz.activeElement.tagName === "INPUT") return; desenhar(); }, 500);
+  timers.push(setInterval(() => { if (raiz.activeElement && raiz.activeElement.tagName === "INPUT") return; desenhar(); }, 500));
 })();

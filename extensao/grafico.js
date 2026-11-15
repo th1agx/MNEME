@@ -62,6 +62,18 @@
   });
   addEventListener("mouseup", () => { if (arrasto) chrome.storage.local.set({ grafico_caixa: caixa }); arrasto = null; });
 
+  // Depois de recarregar a extensão, a cópia antiga deste script perde a ligação: ela se desliga sozinha, sem erro.
+  const timers = [];
+  function enviar(msg, cb) {
+    try {
+      if (!chrome.runtime || !chrome.runtime.id) throw new Error("sem contexto");
+      chrome.runtime.sendMessage(msg, cb);
+    } catch (e) {
+      timers.forEach(clearInterval);
+      host.remove();
+    }
+  }
+
   // ---------- dados ----------
   let ligado = false, leitura = null, sinais = [], erro = "", vivo = null, rastro = [], inicioAnimacao = 0, chaveLeitura = "";
   function alternar(estado) {
@@ -74,7 +86,7 @@
 
   function buscar() {
     if (!ligado) return;
-    chrome.runtime.sendMessage({ tipo: "leitura" }, (r) => {
+    enviar({ tipo: "leitura" }, (r) => {
       if (chrome.runtime.lastError || !r) { erro = "extensão sem resposta"; return; }
       if (r.erro) { erro = r.erro; return; }
       erro = "";
@@ -82,19 +94,18 @@
       if (chave !== chaveLeitura) { chaveLeitura = chave; inicioAnimacao = performance.now(); rastro = []; }  // nova leitura: desenha de novo
       leitura = r;
     });
-    chrome.runtime.sendMessage({ tipo: "sinais" }, (r) => { if (r && r.sinais) sinais = r.sinais; });
+    enviar({ tipo: "sinais" }, (r) => { if (r && r.sinais) sinais = r.sinais; });
   }
   function buscarAoVivo() {
     if (!ligado || !leitura) return;
-    chrome.runtime.sendMessage({ tipo: "ao_vivo", ativo: leitura.ativo, candle: leitura.candle }, (r) => {
+    enviar({ tipo: "ao_vivo", ativo: leitura.ativo, candle: leitura.candle }, (r) => {
       if (!r || r.erro) return;
       vivo = r;
       rastro.push({ t: r.agora, p: r.fe });
       if (rastro.length > 400) rastro.shift();
     });
   }
-  setInterval(buscar, 15_000);
-  setInterval(buscarAoVivo, 2_000);
+  timers.push(setInterval(buscar, 15_000), setInterval(buscarAoVivo, 2_000));
 
   // ---------- desenho ----------
   const facil = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
