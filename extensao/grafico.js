@@ -19,12 +19,12 @@
   const raiz = host.attachShadow({ mode: "closed" });
   raiz.innerHTML = `
     <style>
-      .barra{position:absolute;top:0;left:0;height:24px;display:flex;gap:8px;align-items:center;padding:0 10px;border-radius:8px;
+      .barra{position:absolute;top:6px;left:6px;z-index:3;height:24px;display:flex;gap:8px;align-items:center;padding:0 10px;border-radius:8px;
         font:600 11px -apple-system,Segoe UI,Roboto,sans-serif;color:#cbd5e1;background:rgba(17,20,26,.75);cursor:move;pointer-events:auto}
       .barra button{background:none;border:0;color:#cbd5e1;font-size:12px;cursor:pointer;padding:0 2px}
       .ponto{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px #22c55e;animation:p 1.2s infinite}
       @keyframes p{50%{opacity:.25}}
-      canvas{position:absolute;top:28px;left:0}
+      canvas{position:absolute;top:0;left:0}
       .canto{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;pointer-events:auto;
         background:linear-gradient(135deg,transparent 50%,rgba(255,255,255,.35) 50%)}
     </style>
@@ -33,34 +33,65 @@
   const canvas = raiz.querySelector("canvas"), ctx = canvas.getContext("2d");
   raiz.querySelector(".fechar").onclick = () => alternar(false);
 
-  let caixa = { x: 0.10, y: 0.22, w: 0.72, h: 0.68 }, solido = false;
-  raiz.querySelector(".fundo").onclick = () => { solido = !solido; chrome.storage.local.set({ grafico_solido: solido }); };
-  chrome.storage.local.get(["grafico_caixa", "grafico_ligado", "grafico_solido"]).then((c) => {
+  // Onde desenhar: exatamente sobre a área do gráfico da corretora (só a posição e o tamanho do elemento, nunca os dados dele).
+  // Sem essa área (outra corretora), usa a caixa que a pessoa arrasta.
+  let caixa = { x: 0.10, y: 0.22, w: 0.72, h: 0.68 }, solido = true;
+  let visiveis = 48, recuo = 0; // zoom (quantas velas) e arrasto no tempo (quantas velas para trás)
+  raiz.querySelector(".fundo").onclick = () => { solido = !solido; chrome.storage.local.set({ grafico_solido: solido }); aplicarCursor(); };
+  chrome.storage.local.get(["grafico_caixa", "grafico_ligado", "grafico_solido", "grafico_visiveis"]).then((c) => {
     if (c.grafico_caixa) caixa = c.grafico_caixa;
-    solido = !!c.grafico_solido;
-    posicionar();
+    if (c.grafico_solido === false) solido = false;
+    if (c.grafico_visiveis) visiveis = c.grafico_visiveis;
+    aplicarCursor();
     if (c.grafico_ligado) alternar(true);
   });
+  function areaDaCorretora() {
+    const el = document.querySelector(".chart-container") || (document.querySelector("canvas.layer.plot") || {}).parentElement;
+    if (!el || !el.getBoundingClientRect) return null;
+    const r = el.getBoundingClientRect();
+    return r.width > 200 && r.height > 150 ? r : null;
+  }
+  let ultimo = "";
   function posicionar() {
-    host.style.left = `${caixa.x * innerWidth}px`; host.style.top = `${caixa.y * innerHeight}px`;
-    host.style.width = `${caixa.w * innerWidth}px`; host.style.height = `${caixa.h * innerHeight}px`;
-    const dpr = devicePixelRatio || 1, w = caixa.w * innerWidth, h = caixa.h * innerHeight - 28;
+    const r = areaDaCorretora();
+    const x = r ? r.left : caixa.x * innerWidth, y = r ? r.top : caixa.y * innerHeight;
+    const w = r ? r.width : caixa.w * innerWidth, h = r ? r.height : caixa.h * innerHeight;
+    raiz.querySelector(".canto").style.display = r ? "none" : "block";
+    const chave = `${x}|${y}|${w}|${h}|${devicePixelRatio}`;
+    if (chave === ultimo) return;
+    ultimo = chave;
+    host.style.left = `${x}px`; host.style.top = `${y}px`; host.style.width = `${w}px`; host.style.height = `${h}px`;
+    const dpr = devicePixelRatio || 1;
     canvas.width = w * dpr; canvas.height = h * dpr; canvas.style.width = `${w}px`; canvas.style.height = `${h}px`;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
-  addEventListener("resize", posicionar);
+  function aplicarCursor() { canvas.style.pointerEvents = solido ? "auto" : "none"; canvas.style.cursor = solido ? "grab" : "default"; }
+  addEventListener("resize", () => { ultimo = ""; posicionar(); });
   let arrasto = null;
-  const comecar = (tipo) => (e) => { arrasto = { tipo, x: e.clientX, y: e.clientY, c: { ...caixa } }; e.preventDefault(); };
+  const comecar = (tipo) => (e) => { arrasto = { tipo, x: e.clientX, y: e.clientY, c: { ...caixa }, recuo }; e.preventDefault(); e.stopPropagation(); };
   raiz.querySelector(".barra").addEventListener("mousedown", comecar("mover"));
   raiz.querySelector(".canto").addEventListener("mousedown", comecar("tamanho"));
+  canvas.addEventListener("mousedown", comecar("tempo"));
+  // Rodinha: zoom (mais ou menos velas). Não deixa a rodinha rolar a página da corretora por baixo.
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault(); e.stopPropagation();
+    visiveis = Math.max(12, Math.min(72, Math.round(visiveis * (e.deltaY > 0 ? 1.12 : 0.89))));
+    chrome.storage.local.set({ grafico_visiveis: visiveis });
+  }, { passive: false });
+  canvas.addEventListener("dblclick", () => { recuo = 0; }); // dois cliques: volta para o agora
   addEventListener("mousemove", (e) => {
     if (!arrasto) return;
+    if (arrasto.tipo === "tempo") {
+      const porVela = canvas.clientWidth * 0.78 / visiveis;
+      recuo = Math.max(0, Math.min(60, Math.round(arrasto.recuo + (e.clientX - arrasto.x) / porVela)));
+      return;
+    }
     const dx = (e.clientX - arrasto.x) / innerWidth, dy = (e.clientY - arrasto.y) / innerHeight;
     if (arrasto.tipo === "mover") caixa = { ...arrasto.c, x: arrasto.c.x + dx, y: arrasto.c.y + dy };
     else caixa = { ...arrasto.c, w: Math.max(0.25, arrasto.c.w + dx), h: Math.max(0.25, arrasto.c.h + dy) };
-    posicionar();
+    ultimo = ""; posicionar();
   });
-  addEventListener("mouseup", () => { if (arrasto) chrome.storage.local.set({ grafico_caixa: caixa }); arrasto = null; });
+  addEventListener("mouseup", () => { if (arrasto && arrasto.tipo !== "tempo") chrome.storage.local.set({ grafico_caixa: caixa }); arrasto = null; });
 
   // Depois de recarregar a extensão, a cópia antiga deste script perde a ligação: ela se desliga sozinha, sem erro.
   const timers = [];
@@ -70,6 +101,7 @@
       chrome.runtime.sendMessage(msg, cb);
     } catch (e) {
       timers.forEach(clearInterval);
+      ligado = false;
       host.remove();
     }
   }
@@ -80,7 +112,7 @@
     ligado = estado === undefined ? !ligado : estado;
     host.style.display = ligado ? "block" : "none";
     chrome.storage.local.set({ grafico_ligado: ligado });
-    if (ligado) { posicionar(); chaveLeitura = ""; buscar(); requestAnimationFrame(quadro); }
+    if (ligado) { ultimo = ""; posicionar(); chaveLeitura = ""; buscar(); requestAnimationFrame(quadro); }
   }
   globalThis.MnemeGrafico = { alternar };
 
@@ -135,6 +167,7 @@
 
   function quadro(agoraMs) {
     if (!ligado) return;
+    posicionar();
     desenhar(agoraMs);
     requestAnimationFrame(quadro);
   }
@@ -143,7 +176,7 @@
     const W = canvas.clientWidth, H = canvas.clientHeight;
     if (!W || !H) return;
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = solido ? "rgba(11,14,19,0.95)" : "rgba(11,14,19,0)";
+    ctx.fillStyle = solido ? "rgb(14,17,23)" : "rgba(11,14,19,0)";
     ctx.fillRect(0, 0, W, H);
     if (!leitura || !leitura.velas || !leitura.velas.length) {
       texto(erro || "o MNEME está lendo o mercado…", W / 2, H / 2, COR.texto, "14px -apple-system,sans-serif", "center");
@@ -151,10 +184,15 @@
     }
     const decorrido = agoraMs - inicioAnimacao;
     const a = (i, f) => fase(ANIMACAO_MS * i, ANIMACAO_MS * f, decorrido); // progresso de cada etapa da animação
-    const area = { x: 12, y: 14, w: W - 84, h: H - 42 };
-    const velas = [...leitura.velas];
-    if (vivo && Date.parse(vivo.t) > Date.parse(velas[velas.length - 1].t)) velas.push({ ...vivo, aoVivo: true });
-    const base = { ...leitura, velas: velas.filter((v) => !v.aoVivo) };
+    const area = { x: 12, y: 38, w: W - 84, h: H - 66 };
+    const todas = leitura.velas, fimVis = Math.max(1, todas.length - recuo);
+    const recorte = todas.slice(Math.max(0, fimVis - visiveis), fimVis), inicioVis = Date.parse(recorte[0].t), noAgora = recuo === 0;
+    const leituraVis = { ...leitura, velas: recorte, previsao: noAgora ? leitura.previsao : null, anterior: noAgora ? leitura.anterior : null,
+      linhas: { ...leitura.linhas, degraus: (leitura.linhas.degraus || []).filter((d) => Date.parse(d.t) >= inicioVis && Date.parse(d.t) <= Date.parse(recorte[recorte.length - 1].t)),
+                vwap: (leitura.linhas.vwap || []).filter((p) => Date.parse(p.t) >= inicioVis && Date.parse(p.t) <= Date.parse(recorte[recorte.length - 1].t)) } };
+    const velas = [...recorte];
+    if (noAgora && vivo && Date.parse(vivo.t) > Date.parse(velas[velas.length - 1].t)) velas.push({ ...vivo, aoVivo: true });
+    const base = { ...leituraVis, velas: velas.filter((v) => !v.aoVivo) };
     const lim = L.limites(base);
     if (vivo) { lim.pmin = Math.min(lim.pmin, vivo.min); lim.pmax = Math.max(lim.pmax, vivo.max); }
     const e = L.escala(lim, area);
@@ -178,7 +216,7 @@
       ctx.fillStyle = cor; ctx.fillRect(x - meia, y1, meia * 2, Math.max(1, y2 - y1)); ctx.restore();
     }
 
-    const ln = leitura.linhas || {};
+    const ln = leituraVis.linhas || {};
     // 1) As linhas são traçadas da esquerda para a direita.
     const tLinhas = a(0, 0.45);
     if (ln.fibonacci && ln.fibonacci.zona_dourada && tLinhas > 0) {
@@ -208,7 +246,8 @@
     if (ln.vwap) linha(parcial(ln.vwap.map((p) => [e.x(p.t) + meia, e.y(p.v)]), a(0.15, 0.55)), COR.vwap, 1.2);
 
     // 2) O cone se abre a partir do "agora" e 3) os cenários se desenham um a um.
-    const p = leitura.previsao;
+    const p = leituraVis.previsao;
+    if (!noAgora) texto("olhando o passado · dois cliques para voltar ao agora", e.corte + 6, area.y + 26, "#fde047", "bold 10px -apple-system,sans-serif");
     if (p && p.cone && p.cone.length) {
       const abre = a(0.5, 0.75);
       const inicio = [e.corte, e.y(p.preco)];
@@ -228,7 +267,7 @@
         ctx.beginPath(); ctx.arc(x, y, 3.5 + 1.5 * Math.abs(Math.sin(agoraMs / 300)), 0, Math.PI * 2); ctx.fill(); ctx.restore();
       }
     }
-    if (vivo) {
+    if (vivo && noAgora) {
       const y = e.y(vivo.fe);
       linha([[area.x, y], [area.x + area.w, y]], "rgba(253,224,71,0.35)", 1, [2, 3]);
       ctx.save(); ctx.fillStyle = COR.vivo; ctx.fillRect(area.x + area.w + 2, y - 8, 70, 16); ctx.restore();
