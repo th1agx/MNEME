@@ -54,17 +54,26 @@
     for (const v of l.velas || []) precos.push(v.max, v.min);
     for (const c of (l.previsao && l.previsao.cone) || []) precos.push(c.lo95, c.hi95);
     const lo = Math.min(...precos), hi = Math.max(...precos), folga = (hi - lo) * 0.08 || hi * 0.001;
-    const tempos = (l.velas || []).map((v) => Date.parse(v.t));
-    const cone = (l.previsao && l.previsao.cone) || [];
-    if (cone.length) tempos.push(Date.parse(cone[cone.length - 1].t));
     const passo = l.candle ? l.candle * 60_000 : 300_000;
-    return { pmin: lo - folga, pmax: hi + folga, t0: Math.min(...tempos), t1: Math.max(...tempos) + passo };
+    const tempos = (l.velas || []).map((v) => Date.parse(v.t));
+    const t0 = Math.min(...tempos), tAgora = Math.max(...tempos) + passo;
+    const cone = (l.previsao && l.previsao.cone) || [];
+    const tFim = cone.length ? Math.max(tAgora + 60_000, Date.parse(cone[cone.length - 1].t)) : tAgora + passo;
+    return { pmin: lo - folga, pmax: hi + folga, t0, t1: tFim, tAgora };
   }
 
-  /** Converte preço e tempo em pixel dentro da área (x, y, largura, altura). */
+  const FUTURO = 0.22; // fração da largura reservada para a previsão, com escala própria
+
+  /** Converte preço e tempo em pixel. O passado ocupa 78% da largura e o futuro (o cone) os outros 22%. */
   function escala(lim, area) {
+    const corte = area.x + area.w * (1 - FUTURO);
     return {
-      x: (t) => area.x + ((typeof t === "string" ? Date.parse(t) : t) - lim.t0) / (lim.t1 - lim.t0) * area.w,
+      corte,
+      x: (t) => {
+        const ms = typeof t === "string" ? Date.parse(t) : t;
+        if (ms <= lim.tAgora) return area.x + (ms - lim.t0) / (lim.tAgora - lim.t0) * (corte - area.x);
+        return corte + (ms - lim.tAgora) / (lim.t1 - lim.tAgora) * (area.x + area.w - corte);
+      },
       y: (p) => area.y + (lim.pmax - p) / (lim.pmax - lim.pmin) * area.h,
     };
   }

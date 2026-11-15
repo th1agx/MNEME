@@ -94,6 +94,7 @@
   function desenhar() {
     const W = canvas.clientWidth, H = canvas.clientHeight;
     if (!W || !H) return;
+    ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = COR.fundo; ctx.fillRect(0, 0, W, H);
     if (!leitura || !leitura.velas || !leitura.velas.length) {
       texto(erro || "carregando a leitura do MNEME…", W / 2, H / 2, COR.texto, "14px -apple-system,sans-serif", "center");
@@ -102,6 +103,9 @@
     const area = { x: 12, y: 12, w: W - 84, h: H - 40 };
     const lim = L.limites(leitura), e = L.escala(lim, area);
     const meia = Math.max(1.5, (e.x(lim.t0 + leitura.candle * 60_000) - e.x(lim.t0)) * 0.32);
+    linha([[e.corte, area.y], [e.corte, area.y + area.h]], "rgba(255,255,255,0.12)", 1, [4, 4]);
+    texto("agora", e.corte - 4, area.y + 12, COR.texto, "10px -apple-system,sans-serif", "right");
+    texto(`previsão · ${leitura.expiracao} min`, e.corte + 6, area.y + 12, "#a78bfa", "bold 10px -apple-system,sans-serif");
 
     // Grade e escala de preço.
     for (let i = 0; i <= 5; i++) {
@@ -159,7 +163,7 @@
     // Previsão: cone de 95% e 68%, linha central e cenários sorteados da volatilidade.
     const p = leitura.previsao;
     if (p && p.cone && p.cone.length) {
-      const inicio = [e.x(leitura.velas[leitura.velas.length - 1].t) + meia * 2, e.y(p.preco)];
+      const inicio = [e.corte, e.y(p.preco)];
       const pts = (k) => [inicio, ...p.cone.map((c) => [e.x(c.t), e.y(c[k])])];
       faixa(pts("hi95"), pts("lo95"), COR.cone95);
       faixa(pts("hi68"), pts("lo68"), COR.cone68);
