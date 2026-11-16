@@ -36,7 +36,8 @@
       else if (lado) { atual = { lado, x0: x, x1: x, cols: [s] }; grupos.push(atual); }
       else atual = null;
     }
-    const largos = grupos.filter((g) => g.x1 - g.x0 >= 3);
+    // A vela cortada pela borda esquerda some e volta conforme o gráfico anda: fica de fora para não mudar a leitura.
+    const largos = grupos.filter((g) => g.x1 - g.x0 >= 3 && g.x0 > 0);
     const larg = mediana(largos.map((g) => g.x1 - g.x0 + 1));
     return largos.filter((g) => g.x1 - g.x0 + 1 >= larg * 0.5).map((g) => {
       // Corpo: a mediana das colunas (o pavio é uma coluna só e não muda a mediana). Pavio: o extremo de todas.
@@ -90,7 +91,21 @@
       return { x: ultima.x + passo * (k + 1), y: ultima.fe, lo68: ultima.fe + s, hi68: ultima.fe - s, lo95: ultima.fe + 1.96 * s, hi95: ultima.fe - 1.96 * s };
     });
     const estrutura = estruturaDe(topos, fundos);
-    return { passo, linhas, topos, fundos, leque, estrutura, velas: velas.length };
+    return { passo, linhas, topos, fundos, leque, estrutura, zigue: zigue(topos, fundos, ultima), velas: velas.length };
+  }
+
+  /** A estrutura do mercado: topos e fundos alternados, da esquerda para a direita, terminando no preço atual.
+   *  Dois topos seguidos ficam só com o mais alto; dois fundos seguidos, só com o mais baixo. */
+  function zigue(topos, fundos, ultima) {
+    const pts = [...topos.map((p) => ({ ...p, tipo: "topo" })), ...fundos.map((p) => ({ ...p, tipo: "fundo" }))].sort((a, b) => a.i - b.i);
+    const z = [];
+    for (const p of pts) {
+      const u = z[z.length - 1];
+      if (u && u.tipo === p.tipo) { if ((p.tipo === "topo" && p.y < u.y) || (p.tipo === "fundo" && p.y > u.y)) z[z.length - 1] = p; }
+      else z.push(p);
+    }
+    if (z.length) z.push({ x: ultima.x, y: ultima.fe, tipo: "agora" });
+    return z.map(({ x, y, tipo }) => ({ x, y, tipo }));
   }
 
   /** Topos e fundos subindo é alta; descendo é baixa; o resto é lateral. */
@@ -102,10 +117,13 @@
     return "lateral";
   }
 
-  /** Uma assinatura das velas fechadas: muda quando uma vela fecha, para o desenho saber quando refazer a animação. */
+  /** Uma assinatura das velas fechadas que só muda quando uma vela fecha. Usa a cor e o tamanho relativo de cada vela,
+   *  e não pixels: a corretora reescala o gráfico enquanto a vela atual se mexe, e isso não pode refazer o traçado. */
   function assinatura(velas) {
-    return velas.slice(0, -1).map((v) => `${Math.round(v.max)}:${Math.round(v.min)}:${v.lado}`).join("|");
+    const fechadas = velas.slice(0, -1);
+    const alt = Math.max(1, ...fechadas.map((v) => v.min - v.max));
+    return fechadas.map((v) => `${v.lado}${Math.round(((v.min - v.max) / alt) * 4)}`).join("");
   }
 
-  globalThis.MnemeVisao = { corDoPixel, detectar, pivos, tendencia, ler, estruturaDe, assinatura };
+  globalThis.MnemeVisao = { corDoPixel, detectar, pivos, tendencia, ler, estruturaDe, zigue, assinatura };
 })();

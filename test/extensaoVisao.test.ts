@@ -70,5 +70,15 @@ describe("visão da tela", () => {
     const vivo = serie.map((v, i) => (i === serie.length - 1 ? { ...v, max: v.max - 7 } : v));
     expect(V.assinatura(vivo)).toBe(V.assinatura(serie));
     expect(V.assinatura(serie.slice(0, -1))).not.toBe(V.assinatura(serie));
+    // A corretora reescalou o gráfico (tudo 1,3 vez maior e deslocado): a leitura não recomeça.
+    const reescalada = serie.map((v) => ({ ...v, max: v.max * 1.3 + 40, min: v.min * 1.3 + 40, ab: v.ab * 1.3 + 40, fe: v.fe * 1.3 + 40 }));
+    expect(V.assinatura(reescalada)).toBe(V.assinatura(serie));
+  });
+
+  it("monta a estrutura alternando topo e fundo até o preço atual", () => {
+    const z = V.ler(serie).zigue as { tipo: string; y: number }[];
+    expect(z.length).toBeGreaterThanOrEqual(3);
+    expect(z[z.length - 1].tipo).toBe("agora");
+    for (let i = 1; i < z.length - 1; i++) expect(z[i].tipo).not.toBe(z[i - 1].tipo);
   });
 });

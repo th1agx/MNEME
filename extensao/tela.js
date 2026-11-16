@@ -1,15 +1,19 @@
 // MNEME Sinais: o MNEME desenhando em cima das velas da própria corretora.
 // A cada segundo ele olha a imagem do gráfico (só os pixels; nada de clicar ou ler dados da página), acha as velas e
-// traça por cima o que lê nelas: suporte, resistência, linhas de tendência, Fibonacci, topos e fundos e o leque de onde a
-// vela pode ir. Quando uma vela fecha, a leitura é refeita e traçada de novo na sua frente.
+// lê nelas a estrutura (topos e fundos), suporte, resistência, Fibonacci, linhas de tendência e o leque de onde a vela
+// pode ir. Quando uma vela fecha, ele traça tudo de novo na sua frente, com uma caneta, peça por peça. Entre um
+// fechamento e outro, as linhas só deslizam para acompanhar a escala da corretora; nada é refeito.
 // O leque é o tamanho típico do movimento, não um caminho previsto; não há velas próprias nem fundo.
 (function () {
   if (window.__mnemeTela) return;
   window.__mnemeTela = true;
   const V = globalThis.MnemeVisao;
-  const COR = { suporte: "#2dd4bf", resistencia: "#f472b6", tendencia: "#60a5fa", fib: "rgba(250,204,21,0.10)", fibLinha: "rgba(250,204,21,0.75)",
-    cone95: "rgba(167,139,250,0.08)", cone68: "rgba(167,139,250,0.32)", centro: "#fde047", texto: "#e2e8f0" };
-  const TRACO_MS = 2200, OLHAR_MS = 1000, EIXO_CSS = 95; // largura do eixo de preço da corretora, que não deve ser coberto
+  const COR = { suporte: "#2dd4bf", resistencia: "#f472b6", tendencia: "#60a5fa", estrutura: "#fde047", fib: "rgba(250,204,21,0.09)",
+    fibLinha: "rgba(250,204,21,0.7)", cone95: "rgba(167,139,250,0.08)", cone68: "rgba(167,139,250,0.30)", caneta: "#fef9c3" };
+  const TRACO_MS = 4500, OLHAR_MS = 1000, EIXO_CSS = 95, SUAVE = 0.18;
+  // Em que fatia do traçado entra cada peça, e o que a barra diz enquanto isso.
+  const ETAPAS = { estrutura: [0, 0.38], resistencia: [0.3, 0.52], suporte: [0.36, 0.58], fib: [0.5, 0.7], tendencia: [0.6, 0.8], leque: [0.76, 1] };
+  const FALAS = [[0.3, "traçando a estrutura…"], [0.5, "marcando suporte e resistência…"], [0.6, "medindo o Fibonacci…"], [0.76, "puxando as tendências…"], [1, "projetando o leque…"]];
 
   const host = document.createElement("div");
   host.style.cssText = "position:fixed;z-index:2147483646;display:none;pointer-events:none;";
@@ -29,24 +33,34 @@
   const tela = raiz.querySelector("canvas"), ctx = tela.getContext("2d"), txt = raiz.querySelector(".txt");
   raiz.querySelector(".fechar").onclick = () => alternar(false);
 
-  let ligado = false, timer = null, leitura = null, velas = [], assinatura = "", inicio = 0, ratio = 2;
+  let ligado = false, timer = null, alvo = null, mostra = null, assinatura = "", inicio = 0, ratio = 2, info = "";
   const grafico = () => document.querySelector("canvas.layer.plot");
 
   /** Copia a imagem do gráfico logo depois de a corretora desenhar o quadro (o WebGL apaga a imagem depois disso). */
   function olhar() {
     const c = grafico();
-    if (!c || !c.width) { txt.textContent = "MNEME · gráfico não encontrado"; return; }
+    if (!c || !c.width) { info = "gráfico não encontrado"; return; }
     requestAnimationFrame(() => queueMicrotask(() => {
       try {
         const W = c.width, H = c.height, copia = new OffscreenCanvas(W, H), g = copia.getContext("2d");
         g.drawImage(c, 0, 0);
-        velas = V.detectar(g.getImageData(0, 0, W, H).data, W, H);
-        leitura = V.ler(velas);
+        const velas = V.detectar(g.getImageData(0, 0, W, H).data, W, H), l = V.ler(velas);
+        if (!l) { info = `procurando velas (${velas.length})`; return; }
+        const ult = velas[velas.length - 1];
+        alvo = { ...l, atual: { x: ult.x, y: ult.fe }, x0: velas[0].x0 };
         const nova = V.assinatura(velas);
-        if (nova !== assinatura) { assinatura = nova; inicio = performance.now(); }
-        txt.textContent = leitura ? `MNEME · ${velas.length} velas · estrutura de ${leitura.estrutura}` : `MNEME · procurando velas (${velas.length})`;
-      } catch (e) { txt.textContent = "MNEME · não consegui ler o gráfico"; }
+        if (nova !== assinatura || !mostra) { assinatura = nova; inicio = performance.now(); mostra = null; } // uma vela fechou: traça de novo
+        info = `${velas.length} velas · estrutura de ${l.estrutura}`;
+      } catch (e) { info = "não consegui ler o gráfico"; }
     }));
+  }
+
+  /** Aproxima o que está na tela do que foi lido, um pouco por quadro: a escala da corretora muda e as linhas deslizam. */
+  function aproximar(a, b) {
+    if (typeof b === "number") return typeof a === "number" ? a + (b - a) * SUAVE : b;
+    if (Array.isArray(b)) return Array.isArray(a) && a.length === b.length ? b.map((x, i) => aproximar(a[i], x)) : b;
+    if (b && typeof b === "object") { const r = {}; for (const k of Object.keys(b)) r[k] = aproximar(a && a[k], b[k]); return r; }
+    return b;
   }
 
   function posicionar() {
@@ -61,59 +75,87 @@
 
   // ---------- desenho (em pixels do gráfico da corretora) ----------
   const suave = (t) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
-  function linha(x1, y1, x2, y2, p, cor, larg = 2, tracejado = null) {
-    ctx.save(); ctx.strokeStyle = cor; ctx.lineWidth = larg * ratio; if (tracejado) ctx.setLineDash(tracejado.map((n) => n * ratio));
-    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 + (x2 - x1) * p, y1 + (y2 - y1) * p); ctx.stroke(); ctx.restore();
+  let canetas = [];
+  /** Traça um caminho até a fração `p` do comprimento; a ponta, enquanto não termina, ganha a caneta. */
+  function caminho(pts, p, cor, larg = 2, tracejado = null) {
+    if (pts.length < 2 || p <= 0) return;
+    const seg = pts.slice(1).map((q, i) => Math.hypot(q.x - pts[i].x, q.y - pts[i].y)), total = seg.reduce((a, b) => a + b, 0);
+    let resta = total * p, ponta = pts[0];
+    ctx.save(); ctx.strokeStyle = cor; ctx.lineWidth = larg * ratio; ctx.lineJoin = "round";
+    if (tracejado) ctx.setLineDash(tracejado.map((n) => n * ratio));
+    ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 0; i < seg.length && resta > 0; i++) {
+      const f = Math.min(1, resta / (seg[i] || 1));
+      ponta = { x: pts[i].x + (pts[i + 1].x - pts[i].x) * f, y: pts[i].y + (pts[i + 1].y - pts[i].y) * f };
+      ctx.lineTo(ponta.x, ponta.y); resta -= seg[i];
+    }
+    ctx.stroke(); ctx.restore();
+    if (p < 1) canetas.push(ponta);
   }
   function rotulo(texto, x, y, cor, p) {
     if (p < 0.98) return;
     ctx.save(); ctx.font = `600 ${10 * ratio}px -apple-system,Segoe UI,Roboto,sans-serif`; ctx.fillStyle = cor; ctx.textAlign = "right";
     ctx.fillText(texto, x, y - 4 * ratio); ctx.restore();
   }
+  function caneta(q, agora) {
+    const r = (4 + 1.5 * Math.sin(agora / 90)) * ratio;
+    ctx.save(); ctx.fillStyle = COR.caneta; ctx.shadowColor = COR.caneta; ctx.shadowBlur = 18 * ratio;
+    ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  }
 
   function desenhar(agora) {
     ctx.clearRect(0, 0, tela.width, tela.height);
-    if (!leitura || !velas.length) return;
-    const l = leitura.linhas, W = tela.width, xMax = W - EIXO_CSS * ratio, x0 = velas[0].x0;
-    const fase = (de, ate) => suave(((agora - inicio) / TRACO_MS - de) / (ate - de)); // cada peça entra numa fatia do tempo
+    if (!alvo) { txt.textContent = `MNEME · ${info || "olhando a tela"}`; return; }
+    mostra = mostra ? aproximar(mostra, alvo) : alvo;
+    const m = mostra, l = m.linhas, xMax = tela.width - EIXO_CSS * ratio, t = (agora - inicio) / TRACO_MS;
+    const fase = (nome) => { const [de, ate] = ETAPAS[nome]; return suave((t - de) / (ate - de)); };
+    canetas = [];
 
-    // 1. Fibonacci da última perna: a zona de 50% a 78,6% e os níveis.
-    if (l.fibonacci) {
-      const p = fase(0, 0.35), n = l.fibonacci.niveis, xa = l.fibonacci.x;
-      ctx.save(); ctx.globalAlpha = p; ctx.fillStyle = COR.fib; ctx.fillRect(xa, Math.min(n[0.5], n[0.786]), xMax - xa, Math.abs(n[0.786] - n[0.5])); ctx.restore();
-      for (const [k, y] of Object.entries(n)) { linha(xa, y, xMax, y, p, COR.fibLinha, 1, [4, 4]); rotulo(`${(k * 100).toFixed(1).replace(".0", "")}%`, xMax, y, COR.fibLinha, p); }
-    }
-    // 2. Suporte e resistência, traçados da esquerda para a direita.
-    if (l.resistencia !== null) { const p = fase(0.15, 0.5); linha(x0, l.resistencia, xMax, l.resistencia, p, COR.resistencia, 2); rotulo("resistência", xMax, l.resistencia, COR.resistencia, p); }
-    if (l.suporte !== null) { const p = fase(0.2, 0.55); linha(x0, l.suporte, xMax, l.suporte, p, COR.suporte, 2); rotulo("suporte", xMax, l.suporte + 14 * ratio, COR.suporte, p); }
-    // 3. Linhas de tendência pelos dois últimos topos ou fundos.
-    for (const [t, nome] of [[l.lta, "LTA"], [l.ltb, "LTB"]]) {
-      if (!t) continue;
-      const p = fase(0.4, 0.75), x2 = Math.min(t.x2, xMax), y2 = t.y1 + (t.y2 - t.y1) * (x2 - t.x1) / (t.x2 - t.x1);
-      linha(t.x1, t.y1, x2, y2, p, COR.tendencia, 2.5); rotulo(nome, x2, y2, COR.tendencia, p);
-    }
-    // 4. Topos e fundos que o MNEME marcou.
-    const pm = fase(0.1, 0.4);
-    ctx.save(); ctx.globalAlpha = pm; ctx.font = `${11 * ratio}px sans-serif`; ctx.textAlign = "center";
-    for (const t of leitura.topos) { ctx.fillStyle = COR.resistencia; ctx.fillText("▼", t.x, t.y - 6 * ratio); }
-    for (const f of leitura.fundos) { ctx.fillStyle = COR.suporte; ctx.fillText("▲", f.x, f.y + 16 * ratio); }
+    // 1. A estrutura: o zigue-zague de topos e fundos, da esquerda para a direita, terminando no preço atual.
+    const pe = fase("estrutura"), z = m.zigue.map((q, i) => (i === m.zigue.length - 1 ? { ...q, x: m.atual.x, y: m.atual.y } : q));
+    caminho(z, pe, COR.estrutura, 1.6);
+    ctx.save(); ctx.font = `${11 * ratio}px sans-serif`; ctx.textAlign = "center";
+    z.forEach((q, i) => {
+      if (q.tipo === "agora" || pe < (i + 0.5) / z.length) return; // cada marca aparece quando a caneta passa por ela
+      ctx.fillStyle = q.tipo === "topo" ? COR.resistencia : COR.suporte;
+      ctx.fillText(q.tipo === "topo" ? "▼" : "▲", q.x, q.tipo === "topo" ? q.y - 6 * ratio : q.y + 16 * ratio);
+    });
     ctx.restore();
-    // 5. O leque de onde a vela pode ir, abrindo a partir do fechamento da vela atual.
-    const lq = leitura.leque.filter((c) => c.x <= xMax), ult = velas[velas.length - 1], pl = fase(0.6, 1);
-    if (lq.length) {
-      const k = (c, campo) => ult.fe + (c[campo] - ult.fe) * pl;
+    // 2. Resistência e suporte.
+    if (l.resistencia !== null) { const p = fase("resistencia"); caminho([{ x: m.x0, y: l.resistencia }, { x: xMax, y: l.resistencia }], p, COR.resistencia, 2); rotulo("resistência", xMax, l.resistencia, COR.resistencia, p); }
+    if (l.suporte !== null) { const p = fase("suporte"); caminho([{ x: m.x0, y: l.suporte }, { x: xMax, y: l.suporte }], p, COR.suporte, 2); rotulo("suporte", xMax, l.suporte + 14 * ratio, COR.suporte, p); }
+    // 3. Fibonacci da última perna.
+    if (l.fibonacci) {
+      const p = fase("fib"), n = l.fibonacci.niveis, xa = l.fibonacci.x;
+      ctx.save(); ctx.globalAlpha = p; ctx.fillStyle = COR.fib; ctx.fillRect(xa, Math.min(n[0.5], n[0.786]), xMax - xa, Math.abs(n[0.786] - n[0.5])); ctx.restore();
+      for (const [k, y] of Object.entries(n)) { caminho([{ x: xa, y }, { x: xMax, y }], p, COR.fibLinha, 1, [4, 4]); rotulo(`${(k * 100).toFixed(1).replace(".0", "")}%`, xMax, y, COR.fibLinha, p); }
+    }
+    // 4. Linhas de tendência pelos dois últimos topos ou fundos, levadas para a frente.
+    for (const [r, nome] of [[l.lta, "LTA"], [l.ltb, "LTB"]]) {
+      if (!r) continue;
+      const p = fase("tendencia"), x2 = Math.min(r.x2, xMax), y2 = r.y1 + (r.y2 - r.y1) * (x2 - r.x1) / (r.x2 - r.x1);
+      caminho([{ x: r.x1, y: r.y1 }, { x: x2, y: y2 }], p, COR.tendencia, 2.5); rotulo(nome, x2, y2, COR.tendencia, p);
+    }
+    // 5. O leque de onde a vela pode ir, abrindo a partir do preço atual e seguindo a vela que se forma.
+    const pl = fase("leque"), a = m.atual, lq = m.leque.filter((c) => c.x <= xMax);
+    if (lq.length && pl > 0) {
+      const desloca = a.y - m.leque[0].y;
       for (const [cima, baixo, cor] of [["hi95", "lo95", COR.cone95], ["hi68", "lo68", COR.cone68]]) {
-        ctx.beginPath(); ctx.moveTo(ult.x, ult.fe);
+        const k = (c, campo) => a.y + (c[campo] + desloca - a.y) * pl;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y);
         lq.forEach((c) => ctx.lineTo(c.x, k(c, cima)));
         [...lq].reverse().forEach((c) => ctx.lineTo(c.x, k(c, baixo)));
         ctx.closePath(); ctx.fillStyle = cor; ctx.fill();
       }
-      linha(ult.x, ult.fe, lq[lq.length - 1].x, ult.fe, pl, COR.centro, 1, [3, 4]);
     }
-    // 6. O ponto vivo no preço atual.
+    // 6. A caneta na ponta do que está sendo traçado e o ponto vivo no preço atual.
+    canetas.forEach((q) => caneta(q, agora));
     const pulso = 0.5 + 0.5 * Math.sin(agora / 250);
-    ctx.save(); ctx.fillStyle = COR.centro; ctx.globalAlpha = 0.4 + 0.6 * pulso;
-    ctx.beginPath(); ctx.arc(ult.x, ult.fe, (3 + 2 * pulso) * ratio, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.fillStyle = COR.estrutura; ctx.globalAlpha = 0.4 + 0.6 * pulso;
+    ctx.beginPath(); ctx.arc(a.x, a.y, (3 + 2 * pulso) * ratio, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+
+    const fala = FALAS.find(([ate]) => t < ate);
+    txt.textContent = `MNEME · ${fala ? fala[1] : info}`;
   }
 
   function quadro(agora) {
@@ -129,7 +171,7 @@
     try { chrome.storage.local.set({ tela_ligada: ligado }); } catch (e) { ligado = false; }
     if (!ligado) return;
     if (globalThis.MnemeGrafico) globalThis.MnemeGrafico.alternar(false); // as duas camadas não aparecem juntas
-    inicio = performance.now(); olhar(); timer = setInterval(olhar, OLHAR_MS); requestAnimationFrame(quadro);
+    alvo = null; mostra = null; assinatura = ""; olhar(); timer = setInterval(olhar, OLHAR_MS); requestAnimationFrame(quadro);
   }
 
   try { chrome.storage.local.get(["tela_ligada"]).then((c) => { if (c.tela_ligada) alternar(true); }); } catch (e) { /* extensão recarregada */ }
