@@ -64,13 +64,13 @@
     } catch (e) { /* sem som, segue */ }
   }
 
-  let sinais = [], erro = "", desvio = 0, ultimoAvisado = "", ultimaFase = "", respondidos = new Set();
+  let sinais = [], ultimo = null, dia = null, erro = "", desvio = 0, ultimoAvisado = "", ultimaFase = "", respondidos = new Set();
 
   function buscar() {
     enviar({ tipo: "sinais" }, (r) => {
       if (chrome.runtime.lastError || !r) { erro = "extensão sem resposta"; return; }
       if (r.erro) { erro = r.erro; return; }
-      erro = ""; sinais = r.sinais || [];
+      erro = ""; sinais = r.sinais || []; ultimo = r.ultimo || null; dia = r.dia || null;
       if (r.agora) desvio = Date.parse(r.agora) - Date.now(); // usa o relógio do servidor
     });
   }
@@ -88,7 +88,9 @@
     const agora = Date.now() + desvio;
     const atual = L.escolher(sinais, agora);
     if (!atual) {
-      corpo.innerHTML = `<div class="grande neutro">aguardando</div><div class="msg">${esc(erro || "sem sinal no cenário escolhido agora")}</div>`;
+      const extra = erro ? [] : L.espera(ultimo, dia, agora);
+      corpo.innerHTML = `<div class="grande neutro">aguardando</div><div class="msg">${esc(erro || "sem sinal no cenário escolhido agora")}</div>` +
+        extra.map((x) => `<div class="msg" style="color:#cfd6e0;margin-top:6px">${esc(x)}</div>`).join("");
       return;
     }
     const { sinal, fase } = atual;

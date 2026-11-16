@@ -38,6 +38,15 @@ describe("card da extensão", () => {
     expect(L.contagem(x, "andamento", t("2026-11-16T14:02:00Z"))).toBe("4:00");
   });
 
+  it("mostra o último sinal e o placar enquanto espera", () => {
+    const E = (globalThis as unknown as { MnemeLogica: { espera(u: unknown, d: unknown, a: number): string[] } }).MnemeLogica.espera;
+    const ultimo = { direcao: "PUT", entrada_em: "2026-11-16T22:11:00+00:00", resultado: "perda" };
+    expect(E(ultimo, { sinais: 20, ganhos: 11, perdas: 9, abertos: 0 }, t("2026-11-16T22:43:00Z")))
+      .toEqual(["Último: ▼ PUT às 19:11 · perda ✗ · há 32 min", "Hoje: 20 sinais · 11 ✓ · 9 ✗"]);
+    expect(E(ultimo, null, t("2026-11-17T00:20:00Z"))[0]).toContain("há 2 h 09");
+    expect(E(null, { sinais: 0, ganhos: 0, perdas: 0, abertos: 0 }, 0)).toEqual(["Hoje: nenhum sinal ainda"]);
+  });
+
   it("lê o payout em porcentagem e reconhece a corretora", () => {
     expect(L.payout("87")).toBe(0.87);
     expect(L.payout("87,5%")).toBe(0.875);

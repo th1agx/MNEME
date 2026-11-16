@@ -3,7 +3,8 @@
 Escuta só dentro da VPS (o compose publica em 127.0.0.1:8787); a extensão chega por um túnel SSH a partir do Mac
 (`colaborar/tunel-sinais.sh`). Nenhuma porta abre para a internet e nada passa pela Cloudflare.
 
-- GET  /api/sinais          sinais dos últimos 30 minutos das estratégias de `dados/digitais/cenario.json`, com o resultado
+- GET  /api/sinais          sinais dos últimos 30 minutos das estratégias de `dados/digitais/cenario.json`, com o resultado,
+                            o último sinal e o placar do dia (desde a meia-noite de Brasília)
 - GET  /api/leitura         velas, linhas que o motor lê e a previsão (probabilidade e cone) para o gráfico
 - POST /api/sinais/entrada  o que a pessoa fez: entrou ou não e o payout que a corretora mostrou (captura assistida)
 
@@ -34,6 +35,7 @@ from .leitura_grafico import leitura
 
 log = logging.getLogger("mneme.sinais")
 JANELA = timedelta(minutes=30)
+BRASILIA = timezone(timedelta(hours=-3))  # o dia do placar vira à meia-noite de Brasília, como a meta e o limite do dia
 CORRETORAS = {"quotex", "iqoption", "outra"}
 
 
@@ -66,7 +68,7 @@ class Servidor:
         agora = self.relogio()
         cenario = json.loads(self.cenario.read_text(encoding="utf-8"))
         estrategias = list(cenario.get("estrategias", []))
-        saida = []
+        saida, dia, ultimo = [], {"sinais": 0, "ganhos": 0, "perdas": 0, "abertos": 0}, None
         if estrategias:
             con = self._diario()
             try:
@@ -76,15 +78,25 @@ class Servidor:
             finally:
                 con.close()
             limite = agora - JANELA
+            inicio_dia = agora.astimezone(BRASILIA).replace(hour=0, minute=0, second=0, microsecond=0)
             for l in linhas:
                 s = json.loads(l["sinal"])
-                if s.get("acao") not in ("CALL", "PUT") or datetime.fromisoformat(s["entrada_em"]) < limite:
+                if s.get("acao") not in ("CALL", "PUT"):
                     continue
-                saida.append({"id": l["chave"], "ativo": l["ativo"], "direcao": s["acao"], "expiracao_min": int(s["expiracao_min"]),
-                              "entrada_em": s["entrada_em"], "decidido_em": l["decidido_em"], "estrategia": l["estrategia"],
-                              "cenario": str(cenario.get("cenario", ""))[:120], "preco_referencia": s.get("preco_referencia"),
-                              "resultado": l["resultado"] if l["situacao"] == "encerrada" else None})
-        return {"agora": agora.isoformat(), "sinais": saida}
+                item = {"id": l["chave"], "ativo": l["ativo"], "direcao": s["acao"], "expiracao_min": int(s["expiracao_min"]),
+                        "entrada_em": s["entrada_em"], "decidido_em": l["decidido_em"], "estrategia": l["estrategia"],
+                        "cenario": str(cenario.get("cenario", ""))[:120], "preco_referencia": s.get("preco_referencia"),
+                        "resultado": l["resultado"] if l["situacao"] == "encerrada" else None}
+                entrada = datetime.fromisoformat(s["entrada_em"])
+                ultimo = ultimo or item  # as linhas vêm da mais nova para a mais velha
+                if entrada >= inicio_dia:
+                    dia["sinais"] += 1
+                    chave = {"ganho": "ganhos", "perda": "perdas"}.get(item["resultado"] or "", "abertos" if item["resultado"] is None else None)
+                    if chave:
+                        dia[chave] += 1
+                if entrada >= limite:
+                    saida.append(item)
+        return {"agora": agora.isoformat(), "sinais": saida, "dia": dia, "ultimo": ultimo}
 
     def leitura(self) -> dict:
         """Velas, linhas e previsão da primeira estratégia do cenário, recalculadas no máximo uma vez por minuto."""

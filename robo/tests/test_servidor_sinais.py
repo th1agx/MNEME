@@ -69,6 +69,28 @@ def test_resultado_aparece_quando_o_motor_apura(ambiente):
     assert pedir(f"{base}/api/sinais")[1]["sinais"][0]["resultado"] == "perda"
 
 
+def test_placar_do_dia_e_ultimo_sinal(ambiente):
+    """O card mostra o último sinal (mesmo fora da janela) e o placar desde a meia-noite de Brasília."""
+    d, _, base, _ = ambiente
+    ontem = registrar(d, "ETHUSDT|expiracao_fixa|5m|5m", pd.Timestamp("2026-11-16T02:00:00Z"))  # 23h de ontem em Brasília
+    cedo = registrar(d, "ETHUSDT|expiracao_fixa|5m|5m", pd.Timestamp("2026-11-16T09:00:00Z"), "PUT")
+    tarde = registrar(d, "ETHUSDT|expiracao_fixa|5m|5m", pd.Timestamp("2026-11-16T12:00:00Z"))
+    registrar(d, "SOLUSDT|expiracao_fixa|1m|5m", pd.Timestamp("2026-11-16T13:00:00Z"))  # fora do cenário
+    fim = {"pnl": 0.0, "preco_entrada": 1.0, "preco_saida": 1.0, "encerrado_por": "expiracao"}
+    d.encerrar(ontem, {**fim, "resultado": "ganho"}, AGORA)
+    d.encerrar(cedo, {**fim, "resultado": "perda"}, AGORA)
+    d.encerrar(tarde, {**fim, "resultado": "ganho"}, AGORA)
+    r = pedir(f"{base}/api/sinais")[1]
+    assert r["sinais"] == []
+    assert r["dia"] == {"sinais": 2, "ganhos": 1, "perdas": 1, "abertos": 0}
+    assert r["ultimo"]["id"] == tarde and r["ultimo"]["direcao"] == "CALL" and r["ultimo"]["resultado"] == "ganho"
+
+
+def test_sem_sinais_o_dia_fica_zerado(ambiente):
+    r = pedir(f"{ambiente[2]}/api/sinais")[1]
+    assert r["dia"] == {"sinais": 0, "ganhos": 0, "perdas": 0, "abertos": 0} and r["ultimo"] is None
+
+
 def test_guarda_o_entrei_e_recusa_o_que_nao_e_valido(ambiente):
     d, _, base, pasta = ambiente
     eth = registrar(d, "ETHUSDT|expiracao_fixa|5m|5m", pd.Timestamp("2026-11-16T13:55:00Z"))
