@@ -1,0 +1,72 @@
+{
+  "id": "C2-ETH-1m5m",
+  "registrado_em": "2026-11-16T23:05:00+00:00",
+  "registrado_por": "Claude, a pedido do dono (Thiago), antes de calcular os testes abaixo",
+  "pergunta": "A estratégia do motor ETHUSDT|expiracao_fixa|1m|5m, sem nenhuma mudança, acerta acima do empate de 54,05% (payout de 85%) em dados novos?",
+  "tipo_de_afirmacao": "previsao",
+  "o_que_ja_foi_visto": "Antes deste registro, um resumo do diário ao vivo de 06 a 16/11/2026 mostrou 56,9% em 2.078 sinais (IC binomial ingênuo 54,8% a 59,0%), escolhido como o melhor entre 12 estratégias de cripto em expiração fixa. Por isso esse período é EXPLORATÓRIO: serve para medir robustez, nunca como confirmação.",
+  "rivais": [
+    "acaso + seleção (melhor de 12)",
+    "dependência entre sinais sobrepostos (1 por minuto, expiração de 5)",
+    "regime dos 11 dias",
+    "custo: payout real menor que 85%, atraso de entrada",
+    "artefato de dado: preço de referência da Binance, não o da corretora"
+  ],
+  "parte_1_exploratoria": {
+    "dados": "diário ao vivo de 2026-11-06 até o registro, só sinais CALL/PUT apurados (ganho ou perda; empate fora)",
+    "medida": "acerto",
+    "analise": "intervalo por sorteio de blocos de dia (10.000 sorteios); limite de baixo de um lado corrigido para a família de 12 estratégias (Bonferroni, alfa 0,05/12); efeito de desenho pela razão entre a variância do sorteio por dia e a binomial; consistência por dia, por direção e por hora",
+    "uso": "só decide se vale gastar a parte 2; não aprova nada"
+  },
+  "parte_2_confirmatoria": {
+    "dados": "só sinais com entrada DEPOIS de 2026-11-16T23:05:00+00:00, mesma estratégia, mesmo motor, sem mudar pesos, corte ou parâmetros",
+    "medida": "acerto, sinais apurados (empate fora, contado à parte)",
+    "criterio": "confirma se o limite de baixo de um lado a 95%, por sorteio de blocos de dia, ficar acima de 54,05% e as duas metades do período ficarem acima de 54,05%; derruba se, com a amostra completa, o limite de cima ficar abaixo de 56% ou o acerto pontual abaixo de 54,05%",
+    "amostra": "definida na parte 1 pelo efeito de desenho medido, para detectar 56% contra 54,05% com poder de 0,8; fixada no relatório da parte 1 antes de qualquer olhada na parte 2",
+    "controle": "as mesmas contas para BTC e SOL 1m/5m, sem critério de aprovação (só referência)",
+    "amostra_fixada": {
+      "sinais_apurados": 8000,
+      "conta": "4.027 sinais independentes para detectar 56% contra 54,05% (alfa 0,05 de um lado, poder 0,8) vezes o efeito de desenho 1,97",
+      "tempo_estimado": "cerca de 42 dias a ~190 sinais por dia",
+      "olhadas": "uma só, no fim; antes disso só acompanhamento, sem decisão"
+    }
+  },
+  "fora_de_escopo": "nenhuma promoção, nenhum dinheiro real e nenhuma mudança no motor: a decisão é do dono depois da parte 2",
+  "parte_1_resultado": {
+    "calculado_em": "2026-11-16T23:10:00+00:00",
+    "desvio_do_plano": "a família de cripto em expiração fixa tem 15 estratégias, não 12; a correção usou 15 (mais rígida). Registrado por Claude, sem mudar nenhuma outra regra.",
+    "ETH_1m5m": {
+      "sinais": 2079,
+      "acerto": 0.569,
+      "dias": 11,
+      "efeito_de_desenho": 1.97,
+      "amostra_efetiva": 1054,
+      "limite_baixo_blocos_95": 0.5442,
+      "limite_baixo_corrigido_familia": 0.5264,
+      "dias_acima_do_empate": "9 de 11",
+      "metades": [
+        0.5929,
+        0.5452
+      ],
+      "CALL": 0.565,
+      "PUT": 0.575,
+      "por_faixa_hora_brt": {
+        "0-6h": 0.572,
+        "6-12h": 0.583,
+        "12-18h": 0.607,
+        "18-24h": 0.527
+      }
+    },
+    "BTC_1m5m": {
+      "sinais": 2067,
+      "acerto": 0.5481,
+      "limite_baixo_blocos_95": 0.5212
+    },
+    "SOL_1m5m": {
+      "sinais": 2301,
+      "acerto": 0.5411,
+      "limite_baixo_blocos_95": 0.5111
+    },
+    "leitura": "Promissora e não confirmada: passa o empate no sorteio por dia (54,4% > 54,05%), mas não depois da correção pela família (52,6%). A segunda metade (54,5%) está quase no empate. As três de 1m/5m acertam acima de 50% (há sinal de direção), mas a folga sobre o payout é fina. A faixa 18-24h de Brasília foi a pior nas três: isso é exploratório e não entra como filtro sem registro próprio."
+  }
+}

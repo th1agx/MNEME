@@ -90,3 +90,20 @@ def test_grava_uma_vez_por_dia_depois_das_8h(tmp_path):
     assert escrever_manha(v, tmp_path, _BC()) == 1 and escrever_manha(v, tmp_path, _BC()) == 0
     nota = v.notas[0]
     assert nota.titulo == "Manhã 2026-11-17" and "Copom do Banco Central: OSError" in nota.corpo and "R$ 5,7000" in nota.corpo
+
+
+def test_acompanha_a_confirmacao_so_depois_do_registro(tmp_path):
+    import json
+
+    from mneme.manha import confirmacoes
+    (tmp_path / "operacao").mkdir()
+    (tmp_path / "e9").mkdir()
+    d = Diario(tmp_path / "operacao" / "diario.db")
+    _sinal(d, "2026-11-16T12:00:00Z", "ganho")  # antes do registro: não conta
+    _sinal(d, "2026-11-17T12:00:00Z", "ganho")
+    _sinal(d, "2026-11-17T12:10:00Z", "perda")
+    (tmp_path / "e9" / "registro_c2.json").write_text(json.dumps({
+        "id": "C2", "registrado_em": "2026-11-16T23:05:00+00:00", "pergunta": "A estratégia ETHUSDT|expiracao_fixa|5m|5m acerta?",
+        "parte_2_confirmatoria": {"amostra_fixada": {"sinais_apurados": 8000}}}))
+    assert confirmacoes(tmp_path) == [{"id": "C2", "n": 2, "meta": 8000, "acerto": 0.5}]
+    assert "C2: 2 de 8.000 sinais, acerto 50,0% até agora" in montar({"dia": "x", "confirmacoes": confirmacoes(tmp_path)})

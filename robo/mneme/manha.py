@@ -66,6 +66,9 @@ def montar(e: dict) -> str:
         c = e["copom"]
         macro.append(f"Copom: {_limpo(c['titulo'])} ({c['data']})")
     secao("Dólar e juros no Brasil", macro)
+    secao("Confirmações em andamento (só acompanhamento, sem decisão)",
+          [f"{c['id']}: {c['n']:,} de {c['meta']:,} sinais".replace(",", ".") + (f", acerto {_pct(c['acerto'])} até agora" if c["n"] else "")
+           for c in e.get("confirmacoes") or []])
     secao("Agenda de hoje (horário de Brasília)", [f"{a['hora']} · {a['moeda']} · {_limpo(a['nome'], 90)} · impacto {a['impacto']}"
                                                    for a in (e.get("agenda") or [])[:MAX_AGENDA]])
     secao("Notícias oficiais nas últimas 24 h", [f"{n['hora']} · {n['fonte']} · {_limpo(n['titulo'])}" for n in (e.get("noticias") or [])[:MAX_NOTICIAS]])
@@ -114,6 +117,31 @@ def sinais_do_dia(diario: Path, dia: str) -> list[dict]:
     return sorted(contas.values(), key=lambda c: (-c["n"], c["estrategia"]))
 
 
+def confirmacoes(dados: Path) -> list[dict]:
+    """Quanto falta de cada confirmação registrada no E9. Mostra o andamento; o critério só é aplicado no fim, uma vez."""
+    saida = []
+    for arq in sorted((dados / "e9").glob("registro_*.json")):
+        r = json.loads(arq.read_text(encoding="utf-8"))
+        meta = ((r.get("parte_2_confirmatoria") or {}).get("amostra_fixada") or {}).get("sinais_apurados")
+        estrategia = re.search(r"[A-Z]+\|expiracao_fixa\|\w+\|\w+", r.get("pergunta", ""))
+        if not meta or not estrategia or not (dados / "operacao" / "diario.db").exists():
+            continue
+        con = sqlite3.connect(f"file:{dados / 'operacao' / 'diario.db'}?mode=ro", uri=True, timeout=5)
+        try:
+            g, n = con.execute("SELECT SUM(resultado = 'ganho'), COUNT(*) FROM decisoes WHERE estrategia = ? AND resultado IN ('ganho', 'perda') "
+                               "AND json_extract(sinal, '$.entrada_em') > ?", (estrategia.group(0), r["registrado_em"])).fetchone()
+        finally:
+            con.close()
+        saida.append({"id": r["id"], "n": n or 0, "meta": int(meta), "acerto": (g or 0) / n if n else None})
+    placar = dados / "e9" / "desafiantes" / "placar.json"
+    if placar.exists():
+        p = json.loads(placar.read_text(encoding="utf-8"))
+        for nome in ("D1", "D2", "D3"):
+            x = p.get(nome) or {}
+            saida.append({"id": f"Desafiante {nome} do ETH", "n": x.get("sinais", 0), "meta": 8000, "acerto": x.get("acerto")})
+    return saida
+
+
 def agenda_do_dia(mercado: Path, dia: str) -> list[dict]:
     from .dados.eventos import ArmazemEventos
     cal = ArmazemEventos(mercado).ler("calendario", "GLOBAL")
@@ -149,6 +177,7 @@ def coletar(dados: Path, agora: datetime, bc=None) -> dict:
     e: dict = {"dia": dia, "ontem": ontem, "sem_dado": []}
     for chave, nome, tarefa in (("parados", "batimentos", lambda: parados(dados, agora)),
                                 ("sinais", "diário", lambda: sinais_do_dia(dados / "operacao" / "diario.db", ontem)),
+                                ("confirmacoes", "registros do E9", lambda: confirmacoes(dados)),
                                 ("ptax", "PTAX do Banco Central", bc.ptax), ("copom", "Copom do Banco Central", bc.copom),
                                 ("agenda", "calendário", lambda: agenda_do_dia(dados / "mercado", dia)),
                                 ("noticias", "notícias", lambda: noticias_oficiais(dados / "mercado", agora))):
