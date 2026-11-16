@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "MNEME Sinais",
   "version": "0.1.0",
-  "description": "Mostra os sinais do MNEME num card no canto da corretora. Só desenha: não clica, não lê e não opera nada.",
+  "description": "Mostra os sinais do MNEME num card no canto da corretora. Só desenha: olha a imagem do gráfico para traçar por cima, mas não clica e não opera nada.",
   "permissions": ["storage"],
   "host_permissions": ["http://127.0.0.1:8787/*", "http://localhost:8787/*", "https://api.binance.com/*"],
   "background": { "service_worker": "fundo.js" },
@@ -11,7 +11,7 @@
     {
       "matches": ["https://qxbroker.com/*", "https://*.qxbroker.com/*", "https://quotex.com/*", "https://*.quotex.com/*",
                   "https://iqoption.com/*", "https://*.iqoption.com/*"],
-      "js": ["logica.js", "grafico.js", "conteudo.js"],
+      "js": ["logica.js", "visao.js", "grafico.js", "tela.js", "conteudo.js"],
       "run_at": "document_idle"
     }
   ]

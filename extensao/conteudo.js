@@ -32,7 +32,11 @@
     <div class="card"><div class="topo"><span>MNEME · sinais</span><span><button class="graf" title="leitura no gráfico">📈</button><button class="min" title="minimizar">–</button></span></div><div class="corpo"></div></div>`;
   const card = raiz.querySelector(".card"), corpo = raiz.querySelector(".corpo");
   raiz.querySelector(".topo .min").onclick = () => card.classList.toggle("min");
-  raiz.querySelector(".topo .graf").onclick = () => globalThis.MnemeGrafico && globalThis.MnemeGrafico.alternar();
+  raiz.querySelector(".topo .graf").onclick = () => {
+    // Com o gráfico da corretora na tela, o MNEME desenha em cima das velas dela; sem ele, abre a camada própria.
+    const T = globalThis.MnemeTela, G = globalThis.MnemeGrafico;
+    if (T && T.temGrafico()) T.alternar(); else if (G) G.alternar();
+  };
 
   // Arrastar pelo topo.
   let arrasto = null;
