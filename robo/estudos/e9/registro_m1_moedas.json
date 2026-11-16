@@ -1,0 +1,31 @@
+{
+  "id": "M1-moedas",
+  "registrado_em": "2026-11-16T23:20:00+00:00",
+  "registrado_por": "Claude, a pedido do dono (Thiago), antes de rodar qualquer conta abaixo",
+  "pergunta": "Leituras próprias de moeda (força do dólar e sessão) acertam acima do empate de 54,05% na expiração de 5 minutos em EUR/USD, GBP/USD, USD/JPY e USD/CAD, onde o motor atual fica entre 50,6% e 53,9%?",
+  "tipo_de_afirmacao": "previsao",
+  "dados": "velas de 1 minuto da Dukascopy em dados/mercado, SÓ o bloco de exploração (antes de 2026-02-01). O bloco de confirmação (2026-02-01 a 2026-08-01) fica para a etapa 2 e a área selada (a partir de 2026-08-01) não é tocada.",
+  "hipoteses": {
+    "F1_forca_do_dolar": "O dólar se move junto contra as quatro moedas. Quando um par fica para trás da força do dólar dos últimos 5 minutos (média dos quatro, do lado do USD), ele alcança nos 5 minutos seguintes. Aposta: a direção que fecha o atraso. Só quando o atraso está entre os 10% maiores do dia anterior (limite calculado só com o passado). Uma aposta por par a cada 5 minutos, sem sobreposição.",
+    "F2_sessao": "A reversão da última vela de 1 minuto (aposta contra ela, expiração de 5 minutos) muda conforme a sessão: Ásia (0-7h UTC), Londres (7-12h), Londres com Nova York (12-16h), Nova York (16-21h) e fechamento (21-24h). Uma aposta por par a cada 5 minutos."
+  },
+  "rivais": [
+    "acaso + muitas células",
+    "artefato de dado: a corretora cota diferente da Dukascopy",
+    "regime de 2025",
+    "o atraso é ruído do último preço (reversão comum, não alcance)",
+    "custo: payout real abaixo de 85%"
+  ],
+  "controle": "F1 com a força do dólar atrasada em 60 minutos (placebo): deve ficar perto de 50%",
+  "medida": "acerto (empate fora), intervalo por sorteio de blocos de dia (5.000 sorteios)",
+  "familia": "F1 em 4 pares + F2 em 4 pares x 5 sessões = 24 células; correção de Bonferroni (alfa 0,05/24, um lado)",
+  "criterio_para_seguir": "uma célula só vai para a etapa 2 (bloco de confirmação, uma olhada) se o limite de baixo corrigido pela família passar de 54,05%. Célula que passa só sem correção é anotada como pista, não segue.",
+  "fora_de_escopo": "nada muda no motor, no operacao.json ou na C2; nenhuma promoção sem o dono",
+  "resultado_exploracao": {
+    "calculado_em": "2026-11-16T23:35:00+00:00",
+    "arquivo": "dados/e9/m1_moedas.json",
+    "F1": "51,6% a 52,7% em cerca de 18.600 apostas por par; o placebo (força do dólar atrasada 60 min) dá 51,0% a 51,8%. A parte que é da força do dólar é de 0,6 a 0,9 ponto. Nenhum par passa do empate, nem sem correção.",
+    "F2": "reversão da última vela entre 49,7% e 52,6% em todas as sessões dos 4 pares; a melhor célula (fechamento, 21-24h UTC) fica em 52-52,6%. Nenhuma passa.",
+    "decisao": "nada segue para a etapa 2. Resultado negativo registrado."
+  }
+}

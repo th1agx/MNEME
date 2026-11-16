@@ -1,0 +1,46 @@
+{
+  "id": "M2-fluxo-e-prazos",
+  "registrado_em": "2026-11-16T23:29:00+00:00",
+  "registrado_por": "Claude, a pedido do dono (Thiago), antes de rodar qualquer conta abaixo",
+  "dados": "velas de 1 minuto em dados/mercado, SÓ antes de 2026-02-01 (bloco de exploração). Confirmação (2026-02-01 a 2026-08-01) intocada; área selada intocada.",
+  "A_fluxo_cripto": {
+    "pergunta": "O fluxo de agressão das velas (volume comprador sobre o total, número de negócios, saldo acumulado) melhora a previsão da direção em 5 minutos de ETH, BTC e SOL além do que o preço sozinho dá?",
+    "alvo": "fechamento 5 minutos depois do fechamento da vela t acima ou abaixo (empate fora)",
+    "atributos_preco": "retornos de 1, 5, 15 e 60 min, volatilidade de 60 min, posição no intervalo de 60 min, hora do dia",
+    "atributos_fluxo": "desequilíbrio de agressão em 1, 5 e 15 min, volume e negócios contra a média de 60 min, saldo de agressão de 15 min sobre o volume de 60 min",
+    "modelo": "LightGBM de classificação, walk-forward mensal: treina com todos os meses anteriores (mínimo 4) e testa no mês seguinte; mesmos hiperparâmetros fixos para tudo",
+    "controle": "o mesmo modelo só com os atributos de preço (P) contra preço + fluxo (PF)",
+    "seletividade": "acerto em 100%, 20%, 10% e 5% das velas, pelas maiores confianças; o limite de confiança de cada mês vem dos quantis do próprio treino (nada do teste)",
+    "familia": "3 ativos x 4 coberturas = 12 células do PF",
+    "criterio": "uma célula segue para a confirmação (uma olhada) se o limite de baixo por blocos de dia, corrigido pela família (alfa 0,05/12), passar de 54,05% E o PF acertar mais que o P na mesma célula"
+  },
+  "B_moedas_prazos": {
+    "pergunta": "Em prazos maiores (15, 30 e 60 minutos), um modelo de preço com sessão e força do dólar acerta acima do empate em EUR/USD, GBP/USD, USD/JPY, USD/CAD e ouro?",
+    "atributos": "os de preço do A, mais sessão e a força do dólar (média dos outros pares do lado do USD) em 5, 15 e 60 min; sem volume, porque o dado de moeda ao vivo não tem volume",
+    "modelo": "o mesmo walk-forward do A",
+    "familia": "5 ativos x 3 prazos x 4 coberturas = 60 células",
+    "criterio": "segue para a confirmação se o limite de baixo corrigido pela família (alfa 0,05/60) passar de 54,05%"
+  },
+  "C_indicadores_moedas": {
+    "pergunta": "A surpresa de indicadores americanos (resultado menos consenso, padronizada) prevê a direção dos pares nos 5, 15 e 60 minutos seguintes?",
+    "metodo": "o mesmo estudo de reação já feito para cripto (laboratorio.estudo_eventos), agora nos 4 pares e no ouro, só com eventos antes de 2026-02-01",
+    "aviso": "são poucas dezenas de eventos por classe: o estudo serve para achar pista, não para provar"
+  },
+  "rivais": [
+    "acaso + muitas células",
+    "olhar o futuro em atributo ou quantil",
+    "regime de 2025",
+    "artefato: o volume da Binance não é o da corretora; a Dukascopy não é a cotação da corretora",
+    "custo: payout real abaixo de 85%"
+  ],
+  "fora_de_escopo": "nada muda no motor, no operacao.json, na C2 nem nos desafiantes; nenhuma promoção sem o dono",
+  "desvio_do_plano": "modelo HistGradientBoostingClassifier (scikit-learn) no lugar do LightGBM: o LightGBM não carrega no Mac sem biblioteca do sistema e a VPS está na medição F1. Mesma família de modelo, hiperparâmetros fixos antes de rodar.",
+  "resultado_exploracao": {
+    "calculado_em": "2026-11-17T00:20:00+00:00",
+    "arquivo": "dados/e9/m2.json",
+    "A": "Fluxo das velas não melhora o ETH (preço sozinho 56,2% contra preço+fluxo 55,4% nos 5% mais confiantes) e ajuda pouco no BTC e no SOL (+0,3 a +0,5 ponto), sempre abaixo do empate depois da correção. Pelo critério (PF precisa acertar mais que P), nada segue. O que aparece é a seletividade: no ETH, o modelo de preço vai de 52% (todas as velas) a 56% (5% mais confiantes), em linha com o motor ao vivo.",
+    "B": "EUR/USD e GBP/USD em 30 e 60 min pareciam passar (até 67% nos 5% mais confiantes), mas o diagnóstico mostrou que quase tudo vem das 20h às 23h UTC, a virada do dia do câmbio, quando o spread abre e o preço do histórico dá picos que voltam. Fora dessa janela: GBP/USD 48,7% e EUR/USD 51,3%. É artefato de dado (rival registrado), não vantagem negociável. USD/JPY, USD/CAD e ouro não passam. Nada segue.",
+    "C": "115 eventos com surpresa antes de 2026-02-01; nenhuma relação passa a correção. Pista: payroll em 5 min acerta o lado do dólar em 73% a 91% em só 12 eventos.",
+    "decisao": "nada segue para a confirmação. Resultados negativos registrados."
+  }
+}
