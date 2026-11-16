@@ -774,6 +774,7 @@ def importar_geradas(v: Vault, arquivo: Path) -> int:
 
 def ciclo(v: Vault, dados: Path, biblioteca: Biblioteca, backup_a_cada: timedelta = timedelta(days=1)) -> dict:
     """Um ciclo completo, com trava para nunca rodar dois ao mesmo tempo. Cada etapa falha sozinha, e nada aqui toca o robô."""
+    from .manha import escrever_manha
     v.raiz.mkdir(parents=True, exist_ok=True)
     with (v.raiz / "ciclo.trava").open("a+") as trava:
         try:
@@ -791,7 +792,8 @@ def ciclo(v: Vault, dados: Path, biblioteca: Biblioteca, backup_a_cada: timedelt
                              ("e9_atribuicao", lambda: escrever_atribuicao_e9(v, dados / "operacao" / "diario.db", dados / "mercado")),
                              ("e9_hipoteses", lambda: escrever_hipoteses_e9(v, dados / "e9" / "hipoteses.jsonl")),
                              ("e9_variantes", lambda: escrever_variantes_e9(v, dados / "e9" / "variantes" / "placar.json")),
-                             ("e9_generativo", lambda: importar_geradas(v, dados / "aprendizado" / "geradas.jsonl"))):
+                             ("e9_generativo", lambda: importar_geradas(v, dados / "aprendizado" / "geradas.jsonl")),
+                             ("manha", lambda: escrever_manha(v, dados))):
             try:
                 resumo[nome] = tarefa()
             except (OSError, ValueError, KeyError, sqlite3.Error) as erro:
