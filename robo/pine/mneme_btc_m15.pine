@@ -1,0 +1,110 @@
+//@version=6
+strategy("MNEME | Laboratorio BTCUSDT M15", overlay=true, pyramiding=0, initial_capital=10000, currency=currency.USD, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.1, slippage=10, margin_long=100, margin_short=100, process_orders_on_close=false, calc_on_every_tick=false, calc_on_order_fills=false)
+
+// Hipoteses para o emulador do TradingView; nao envia ordens ao robo ou corretora.
+// Os defaults sao exemplos editaveis, nao parametros treinados ou aprovados.
+habilitar = input.bool(false, "Habilitar simulacao apos revisar parametros e custos", group="Experimento")
+regra = input.string("EMA", "Estrategia", options=["EMA", "MACD", "RSI", "Bollinger", "Donchian", "Engolfo"], group="Experimento")
+permitirShort = input.bool(false, "Simular short (hipotese de derivativo, nao spot)", group="Experimento")
+inicio = input.time(timestamp("2026-11-07T00:00:00+00:00"), "Operar a partir de (UTC)", group="Experimento")
+// Preserva o historico selado do laboratorio: este artefato e forward-only.
+limiteForward = timestamp("2026-11-07T00:00:00+00:00")
+
+rapida = input.int(9, "EMA rapida", minval=1, group="EMA / MACD")
+lenta = input.int(21, "EMA lenta", minval=2, group="EMA / MACD")
+macdRapida = input.int(12, "MACD rapido", minval=1, group="EMA / MACD")
+macdLenta = input.int(26, "MACD lento", minval=2, group="EMA / MACD")
+macdSinal = input.int(9, "MACD sinal", minval=1, group="EMA / MACD")
+rsiPeriodo = input.int(14, "RSI periodo", minval=2, group="Reversao")
+rsiBaixo = input.float(30, "RSI sobrevenda", minval=0, maxval=100, group="Reversao")
+rsiAlto = input.float(70, "RSI sobrecompra", minval=0, maxval=100, group="Reversao")
+bbPeriodo = input.int(20, "Bollinger periodo", minval=2, group="Reversao")
+bbDesvios = input.float(2, "Bollinger desvios", minval=0.1, step=0.1, group="Reversao")
+canalPeriodo = input.int(20, "Donchian periodo", minval=2, group="Rompimento")
+atrPeriodo = input.int(14, "ATR periodo", minval=1, group="Saidas")
+stopAtr = input.float(1.5, "Stop: multiplos de ATR", minval=0.1, step=0.1, group="Saidas")
+alvoRisco = input.float(2, "Alvo: multiplos da distancia do stop", minval=0.1, step=0.1, group="Saidas")
+maxVelas = input.int(16, "Tempo maximo na posicao (velas M15)", minval=1, group="Saidas")
+
+if barstate.isfirst
+    if not chart.is_standard or syminfo.ticker != "BTCUSDT" or not timeframe.isminutes or timeframe.multiplier != 15
+        runtime.error("Use BTCUSDT em velas convencionais de 15 minutos. Confira tambem a bolsa escolhida.")
+    if rapida >= lenta or macdRapida >= macdLenta or rsiBaixo >= rsiAlto
+        runtime.error("Revise os periodos rapido/lento e os limites do RSI.")
+    if inicio < limiteForward
+        runtime.error("Inicio anterior ao experimento: historico selado. Use 07/11/2026 UTC ou depois.")
+
+emaRapida = ta.ema(close, rapida)
+emaLenta = ta.ema(close, lenta)
+[macd, linhaSinal, histograma] = ta.macd(close, macdRapida, macdLenta, macdSinal)
+rsi = ta.rsi(close, rsiPeriodo)
+[bbMedia, bbTopo, bbFundo] = ta.bb(close, bbPeriodo, bbDesvios)
+// Canal da vela ANTERIOR: a vela do rompimento nunca compoe seu proprio limiar.
+canalTopo = ta.highest(high, canalPeriodo)[1]
+canalFundo = ta.lowest(low, canalPeriodo)[1]
+atr = ta.atr(atrPeriodo)
+
+// Calcula todos os cruzamentos em todas as barras, antes da selecao da regra.
+emaCompra = ta.crossover(emaRapida, emaLenta)
+emaVenda = ta.crossunder(emaRapida, emaLenta)
+macdCompra = ta.crossover(macd, linhaSinal)
+macdVenda = ta.crossunder(macd, linhaSinal)
+rsiCompra = ta.crossover(rsi, rsiBaixo)
+rsiVenda = ta.crossunder(rsi, rsiAlto)
+bbCompra = ta.crossover(close, bbFundo)
+bbVenda = ta.crossunder(close, bbTopo)
+canalCompra = ta.crossover(close, canalTopo)
+canalVenda = ta.crossunder(close, canalFundo)
+engolfoCompra = close[1] < open[1] and close > open and open <= close[1] and close >= open[1]
+engolfoVenda = close[1] > open[1] and close < open and open >= close[1] and close <= open[1]
+
+compra = switch regra
+    "EMA" => emaCompra
+    "MACD" => macdCompra
+    "RSI" => rsiCompra
+    "Bollinger" => bbCompra
+    "Donchian" => canalCompra
+    => engolfoCompra
+venda = switch regra
+    "EMA" => emaVenda
+    "MACD" => macdVenda
+    "RSI" => rsiVenda
+    "Bollinger" => bbVenda
+    "Donchian" => canalVenda
+    => engolfoVenda
+
+var float stopTicks = na
+var float alvoTicks = na
+// Uma entrada por vez. ATR congelado no sinal; distancias relativas ao preco
+// efetivamente preenchido pelo emulador, nao ao fechamento que gerou o sinal.
+if habilitar and barstate.isconfirmed and time >= inicio and strategy.position_size == 0 and not na(atr)
+    if compra or (permitirShort and venda)
+        stopTicks := math.max(1, math.ceil(atr * stopAtr / syminfo.mintick))
+        alvoTicks := math.max(1, math.ceil(stopTicks * alvoRisco))
+        if compra
+            strategy.entry("Long", strategy.long)
+            strategy.exit("SL/TP Long", "Long", loss=stopTicks, profit=alvoTicks)
+        else
+            strategy.entry("Short", strategy.short)
+            strategy.exit("SL/TP Short", "Short", loss=stopTicks, profit=alvoTicks)
+
+// Nao inverte no sinal oposto. Sai por stop, alvo ou tempo; ordem de tempo
+// enviada no fechamento para a abertura seguinte. Bracket continua ativo.
+if strategy.position_size != 0
+    if bar_index - strategy.opentrades.entry_bar_index(0) >= maxVelas - 1
+        strategy.close_all(comment="Tempo maximo")
+
+precoStop = strategy.position_size > 0 ? strategy.position_avg_price - stopTicks * syminfo.mintick : strategy.position_size < 0 ? strategy.position_avg_price + stopTicks * syminfo.mintick : na
+precoAlvo = strategy.position_size > 0 ? strategy.position_avg_price + alvoTicks * syminfo.mintick : strategy.position_size < 0 ? strategy.position_avg_price - alvoTicks * syminfo.mintick : na
+plot(precoStop, "Stop simulado", color.red, style=plot.style_linebr)
+plot(precoAlvo, "Alvo simulado", color.green, style=plot.style_linebr)
+plot(regra == "EMA" ? emaRapida : na, "EMA rapida", color.aqua)
+plot(regra == "EMA" ? emaLenta : na, "EMA lenta", color.orange)
+plot(regra == "Bollinger" ? bbTopo : regra == "Donchian" ? canalTopo : na, "Banda/canal superior", color.gray)
+plot(regra == "Bollinger" ? bbFundo : regra == "Donchian" ? canalFundo : na, "Banda/canal inferior", color.gray)
+
+var table estado = table.new(position.top_right, 1, 3)
+if barstate.islast
+    table.cell(estado, 0, 0, "MNEME | " + regra + " | BTCUSDT M15")
+    table.cell(estado, 0, 1, not habilitar ? "PAUSADO: revisar configuracao" : time < inicio ? "Aguardando inicio configurado" : "SIMULACAO | sem vantagem medida")
+    table.cell(estado, 0, 2, permitirShort ? "Long/short hipotetico | confira custos" : "Long-only | confira custos")

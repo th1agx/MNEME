@@ -1,0 +1,484 @@
+//@version=6
+strategy("MNEME | BTC M15 | Confluencia tecnica", overlay=true, pyramiding=0, initial_capital=10000, currency=currency.USD, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.1, slippage=10, margin_long=100, margin_short=100, process_orders_on_close=false, calc_on_every_tick=false, calc_on_order_fills=false, max_labels_count=200, max_bars_back=1000)
+
+// Experimento Pine OHLCV. Nao representa ML, noticias, fluxo de negocios ou traders.
+habilitar = input.bool(false, "Habilitar simulacao", group="Operacao")
+minimo = input.int(2, "Minimo de familias na mesma direcao", minval=2, maxval=27, group="Operacao")
+shorts = input.bool(true, "Simular vendas short (sinteticas no ticker spot)", group="Operacao")
+inicio = input.time(timestamp("2026-11-07T00:00:00+00:00"), "Inicio do experimento", group="Operacao")
+metaDia = input.float(3, "Meta diaria simulada (%)", minval=0.1, group="Risco")
+limiteDia = input.float(2, "Limite diario de perda simulado (%)", minval=0.1, group="Risco")
+atrN = input.int(14, "Periodo ATR", minval=2, group="Risco")
+stopAtr = input.float(1.5, "Stop em ATR", minval=0.1, step=0.1, group="Risco")
+alvoR = input.float(2, "Alvo em multiplos do stop", minval=0.1, step=0.1, group="Risco")
+maxVelas = input.int(16, "Tempo maximo em velas", minval=1, group="Risco")
+mostrar = input.bool(true, "Mostrar painel de todas as familias", group="Visual")
+desenhar = input.bool(true, "Desenhar medias, bandas, niveis e VWAP", group="Visual")
+
+// V2: a logica anterior ao corte permanece para comparar sem reescrever trades.
+corteCustos = input.time(timestamp("2026-11-07T19:45:00+00:00"), "Filtro de custos a partir de", group="Filtro de custos V2")
+custosConferidos = input.bool(false, "Taxa e slippage abaixo conferidos com Propriedades", group="Filtro de custos V2")
+taxaFiltro = input.float(0.1, "Comissao por preenchimento (%)", minval=0, group="Filtro de custos V2")
+slipFiltro = input.int(10, "Slippage por ponta (ticks)", minval=0, group="Filtro de custos V2")
+folgaCusto = input.float(2, "Alvo bruto minimo / custo completo", minval=2, step=0.1, group="Filtro de custos V2")
+rrLiquidoMin = input.float(1, "Ganho no alvo / perda no stop, liquidos: minimo", minval=1, step=0.1, group="Filtro de custos V2")
+
+u01 = input.bool(true, "01 Tendencia / EMA", group="Familias habilitadas")
+u02 = input.bool(true, "02 MACD", group="Familias habilitadas")
+u03 = input.bool(true, "03 RSI extremo", group="Familias habilitadas")
+u04 = input.bool(true, "04 Bollinger", group="Familias habilitadas")
+u05 = input.bool(true, "05 Rompimento / Donchian", group="Familias habilitadas")
+u06 = input.bool(true, "06 Engolfo", group="Familias habilitadas")
+u07 = input.bool(true, "07 Martelo / estrela", group="Familias habilitadas")
+u08 = input.bool(true, "08 Varredura / Wyckoff spring", group="Familias habilitadas")
+u09 = input.bool(true, "09 FVG", group="Familias habilitadas")
+u10 = input.bool(true, "10 Fibonacci", group="Familias habilitadas")
+u11 = input.bool(true, "11 Suporte / resistencia", group="Familias habilitadas")
+u12 = input.bool(true, "12 Estrutura", group="Familias habilitadas")
+u13 = input.bool(true, "13 Order block", group="Familias habilitadas")
+u14 = input.bool(true, "14 Divergencia RSI", group="Familias habilitadas")
+u15 = input.bool(true, "15 VWAP", group="Familias habilitadas")
+u16 = input.bool(true, "16 Reteste", group="Familias habilitadas")
+u17 = input.bool(true, "17 LTA / LTB", group="Familias habilitadas")
+u18 = input.bool(true, "18 Triangulo", group="Familias habilitadas")
+u19 = input.bool(true, "19 Perfil de volume / POC", group="Familias habilitadas")
+u20 = input.bool(true, "20 Ichimoku", group="Familias habilitadas")
+u21 = input.bool(true, "21 Falso rompimento", group="Familias habilitadas")
+u22 = input.bool(true, "22 Topo / fundo duplos", group="Familias habilitadas")
+u23 = input.bool(true, "23 OCO / OCO invertido", group="Familias habilitadas")
+u24 = input.bool(true, "24 VSA", group="Familias habilitadas")
+u25 = input.bool(true, "25 Canal Fimathe experimental", group="Familias habilitadas")
+u26 = input.bool(true, "26 Tres velas M15 da mesma cor", group="Familias habilitadas")
+u27 = input.bool(true, "27 Reversao movimento forte de 1h", group="Familias habilitadas")
+
+emaN1 = input.int(9, "EMA rapida", minval=1, group="Indicadores")
+emaN2 = input.int(21, "EMA lenta", minval=2, group="Indicadores")
+emaN3 = input.int(50, "EMA longa", minval=3, group="Indicadores")
+rsiN = input.int(14, "RSI periodo", minval=2, group="Indicadores")
+rsiBaixo = input.float(35, "RSI inferior", minval=0, maxval=100, group="Indicadores")
+rsiAlto = input.float(65, "RSI superior", minval=0, maxval=100, group="Indicadores")
+rsiCurtoN = input.int(4, "RSI curto periodo (M15)", minval=2, group="Indicadores")
+rsiCurtoBaixo = input.float(20, "RSI curto inferior", minval=0, maxval=100, group="Indicadores")
+rsiCurtoAlto = input.float(80, "RSI curto superior", minval=0, maxval=100, group="Indicadores")
+srDist = input.float(0.1, "Rejeicao S/R: tolerancia percentual", minval=0.001, group="Indicadores")
+emaRejeicaoN = input.int(10, "Rejeicao S/R: EMA de filtro", minval=1, group="Indicadores")
+tresN = input.int(3, "Continuacao: velas da mesma cor", minval=2, maxval=10, group="Indicadores")
+movHoras = input.int(4, "Movimento: velas M15 (4 = 1h)", minval=1, maxval=96, group="Indicadores")
+movJanela = input.int(96, "Movimento: janela desvio M15 (96 = 24h)", minval=2, maxval=500, group="Indicadores")
+movK = input.float(2, "Movimento: multiplos do desvio", minval=0.1, group="Indicadores")
+macdN1 = input.int(12, "MACD rapido", minval=1, group="Indicadores")
+macdN2 = input.int(26, "MACD lento", minval=2, group="Indicadores")
+macdN3 = input.int(9, "MACD sinal", minval=1, group="Indicadores")
+bbN = input.int(20, "Bollinger periodo", minval=2, group="Indicadores")
+bbK = input.float(2, "Bollinger desvios", minval=0.1, group="Indicadores")
+canalN = input.int(20, "Donchian periodo", minval=2, maxval=200, group="Indicadores")
+p = input.int(3, "Pivo: velas de confirmacao", minval=1, maxval=20, group="Estrutura")
+perto = input.float(0.5, "Tolerancia de toque em ATR", minval=0.01, group="Estrutura")
+recente = input.int(5, "Validade divergencia / reteste", minval=1, maxval=50, group="Estrutura")
+falsoN = input.int(3, "Janela falso rompimento", minval=1, maxval=50, group="Estrutura")
+fvgDist = input.float(1, "Distancia maxima FVG em ATR", minval=0.01, group="Estrutura")
+fibMin = input.float(0.5, "Fibonacci retracao minima", minval=0, maxval=1, group="Estrutura")
+fibMax = input.float(0.786, "Fibonacci retracao maxima", minval=0, maxval=1, group="Estrutura")
+obBusca = input.int(10, "Order block: busca de vela contraria", minval=2, maxval=50, group="Estrutura")
+ombros = input.float(0.5, "OCO: tolerancia ombros em ATR", minval=0.01, group="Estrutura")
+pavios = input.float(2, "Martelo: sombra / corpo minima", minval=0.1, group="Estrutura")
+sombraPct = input.float(0.6, "Martelo: sombra / amplitude minima", minval=0.1, maxval=1, group="Estrutura")
+volN = input.int(20, "Media de volume", minval=2, group="Volume / regime")
+vsaVol = input.float(2, "VSA: volume relativo minimo", minval=0.1, group="Volume / regime")
+vsaAmp = input.float(0.8, "VSA: amplitude maxima em ATR", minval=0.1, group="Volume / regime")
+vsaN = input.int(5, "VSA: movimento anterior", minval=1, group="Volume / regime")
+vpN = input.int(96, "Perfil: janela de candles", minval=10, maxval=200, group="Volume / regime")
+vpBins = input.int(24, "Perfil: faixas de preco", minval=4, maxval=50, group="Volume / regime")
+pocToque = input.float(0.25, "POC: distancia de toque em ATR", minval=0.01, group="Volume / regime")
+adxN = input.int(14, "ADX periodo", minval=2, group="Volume / regime")
+adxForte = input.float(25, "ADX tendencia", minval=0, group="Volume / regime")
+adxFraco = input.float(20, "ADX lateral", minval=0, group="Volume / regime")
+rankN = input.int(200, "Consolidacao: janela percentil", minval=20, maxval=500, group="Volume / regime")
+rankCorte = input.float(25, "Consolidacao: percentil maximo", minval=0, maxval=100, group="Volume / regime")
+springN = input.int(20, "Spring: consolidacao recente", minval=1, group="Volume / regime")
+ichi1 = input.int(9, "Ichimoku Tenkan", minval=1, group="Canais")
+ichi2 = input.int(26, "Ichimoku Kijun / deslocamento", minval=1, maxval=100, group="Canais")
+ichi3 = input.int(52, "Ichimoku Span B", minval=1, group="Canais")
+fimN = input.int(4, "Fimathe: velas para formar canal", minval=2, maxval=100, group="Canais")
+
+lado(bool c, bool v) =>
+    c == v ? 0 : c ? 1 : -1
+
+// BEGIN DECISAO: mesma funcao usada pelo teste Pine, sem motor paralelo.
+decidir(array<int> sinais, int limiar) =>
+    int c = 0
+    int v = 0
+    for s in sinais
+        c += s == 1 ? 1 : 0
+        v += s == -1 ? 1 : 0
+    int d = c >= limiar and v < 2 ? 1 : v >= limiar and c < 2 ? -1 : 0
+    [c, v, d]
+// END DECISAO
+
+// BEGIN FVG
+manterGap(float zona, float limiteOriginal, float fechamento, bool alta) =>
+    (alta ? fechamento < limiteOriginal : fechamento > limiteOriginal) ? na : zona
+// END FVG
+
+// BEGIN CUSTOS
+qualificarCustos(float preco, float distStop, float distAlvo, int direcao, float taxaPct, int slipTicks, float tick, float folga, float rrMin) =>
+    bool valido = not na(preco) and not na(distStop) and not na(distAlvo) and not na(taxaPct) and not na(slipTicks) and not na(tick) and not na(folga) and not na(rrMin) and preco > 0 and distStop > 0 and distAlvo > 0 and math.abs(direcao) == 1 and taxaPct >= 0 and slipTicks >= 0 and tick > 0 and folga >= 2 and rrMin >= 1
+    float entradaEst = preco + direcao * slipTicks * tick
+    float saidaEst = entradaEst + direcao * distAlvo
+    float stopEst = entradaEst - direcao * distStop
+    float stopFillEst = stopEst - direcao * slipTicks * tick
+    valido := valido and entradaEst > 0 and saidaEst > 0 and stopFillEst > 0
+    // Por unidade de BTC, em USDT. Reserva conservadora de slippage nas duas
+    // pontas, inclusive no alvo limite; nao aumenta artificialmente o alvo.
+    float custo = valido ? (entradaEst + math.max(saidaEst, stopFillEst)) * taxaPct / 100 + 2 * slipTicks * tick : na
+    float ganhoLiquido = distAlvo - custo
+    float perdaLiquida = distStop + custo
+    float relacao = valido ? ganhoLiquido / perdaLiquida : na
+    bool aceito = valido and ganhoLiquido > 0 and distAlvo >= folga * custo and relacao >= rrMin
+    [custo, relacao, aceito]
+
+autorizarPorCusto(int instante, int corte, bool conferido, bool qualificado) =>
+    instante < corte or (conferido and qualificado)
+// END CUSTOS
+
+if barstate.isfirst
+    if not chart.is_standard or syminfo.prefix != "BINANCE" or not (syminfo.ticker == "BTCUSDT" or syminfo.ticker == "BTCUSDT.P") or not timeframe.isminutes or timeframe.multiplier != 15
+        runtime.error("Use BTCUSDT (spot) ou BTCUSDT.P (perpetuo) em velas convencionais M15.")
+    if inicio < timestamp("2026-11-07T00:00:00+00:00")
+        runtime.error("Experimento a partir de 07/11/2026 UTC. Preserve o historico selado.")
+    if emaN1 >= emaN2 or emaN2 >= emaN3 or macdN1 >= macdN2 or rsiBaixo >= rsiAlto or rsiCurtoBaixo >= rsiCurtoAlto or fibMin >= fibMax
+        runtime.error("Revise periodos e limites dos indicadores.")
+
+atr = ta.atr(atrN)
+escala = atr > 0 ? atr : na
+e1 = ta.ema(close, emaN1)
+e2 = ta.ema(close, emaN2)
+e3 = ta.ema(close, emaN3)
+rsi = ta.rsi(close, rsiN)
+[macd, macdSinal, hist] = ta.macd(close, macdN1, macdN2, macdN3)
+[bbM, bbH, bbL] = ta.bb(close, bbN, bbK)
+[diP, diM, adx] = ta.dmi(adxN, adxN)
+topoCanal = ta.highest(high, canalN)[1]
+fundoCanal = ta.lowest(low, canalN)[1]
+// Empates de extremos seguem o detector do laboratorio, inclusive pivos vizinhos.
+ph = high[p] == ta.highest(high, 2 * p + 1) and bar_index >= 2 * p ? high[p] : na
+pl = low[p] == ta.lowest(low, 2 * p + 1) and bar_index >= 2 * p ? low[p] : na
+var float topo = na
+var float topoAnt = na
+var float fundo = na
+var float fundoAnt = na
+var int bt = na
+var int btAnt = na
+var int bf = na
+var int bfAnt = na
+var int sentidoT = 0
+var int sentidoF = 0
+// Niveis anteriores a vela atual para rompimentos e varreduras.
+rAnterior = topo
+sAnterior = fundo
+if not na(ph)
+    topoAnt := topo
+    btAnt := bt
+    topo := ph
+    bt := bar_index - p
+    if not na(topoAnt) and topo != topoAnt
+        sentidoT := topo > topoAnt ? 1 : -1
+if not na(pl)
+    fundoAnt := fundo
+    bfAnt := bf
+    fundo := pl
+    bf := bar_index - p
+    if not na(fundoAnt) and fundo != fundoAnt
+        sentidoF := fundo > fundoAnt ? 1 : -1
+estrutura = lado(sentidoT > 0 and sentidoF > 0, sentidoT < 0 and sentidoF < 0)
+rompeC = close > rAnterior and close[1] <= rAnterior
+rompeV = close < sAnterior and close[1] >= sAnterior
+rompimento = lado(rompeC, rompeV)
+var float nivelRetC = na
+var float nivelRetV = na
+if rompeC
+    nivelRetC := rAnterior
+if rompeV
+    nivelRetV := sAnterior
+desdeC = ta.barssince(rompeC)
+desdeV = ta.barssince(rompeV)
+reteste = lado(desdeC > 0 and desdeC < recente and low <= nivelRetC and close > nivelRetC, desdeV > 0 and desdeV < recente and high >= nivelRetV and close < nivelRetV)
+falso = lado(ta.highest(rompeV[1] ? 1 : 0, falsoN) > 0 and close > sAnterior, ta.highest(rompeC[1] ? 1 : 0, falsoN) > 0 and close < rAnterior)
+varredura = lado(low < sAnterior and close > sAnterior, high > rAnterior and close < rAnterior)
+larguraRank = ta.percentrank((bbH - bbL) / bbM, rankN)
+consolidacao = adx < adxFraco and larguraRank <= rankCorte
+spring = ta.highest(consolidacao[1] ? 1 : 0, springN) > 0 ? varredura : 0
+
+var float fvgC = na
+var float fvgV = na
+var float fvgBaseC = na
+var float fvgTopoV = na
+if low > high[2]
+    fvgC := low
+    fvgBaseC := high[2]
+if high < low[2]
+    fvgV := high
+    fvgTopoV := low[2]
+// Invalida na borda ORIGINAL do gap, nao nos extremos de duas velas atras.
+fvgC := manterGap(fvgC, fvgBaseC, close, true)
+fvgV := manterGap(fvgV, fvgTopoV, close, false)
+fvg = lado(close >= fvgC and (close - fvgC) / escala <= fvgDist, close <= fvgV and (fvgV - close) / escala <= fvgDist)
+perna = topo - fundo
+subiu = bf < bt
+retracao = perna > 0 ? (subiu ? topo - close : close - fundo) / perna : na
+fib = retracao >= fibMin and retracao <= fibMax ? (subiu ? 1 : -1) : 0
+
+var float obC = na
+var float obCFundo = na
+var float obV = na
+var float obVTopo = na
+if rompeC
+    for j = 1 to obBusca - 1
+        if close[j] < open[j]
+            obC := high[j]
+            obCFundo := low[j]
+            break
+if rompeV
+    for j = 1 to obBusca - 1
+        if close[j] > open[j]
+            obV := low[j]
+            obVTopo := high[j]
+            break
+if close < obCFundo
+    obC := na
+if close > obVTopo
+    obV := na
+ob = lado(close >= obC and (close - obC) / escala <= perto, close <= obV and (obV - close) / escala <= perto)
+
+rsiTopoAnt = ta.valuewhen(not na(ph), rsi[p], 1)
+rsiFundoAnt = ta.valuewhen(not na(pl), rsi[p], 1)
+divC = not na(pl) and fundo < fundoAnt and rsi[p] > rsiFundoAnt
+divV = not na(ph) and topo > topoAnt and rsi[p] < rsiTopoAnt
+// Duas direcoes recentes conflitantes neutralizam a familia.
+divergencia = lado(ta.highest(divC ? 1 : 0, recente) > 0, ta.highest(divV ? 1 : 0, recente) > 0)
+inclT = bt > btAnt ? (topo - topoAnt) / (bt - btAnt) : na
+inclF = bf > bfAnt ? (fundo - fundoAnt) / (bf - bfAnt) : na
+ltb = topo + inclT * (bar_index - bt)
+lta = fundo + inclF * (bar_index - bf)
+distT = (close - ltb) / escala
+distF = (close - lta) / escala
+linhas = lado(inclF > 0 and distF >= 0 and distF <= perto, inclT < 0 and distT <= 0 and distT >= -perto)
+triangulo = lado(inclF > 0 and inclT < 0 and distT > 0 and distT[1] <= 0, inclF > 0 and inclT < 0 and distF < 0 and distF[1] >= 0)
+duplo = lado(math.abs(fundo - fundoAnt) < perto * escala and close > sAnterior, math.abs(topo - topoAnt) < perto * escala and close < rAnterior)
+
+var array<float> toposOco = array.new<float>()
+var array<float> fundosOco = array.new<float>()
+var int ultimoTOco = na
+var int ultimoFOco = na
+if not na(ph)
+    if not (array.size(toposOco) > 0 and ph == array.last(toposOco) and bar_index - ultimoTOco == 1)
+        array.push(toposOco, ph)
+        if array.size(toposOco) > 3
+            array.shift(toposOco)
+    ultimoTOco := bar_index
+if not na(pl)
+    if not (array.size(fundosOco) > 0 and pl == array.last(fundosOco) and bar_index - ultimoFOco == 1)
+        array.push(fundosOco, pl)
+        if array.size(fundosOco) > 3
+            array.shift(fundosOco)
+    ultimoFOco := bar_index
+int oco = 0
+if array.size(toposOco) == 3 and array.size(fundosOco) >= 2
+    a = array.get(toposOco, 0)
+    b = array.get(toposOco, 1)
+    c = array.get(toposOco, 2)
+    pescoco = math.min(array.get(fundosOco, array.size(fundosOco) - 2), array.last(fundosOco))
+    if b > math.max(a, c) and math.abs(a - c) <= ombros * escala and close < pescoco and close[1] >= pescoco
+        oco := -1
+        array.clear(toposOco)
+if array.size(fundosOco) == 3 and array.size(toposOco) >= 2
+    a = array.get(fundosOco, 0)
+    b = array.get(fundosOco, 1)
+    c = array.get(fundosOco, 2)
+    pescoco = math.max(array.get(toposOco, array.size(toposOco) - 2), array.last(toposOco))
+    if b < math.min(a, c) and math.abs(a - c) <= ombros * escala and close > pescoco and close[1] <= pescoco
+        oco := 1
+        array.clear(fundosOco)
+
+// Perfil aproximado: cada candle distribui seu volume apenas no preco tipico,
+// como a formalizacao OHLCV do laboratorio; nao e footprint/order flow real.
+vpMin = ta.lowest(hlc3, vpN)
+vpMax = ta.highest(hlc3, vpN)
+float poc = na
+if bar_index >= vpN - 1 and vpMax > vpMin and not na(volume)
+    bins = array.new<float>(vpBins, 0)
+    passo = (vpMax - vpMin) / vpBins
+    bool completo = true
+    for j = 0 to vpN - 1
+        if na(volume[j])
+            completo := false
+        else
+            k = math.max(0, math.min(vpBins - 1, int(math.floor((hlc3[j] - vpMin) / passo))))
+            array.set(bins, k, array.get(bins, k) + volume[j])
+    if completo and array.sum(bins) > 0
+        poc := vpMin + (array.indexof(bins, array.max(bins)) + 0.5) * passo
+// Perfil e toque POC pertencem a UMA familia; nao geram dois votos.
+distPoc = (close - poc) / escala
+perfil = lado(close < poc or (distPoc >= 0 and distPoc <= pocToque), close > poc or (distPoc <= 0 and distPoc >= -pocToque))
+vwap = ta.vwap(hlc3, timeframe.change("1D"))
+volRel = volume / ta.sma(volume, volN)
+vsa = volRel >= vsaVol and (high - low) / escala <= vsaAmp ? (close > close[vsaN] ? -1 : close < close[vsaN] ? 1 : 0) : 0
+tenkan = (ta.highest(high, ichi1) + ta.lowest(low, ichi1)) / 2
+kijun = (ta.highest(high, ichi2) + ta.lowest(low, ichi2)) / 2
+spanA = ((tenkan + kijun) / 2)[ichi2]
+spanB = ((ta.highest(high, ichi3) + ta.lowest(low, ichi3)) / 2)[ichi2]
+ichimoku = lado(close > math.max(spanA, spanB) and tenkan > kijun, close < math.min(spanA, spanB) and tenkan < kijun)
+engolfo = lado(close[1] < open[1] and close > open and open <= close[1] and close >= open[1], close[1] > open[1] and close < open and open >= close[1] and close <= open[1])
+corpo = math.abs(close - open)
+amp = high - low
+sombraB = math.min(open, close) - low
+sombraC = high - math.max(open, close)
+martelo = lado(amp > 0 and sombraB >= pavios * corpo and sombraB / amp >= sombraPct, amp > 0 and sombraC >= pavios * corpo and sombraC / amp >= sombraPct)
+macdC = ta.crossover(hist, 0)
+macdV = ta.crossunder(hist, 0)
+donC = ta.crossover(close, topoCanal)
+donV = ta.crossunder(close, fundoCanal)
+// Tendencia/EMA e rompimento/Donchian sao familias, sem voto extra da variante.
+tendencia = lado(e1 > e2 and e2 > e3 and adx >= adxForte and estrutura > 0, e1 < e2 and e2 < e3 and adx >= adxForte and estrutura < 0)
+romper = lado(rompeC or donC, rompeV or donV)
+// Variantes dos scripts individuais e do catalogo SETUPS, adaptadas a M15.
+emaCruzaC = ta.crossover(e1, e2)
+emaCruzaV = ta.crossunder(e1, e2)
+emaVwapC = emaCruzaC and close > vwap
+emaVwapV = emaCruzaV and close < vwap
+familiaEma = lado(tendencia == 1 or emaCruzaC or emaVwapC, tendencia == -1 or emaCruzaV or emaVwapV)
+rsiCurto = ta.rsi(close, rsiCurtoN)
+rsiVoltaC = ta.crossover(rsi, rsiBaixo)
+rsiVoltaV = ta.crossunder(rsi, rsiAlto)
+rsiCurtoC = rsiCurto[1] < rsiCurtoBaixo and rsiCurto >= rsiCurtoBaixo
+rsiCurtoV = rsiCurto[1] > rsiCurtoAlto and rsiCurto <= rsiCurtoAlto
+familiaRsi = lado(rsi <= rsiBaixo or rsiVoltaC or rsiCurtoC, rsi >= rsiAlto or rsiVoltaV or rsiCurtoV)
+bbVoltaC = ta.crossover(close, bbL)
+bbVoltaV = ta.crossunder(close, bbH)
+// Composicao Bollinger+RSI pertence a Bollinger, sem terceiro voto composto.
+bbRsiC = close[1] < bbL[1] and close >= bbL and rsi < rsiBaixo
+bbRsiV = close[1] > bbH[1] and close <= bbH and rsi > rsiAlto
+familiaBb = lado(close <= bbL or bbVoltaC or bbRsiC, close >= bbH or bbVoltaV or bbRsiV)
+emaRejeicao = ta.ema(close, emaRejeicaoN)
+gatilho = engolfo + martelo
+rejeicaoC = low <= fundo * (1 + srDist / 100) and close > fundo and gatilho > 0
+rejeicaoV = high >= topo * (1 - srDist / 100) and close < topo and gatilho < 0
+rejeicaoEmaC = rejeicaoC and emaRejeicao > emaRejeicao[1]
+rejeicaoEmaV = rejeicaoV and emaRejeicao < emaRejeicao[1]
+familiaSr = lado(((close - fundo) / escala >= 0 and (close - fundo) / escala <= perto) or rejeicaoC or rejeicaoEmaC, ((topo - close) / escala >= 0 and (topo - close) / escala <= perto) or rejeicaoV or rejeicaoEmaV)
+tres = lado(ta.lowest(close > open ? 1 : 0, tresN) == 1, ta.lowest(close < open ? 1 : 0, tresN) == 1)
+retHora = close / close[movHoras] - 1
+desvioHora = ta.stdev(retHora, movJanela, false)
+movimento = lado(retHora < -movK * desvioHora, retHora > movK * desvioHora)
+
+// Canal congelado apos N candles desde inicio. Remarca apos saida do portfolio.
+var float fimTopo = na
+var float fimFundo = na
+var int fimCont = 0
+var int fimElegiveis = 0
+fimMaxRol = ta.highest(high, fimN)
+fimMinRol = ta.lowest(low, fimN)
+if barstate.isconfirmed and time >= inicio
+    fimElegiveis += 1
+remarcarFim = strategy.closedtrades > nz(strategy.closedtrades[1]) or (fimCont >= fimN and fimTopo <= fimFundo)
+if remarcarFim and fimElegiveis >= fimN
+    fimCont := fimN
+    fimTopo := fimMaxRol
+    fimFundo := fimMinRol
+if barstate.isconfirmed and time >= inicio and fimCont < fimN
+    fimTopo := na(fimTopo) ? high : math.max(fimTopo, high)
+    fimFundo := na(fimFundo) ? low : math.min(fimFundo, low)
+    fimCont += 1
+fimAmp = fimTopo - fimFundo
+fimathe = fimAmp > 0 and fimCont == fimN and fimCont[1] == fimN ? lado(close > fimTopo + fimAmp and close[1] <= fimTopo + fimAmp, close < fimFundo - fimAmp and close[1] >= fimFundo - fimAmp) : 0
+
+nomes = array.from("Tendencia/EMA", "MACD", "RSI e RSI curto", "Bollinger", "Rompimento/Donchian", "Engolfo", "Martelo/estrela", "Varredura/Wyckoff", "FVG", "Fibonacci", "Suporte/resistencia", "Estrutura", "Order block", "Divergencia RSI", "VWAP", "Reteste", "LTA/LTB", "Triangulo", "Perfil/POC", "Ichimoku", "Falso rompimento", "Topo/fundo duplos", "OCO", "VSA", "Canal Fimathe exp.", "Tres velas M15", "Reversao de 1h")
+ligadas = array.from(u01, u02, u03, u04, u05, u06, u07, u08, u09, u10, u11, u12, u13, u14, u15, u16, u17, u18, u19, u20, u21, u22, u23, u24, u25, u26, u27)
+sinais = array.from(familiaEma, lado(macdC, macdV), familiaRsi, familiaBb, romper, engolfo, martelo, varredura != 0 ? varredura : spring, fvg, fib, familiaSr, estrutura, ob, divergencia, lado(close > vwap, close < vwap), reteste, linhas, triangulo, perfil, ichimoku, falso, duplo, oco, vsa, fimathe, tres, movimento)
+for i = 0 to array.size(sinais) - 1
+    if not array.get(ligadas, i)
+        array.set(sinais, i, 0)
+[compras, vendas, direcao] = decidir(sinais, minimo)
+string motivos = ""
+for i = 0 to array.size(sinais) - 1
+    if direcao != 0 and array.get(sinais, i) == direcao
+        motivos += (motivos == "" ? "" : ", ") + array.get(nomes, i)
+
+dia = time("1D", "0000-0000", "America/Sao_Paulo")
+var float baseDia = na
+var bool travaDia = false
+if na(baseDia) or ta.change(dia) != 0
+    // Patrimonio no fechamento anterior: inclui o resultado da primeira vela
+    // do dia, inclusive stops de posicoes carregadas durante a madrugada.
+    baseDia := nz(strategy.equity[1], strategy.initial_capital)
+    travaDia := false
+retornoDia = baseDia > 0 ? (strategy.equity / baseDia - 1) * 100 : -100.0
+if retornoDia >= metaDia or retornoDia <= -limiteDia or strategy.equity <= 0
+    travaDia := true
+
+var float stopTicks = na
+var float alvoTicks = na
+pronto = habilitar and barstate.isconfirmed and time >= inicio and not travaDia and not na(escala)
+candidato = pronto and strategy.position_size == 0 and strategy.equity > 0 and (direcao == 1 or (direcao == -1 and shorts))
+stopCandidatoTicks = math.max(1, math.ceil(escala * stopAtr / syminfo.mintick))
+alvoCandidatoTicks = math.max(1, math.ceil(stopCandidatoTicks * alvoR))
+[custoEstimado, rrLiquido, custoAprovado] = qualificarCustos(close, stopCandidatoTicks * syminfo.mintick, alvoCandidatoTicks * syminfo.mintick, direcao, taxaFiltro, slipFiltro, syminfo.mintick, folgaCusto, rrLiquidoMin)
+exigirFiltro = time_close >= corteCustos
+liberadoCusto = autorizarPorCusto(time_close, corteCustos, custosConferidos, custoAprovado)
+abrir = candidato and liberadoCusto
+var int bloqueadasCusto = 0
+var int entradasV2 = 0
+if candidato and exigirFiltro and not liberadoCusto
+    bloqueadasCusto += 1
+    label.new(bar_index, high, custosConferidos ? "BLOQUEADA: custos / R liquido" : "BLOQUEADA: conferir custos", style=label.style_label_down, color=color.orange, textcolor=color.black, size=size.tiny)
+if abrir
+    stopTicks := stopCandidatoTicks
+    alvoTicks := alvoCandidatoTicks
+    if exigirFiltro
+        entradasV2 += 1
+    if direcao == 1
+        strategy.entry("Compra", strategy.long, comment="C " + str.tostring(compras) + ": " + motivos)
+        strategy.exit("SL/TP compra", "Compra", loss=stopTicks, profit=alvoTicks)
+    else
+        strategy.entry("Venda", strategy.short, comment="V " + str.tostring(vendas) + ": " + motivos)
+        strategy.exit("SL/TP venda", "Venda", loss=stopTicks, profit=alvoTicks)
+    label.new(bar_index, direcao == 1 ? low : high, (direcao == 1 ? "COMPRA: " : "VENDA: ") + motivos, style=direcao == 1 ? label.style_label_up : label.style_label_down, color=direcao == 1 ? color.green : color.red, textcolor=color.white, size=size.tiny)
+if strategy.position_size != 0 and bar_index - strategy.opentrades.entry_bar_index(0) >= maxVelas - 1
+    strategy.close_all(comment="Tempo maximo")
+
+plot(desenhar ? e1 : na, "EMA rapida", color.aqua)
+plot(desenhar ? e2 : na, "EMA lenta", color.orange)
+plot(desenhar ? bbH : na, "Bollinger superior", color.new(color.gray, 50))
+plot(desenhar ? bbL : na, "Bollinger inferior", color.new(color.gray, 50))
+plot(desenhar ? fundo : na, "Suporte confirmado", color.new(color.green, 30), style=plot.style_stepline)
+plot(desenhar ? topo : na, "Resistencia confirmada", color.new(color.red, 30), style=plot.style_stepline)
+plot(desenhar ? vwap : na, "VWAP diario da bolsa", color.purple)
+plot(desenhar ? poc : na, "POC aproximado", color.yellow)
+plot(strategy.position_size == 0 ? na : strategy.position_avg_price - math.sign(strategy.position_size) * stopTicks * syminfo.mintick, "Stop", color.red, style=plot.style_linebr)
+plot(strategy.position_size == 0 ? na : strategy.position_avg_price + math.sign(strategy.position_size) * alvoTicks * syminfo.mintick, "Alvo", color.lime, style=plot.style_linebr)
+plot(compras, "Votos compra", display=display.data_window)
+plot(vendas, "Votos venda", display=display.data_window)
+
+var table painel = table.new(position.top_right, 2, 36, bgcolor=color.new(color.black, 15), border_width=1)
+if barstate.islast or barstate.islastconfirmedhistory
+    table.clear(painel, 0, 0, 1, 35)
+    table.cell(painel, 0, 0, syminfo.tickerid + " M15 | minimo " + str.tostring(minimo), text_color=color.white, text_size=size.tiny)
+    table.cell(painel, 1, 0, "C " + str.tostring(compras) + " / V " + str.tostring(vendas), text_color=color.yellow, text_size=size.tiny)
+    table.cell(painel, 0, 1, not habilitar ? "PAUSADO" : travaDia ? "LIMITE DIARIO" : time < inicio ? "AGUARDANDO INICIO" : "SIMULACAO", text_color=color.white, text_size=size.tiny)
+    table.cell(painel, 1, 1, compras >= 2 and vendas >= 2 ? "CONFLITO: SEM ENTRADA" : direcao == 1 ? "COMPRA" : direcao == -1 ? "VENDA" : "AGUARDAR", text_color=color.white, text_size=size.tiny)
+    table.cell(painel, 0, 2, "Sem vantagem medida", text_color=color.orange, text_size=size.tiny)
+    table.cell(painel, 1, 2, barstate.isconfirmed ? "Vela fechada" : "Previa intrabar", text_color=color.orange, text_size=size.tiny)
+    acao = not habilitar ? "PAUSADO" : time < inicio ? "AGUARDANDO INICIO" : travaDia ? "LIMITE DIARIO" : strategy.equity <= 0 ? "SEM CAPITAL" : strategy.position_size != 0 ? "GERINDO POSICAO" : direcao == -1 and not shorts ? "SHORT DESABILITADO" : candidato and exigirFiltro and not custosConferidos ? "CONFERIR CUSTOS" : candidato and not liberadoCusto ? "BLOQUEADA POR CUSTOS" : abrir ? (direcao == 1 ? "ENVIAR COMPRA" : "ENVIAR VENDA") : "SEM NOVA ORDEM"
+    table.cell(painel, 0, 3, "Acao operacional", text_color=color.white, text_size=size.tiny)
+    table.cell(painel, 1, 3, acao, text_color=color.yellow, text_size=size.tiny)
+    table.cell(painel, 0, 4, exigirFiltro ? "V2 custos" : "V1 ate corte de custos", text_color=color.white, text_size=size.tiny)
+    table.cell(painel, 1, 4, "Ordens V2 " + str.tostring(entradasV2) + " | bloqueios " + str.tostring(bloqueadasCusto), text_color=color.yellow, text_size=size.tiny)
+    table.cell(painel, 0, 5, "Custo estimado USDT/BTC", text_color=color.white, text_size=size.tiny)
+    table.cell(painel, 1, 5, str.tostring(custoEstimado, "#.####"), text_color=color.white, text_size=size.tiny)
+    table.cell(painel, 0, 6, "R liquido hipotetico", text_color=color.white, text_size=size.tiny)
+    table.cell(painel, 1, 6, str.tostring(rrLiquido, "#.##"), text_color=color.white, text_size=size.tiny)
+    if mostrar
+        for i = 0 to array.size(sinais) - 1
+            s = array.get(sinais, i)
+            table.cell(painel, 0, i + 7, array.get(nomes, i), text_color=color.white, text_size=size.tiny)
+            table.cell(painel, 1, i + 7, not array.get(ligadas, i) ? "OFF" : s == 1 ? "COMPRA" : s == -1 ? "VENDA" : "-", text_color=s == 1 ? color.lime : s == -1 ? color.red : color.gray, text_size=size.tiny)

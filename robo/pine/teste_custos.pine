@@ -1,0 +1,38 @@
+//@version=6
+strategy("MNEME | Teste filtro de custos", overlay=true)
+
+// Cole o bloco BEGIN/END CUSTOS da producao aqui.
+
+checar(float preco, float stop, float alvo, int direcao, float taxa, int slip, float tick, float folga, float rr, bool esperado, float custoEsperado) =>
+    [custo, relacao, aceito] = qualificarCustos(preco, stop, alvo, direcao, taxa, slip, tick, folga, rr)
+    if aceito != esperado or (not na(custoEsperado) and (na(custo) or math.abs(custo - custoEsperado) > 0.0000001))
+        runtime.error("Falha na qualificacao de custos")
+    if aceito and (na(relacao) or relacao < rr)
+        runtime.error("Entrada sem relacao liquida minima")
+
+if barstate.isfirst
+    checar(100, 1, 2, 1, 0, 0, 0.1, 2, 1, true, 0)
+    checar(100, 1, 3, 1, 0.1, 1, 0.1, 2, 1, true, 0.4032)
+    checar(100, 1, 3, -1, 0.1, 1, 0.1, 2, 1, true, 0.4009)
+    checar(100, 1, 0.2, 1, 0.1, 0, 0.1, 2, 1, false, 0.2002)
+    checar(100, 1, 1, 1, 0.1, 0, 0.1, 2, 1, false, 0.201)
+    checar(100, 0.1, 1, 1, 0.1, 0, 0.1, 6, 1, false, 0.201)
+    checar(100, 1, 2, -1, 0, 0, 0.1, 2, 2, true, 0)
+    checar(na, 1, 2, 1, 0.1, 0, 0.1, 2, 1, false, na)
+    checar(100, 0, 2, 1, 0.1, 0, 0.1, 2, 1, false, na)
+    checar(100, 1, 2, 0, 0.1, 0, 0.1, 2, 1, false, na)
+    checar(100, 1, 100, -1, 0.1, 0, 0.1, 2, 1, false, na)
+    checar(100, 1, 2, 1, -0.1, 0, 0.1, 2, 1, false, na)
+    checar(100, 1, 2, 1, 0, 0, 0.1, 1, 1, false, na)
+    checar(100, 1, 2, 1, 0, 0, 0.1, 2, 0.5, false, na)
+    checar(74750.10, 300, 600, -1, 0.1, 10, 0.01, 2, 1, false, 150.0001)
+    if not autorizarPorCusto(9, 10, false, false) or autorizarPorCusto(10, 10, false, true) or autorizarPorCusto(10, 10, true, false) or not autorizarPorCusto(10, 10, true, true)
+        runtime.error("Falha no corte: historico alterado ou entrada futura sem filtro")
+    abertura = timestamp("2026-11-07T19:30:00+00:00")
+    fechamento = abertura + 15 * 60 * 1000
+    corte = timestamp("2026-11-07T19:45:00+00:00")
+    if autorizarPorCusto(fechamento, corte, false, true)
+        runtime.error("Vela que fecha no corte entrou sem conferir custos")
+var table placar = table.new(position.top_right, 1, 1, bgcolor=color.green)
+if barstate.islast or barstate.islastconfirmedhistory
+    table.cell(placar, 0, 0, "PASSOU: custos (15) + corte temporal (5)", text_color=color.white)

@@ -1,0 +1,37 @@
+//@version=6
+strategy("MNEME | Teste da decisao de confluencia", overlay=true)
+
+// Cole aqui a funcao decidir do script de producao, sem altera-la.
+// Cole tambem a funcao manterGap, do bloco BEGIN/END FVG.
+// Sem a funcao, o compilador deve acusar decidir inexistente (etapa RED).
+
+verificar(array<int> sinais, int minimo, int esperadoC, int esperadoV, int esperadoD) =>
+    [c, v, d] = decidir(sinais, minimo)
+    if c != esperadoC or v != esperadoV or d != esperadoD
+        runtime.error("Falha: contagem ou direcao de confluencia incorreta")
+
+if barstate.isfirst
+    verificar(array.new<int>(), 2, 0, 0, 0)
+    verificar(array.from(1, 0, 0), 2, 1, 0, 0)
+    verificar(array.from(1, 1, 0), 2, 2, 0, 1)
+    verificar(array.from(-1, -1, 0), 2, 0, 2, -1)
+    verificar(array.from(1, 1, -1), 2, 2, 1, 1)
+    verificar(array.from(1, 1, -1, -1), 2, 2, 2, 0)
+    verificar(array.from(1, 1, 1, -1, -1), 2, 3, 2, 0)
+    verificar(array.from(1, 1), 3, 2, 0, 0)
+    verificar(array.from(-1, -1, -1, 1), 3, 1, 3, -1)
+    verificar(array.from(1, 1, 1, -1, -1), 3, 3, 2, 0)
+    verificar(array.from(-1, -1, -1, -1, 1, 1), 4, 2, 4, 0)
+    gap = manterGap(110.0, 100.0, 105.0, true)
+    retorno = manterGap(gap, 100.0, 111.0, true)
+    if na(gap) or gap != 110.0 or na(retorno) or retorno != 110.0
+        runtime.error("FVG de alta invalidado dentro da zona original")
+    borda = manterGap(110.0, 100.0, 100.0, true)
+    if not na(manterGap(110.0, 100.0, 99.0, true)) or na(borda) or borda != 110.0
+        runtime.error("FVG de alta: limite original incorreto")
+    gapBaixa = manterGap(100.0, 110.0, 105.0, false)
+    if na(gapBaixa) or gapBaixa != 100.0 or not na(manterGap(100.0, 110.0, 111.0, false))
+        runtime.error("FVG de baixa: limite original incorreto")
+var table resultado = table.new(position.top_right, 1, 1, bgcolor=color.green)
+if barstate.islast or barstate.islastconfirmedhistory
+    table.cell(resultado, 0, 0, "PASSOU: confluencia (11) + FVG (6)", text_color=color.white)

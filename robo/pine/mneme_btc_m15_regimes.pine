@@ -1,0 +1,156 @@
+//@version=6
+strategy("MNEME | BTC M15 | Regimes isolados", overlay=true, pyramiding=0, initial_capital=10000, currency=currency.USD, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.1, slippage=10, backtest_fill_limits_assumption=1, margin_long=100, margin_short=100, process_orders_on_close=false, calc_on_every_tick=false, calc_on_order_fills=false, use_bar_magnifier=true, max_bars_back=1200)
+
+// Experimento Pine OHLCV, isolado da confluencia principal. Simula ordens; nao
+// representa ML, noticias, fluxo completo, traders nem envia ordem real.
+habilitar = input.bool(false, "Habilitar simulacao", group="Operacao")
+modo = input.string("Tendencia", "Hipotese unica", options=["Tendencia", "Faixa"], group="Operacao")
+inicio = input.time(timestamp("2026-11-07T00:00:00+00:00"), "Inicio selado do experimento", group="Operacao")
+fim = input.time(timestamp("2026-12-31T23:45:00+00:00"), "Fim do experimento", group="Operacao")
+shorts = input.bool(true, "Simular vendas short no ticker spot", group="Operacao")
+
+atrN = input.int(14, "ATR", minval=2, group="Risco")
+stopAtr = input.float(1.5, "Stop em ATR", minval=0.1, step=0.1, group="Risco")
+alvoR = input.float(2, "Alvo bruto em R", minval=0.1, step=0.1, group="Risco")
+maxVelas = input.int(16, "Maximo de velas apos preenchimento", minval=1, group="Risco")
+
+adxN = input.int(14, "ADX: DI e suavizacao", minval=2, group="Regime")
+adxForte = input.float(25, "ADX minimo para tendencia", minval=0, group="Regime")
+adxFraco = input.float(20, "ADX maximo para faixa", minval=0, group="Regime")
+h1Rapida = input.int(50, "H1 EMA rapida", minval=2, group="Regime")
+h1Lenta = input.int(200, "H1 EMA lenta", minval=3, group="Regime")
+
+donchianN = input.int(20, "Tendencia: Donchian", minval=2, group="Tendencia")
+bbN = input.int(20, "Faixa: Bollinger", minval=2, group="Faixa")
+bbK = input.float(2, "Faixa: desvios Bollinger", minval=0.1, group="Faixa")
+rsiN = input.int(4, "Faixa: RSI", minval=2, group="Faixa")
+rsiBaixo = input.float(20, "Faixa: RSI compra", minval=0, maxval=100, group="Faixa")
+rsiAlto = input.float(80, "Faixa: RSI venda", minval=0, maxval=100, group="Faixa")
+mostrar = input.bool(true, "Mostrar painel", group="Visual")
+
+// Funcoes puras: tambem exercitadas em teste_regimes_btc_m15.pine.
+classificarRegime(float adxAtual, float forte, float fraco) =>
+    adxAtual >= forte ? 1 : adxAtual <= fraco ? -1 : 0
+
+entradaTendencia(int regime, int direcaoH1, int rompimento) =>
+    regime == 1 and direcaoH1 != 0 and direcaoH1 == rompimento ? direcaoH1 : 0
+
+entradaFaixa(int regime, int reversao) =>
+    regime == -1 ? reversao : 0
+
+arredondarBaixo(float preco) =>
+    math.floor(preco / syminfo.mintick) * syminfo.mintick
+
+arredondarCima(float preco) =>
+    math.ceil(preco / syminfo.mintick) * syminfo.mintick
+
+if barstate.isfirst
+    if not chart.is_standard or syminfo.prefix != "BINANCE" or not (syminfo.ticker == "BTCUSDT" or syminfo.ticker == "BTCUSDT.P") or not timeframe.isminutes or timeframe.multiplier != 15
+        runtime.error("Use BTCUSDT (spot) ou BTCUSDT.P (perpetuo) da BINANCE, velas convencionais M15.")
+    if inicio < timestamp("2026-11-07T00:00:00+00:00") or fim < inicio
+        runtime.error("Use uma janela valida, iniciando em 07/11/2026 UTC ou depois.")
+    if adxFraco >= adxForte or h1Rapida >= h1Lenta or rsiBaixo >= rsiAlto
+        runtime.error("Revise os limites de regime, medias H1 ou RSI.")
+
+atr = ta.atr(atrN)
+[diP, diM, adx] = ta.dmi(adxN, adxN)
+[bbMeio, bbAlta, bbBaixa] = ta.bb(close, bbN, bbK)
+rsi = ta.rsi(close, rsiN)
+
+// Cada expressao H1 e deslocada DENTRO do request. Assim, a direcao vem
+// somente da vela H1 ja encerrada e nao muda ao longo da hora M15 corrente.
+h1Fechamento = request.security(syminfo.tickerid, "60", close[1], lookahead=barmerge.lookahead_on)
+h1EmaRapida = request.security(syminfo.tickerid, "60", ta.ema(close, h1Rapida)[1], lookahead=barmerge.lookahead_on)
+h1EmaLenta = request.security(syminfo.tickerid, "60", ta.ema(close, h1Lenta)[1], lookahead=barmerge.lookahead_on)
+h1Barras = request.security(syminfo.tickerid, "60", bar_index[1], lookahead=barmerge.lookahead_on)
+direcaoH1 = h1Fechamento > h1EmaRapida and h1EmaRapida > h1EmaLenta ? 1 : h1Fechamento < h1EmaRapida and h1EmaRapida < h1EmaLenta ? -1 : 0
+
+// Usa o canal ANTERIOR: o high/low da vela atual nao participa do limite.
+donchianAltoAnterior = ta.highest(high, donchianN)[1]
+donchianBaixoAnterior = ta.lowest(low, donchianN)[1]
+rompeCompra = close > donchianAltoAnterior and close[1] <= donchianAltoAnterior[1]
+rompeVenda = close < donchianBaixoAnterior and close[1] >= donchianBaixoAnterior[1]
+rompimento = rompeCompra ? 1 : rompeVenda ? -1 : 0
+
+// Entrada de faixa exige cruzamento para fora da banda; nao repete enquanto o
+// preco permanece fora. A volta para dentro e tratada pela saida/risco, nao
+// por uma ordem oposta.
+reversaoCompra = ta.crossunder(close, bbBaixa) and rsi <= rsiBaixo
+reversaoVenda = ta.crossover(close, bbAlta) and rsi >= rsiAlto
+reversao = reversaoCompra ? 1 : reversaoVenda ? -1 : 0
+
+regime = classificarRegime(adx, adxForte, adxFraco)
+sinalTendencia = entradaTendencia(regime, direcaoH1, rompimento)
+sinalFaixa = entradaFaixa(regime, reversao)
+sinal = modo == "Tendencia" ? sinalTendencia : sinalFaixa
+pronto = not na(atr) and not na(donchianAltoAnterior) and not na(bbAlta) and h1Barras >= h1Lenta
+naJanela = time_close >= inicio and time_close <= fim
+entradaPermitida = habilitar and naJanela and pronto and strategy.position_size == 0 and sinal != 0 and (shorts or sinal == 1)
+
+var float atrPendente = na
+var int barraEntrada = na
+var string idEntrada = ""
+var float riscoTravado = na
+
+if entradaPermitida
+    atrPendente := atr
+    idEntrada := modo == "Tendencia" ? (sinal == 1 ? "T-C" : "T-V") : (sinal == 1 ? "F-C" : "F-V")
+    if sinal == 1
+        strategy.entry(idEntrada, strategy.long, comment=modo + " compra")
+    else
+        strategy.entry(idEntrada, strategy.short, comment=modo + " venda")
+
+// A ordem criada acima e preenchida no proximo tick. O risco usa a ATR que ja
+// existia no sinal; o preco-base e o preenchimento efetivo da corretora simulada.
+abriuAgora = strategy.position_size != 0 and strategy.position_size[1] == 0
+fechouAgora = strategy.position_size == 0 and strategy.position_size[1] != 0
+if abriuAgora
+    riscoTravado := atrPendente
+    barraEntrada := bar_index
+if fechouAgora
+    riscoTravado := na
+    barraEntrada := na
+    atrPendente := na
+    idEntrada := ""
+
+if strategy.position_size > 0 and not na(riscoTravado)
+    stopLong = arredondarBaixo(strategy.position_avg_price - stopAtr * riscoTravado)
+    alvoLong = arredondarBaixo(strategy.position_avg_price + stopAtr * riscoTravado * alvoR)
+    strategy.exit("SLTP-" + idEntrada, from_entry=idEntrada, stop=stopLong, limit=alvoLong, comment_profit="alvo", comment_loss="stop")
+if strategy.position_size < 0 and not na(riscoTravado)
+    stopShort = arredondarCima(strategy.position_avg_price + stopAtr * riscoTravado)
+    alvoShort = arredondarCima(strategy.position_avg_price - stopAtr * riscoTravado * alvoR)
+    strategy.exit("SLTP-" + idEntrada, from_entry=idEntrada, stop=stopShort, limit=alvoShort, comment_profit="alvo", comment_loss="stop")
+
+// Stop/alvo permanecem prioritarios. Ao completar maxVelas, a ordem de fechar
+// e criada no fechamento e preenche no tick seguinte; nao ha reentrada enquanto
+// a posicao existir.
+tempoEsgotado = strategy.position_size != 0 and not na(barraEntrada) and bar_index - barraEntrada >= maxVelas
+if tempoEsgotado
+    strategy.close(idEntrada, comment="tempo")
+
+bgcolor(mostrar ? regime == 1 ? color.new(color.teal, 91) : regime == -1 ? color.new(color.orange, 91) : color.new(color.gray, 94) : na)
+plot(mostrar ? donchianAltoAnterior : na, "Donchian anterior alto", color=color.new(color.green, 25))
+plot(mostrar ? donchianBaixoAnterior : na, "Donchian anterior baixo", color=color.new(color.red, 25))
+
+var table painel = table.new(position.top_right, 2, 8, bgcolor=color.new(color.black, 10))
+if barstate.islast or barstate.islastconfirmedhistory
+    if mostrar
+        nomeRegime = regime == 1 ? "TENDENCIA" : regime == -1 ? "FAIXA" : "TRANSICAO"
+        acao = strategy.position_size != 0 ? "GERINDO POSICAO" : sinal == 1 ? "COMPRA CANDIDATA" : sinal == -1 ? "VENDA CANDIDATA" : "SEM ORDEM"
+        table.cell(painel, 0, 0, "MNEME | Regimes M15", text_color=color.white, bgcolor=color.new(color.blue, 40))
+        table.cell(painel, 1, 0, modo, text_color=color.white, bgcolor=color.new(color.blue, 40))
+        table.cell(painel, 0, 1, "Regime")
+        table.cell(painel, 1, 1, nomeRegime, text_color=regime == 1 ? color.lime : regime == -1 ? color.orange : color.silver)
+        table.cell(painel, 0, 2, "ADX / H1")
+        table.cell(painel, 1, 2, str.tostring(adx, "#.##") + " / " + str.tostring(direcaoH1))
+        table.cell(painel, 0, 3, "Sinal do modo")
+        table.cell(painel, 1, 3, sinal == 1 ? "COMPRA" : sinal == -1 ? "VENDA" : "NEUTRO")
+        table.cell(painel, 0, 4, "Acao")
+        table.cell(painel, 1, 4, acao, text_color=acao == "SEM ORDEM" ? color.silver : color.yellow)
+        table.cell(painel, 0, 5, "Preenchimento")
+        table.cell(painel, 1, 5, "proximo tick; custo .1% + 10 ticks")
+        table.cell(painel, 0, 6, "Risco / alvo")
+        table.cell(painel, 1, 6, str.tostring(stopAtr, "#.##") + " ATR / " + str.tostring(alvoR, "#.##") + "R bruto")
+        table.cell(painel, 0, 7, "Janela")
+        table.cell(painel, 1, 7, naJanela and pronto ? "ATIVA" : "AGUARDANDO")

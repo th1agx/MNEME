@@ -1,0 +1,28 @@
+//@version=6
+strategy("MNEME | Teste de regimes BTC M15", overlay=true)
+
+// RED primeiro: copie as funcoes puras de classificacao e autorizacao do
+// experimento de regimes abaixo. Enquanto elas nao existirem, este script deve
+// falhar ao compilar — a falha prova que os cenarios testam comportamento novo.
+
+if barstate.isfirst
+    // A mudanca que estes testes devem capturar: permitir cruzamento entre
+    // tendencia e faixa, aceitar ADX transicional, ou operar sem direcao H1.
+    if classificarRegime(25, 25, 20) != 1
+        runtime.error("ADX no limiar forte precisa classificar tendencia")
+    if classificarRegime(20, 25, 20) != -1
+        runtime.error("ADX no limiar fraco precisa classificar faixa")
+    if classificarRegime(22, 25, 20) != 0
+        runtime.error("ADX transicional precisa ficar neutro")
+    if entradaTendencia(1, 1, 1) != 1 or entradaTendencia(1, -1, -1) != -1
+        runtime.error("Rompimento alinhado a H1 precisa preservar a direcao")
+    if entradaTendencia(1, 1, -1) != 0 or entradaTendencia(1, 0, 1) != 0 or entradaTendencia(-1, 1, 1) != 0
+        runtime.error("Tendencia nao pode operar contra H1, neutra ou em faixa")
+    if entradaFaixa(-1, 1) != 1 or entradaFaixa(-1, -1) != -1
+        runtime.error("Reversao em faixa precisa preservar a direcao")
+    if entradaFaixa(-1, 0) != 0 or entradaFaixa(1, 1) != 0 or entradaFaixa(0, -1) != 0
+        runtime.error("Faixa nao pode operar sem sinal, em tendencia ou transicao")
+
+var table placar = table.new(position.top_right, 1, 1, bgcolor=color.green)
+if barstate.islast or barstate.islastconfirmedhistory
+    table.cell(placar, 0, 0, "PASSOU: regimes (10 cenarios)", text_color=color.white)
