@@ -11,7 +11,8 @@
     "max_simultaneas_total": 100,
     "max_perdas_seguidas": 8,
     "drawdown_max_pct": 40,
-    "idade_maxima_dados_min": 3
+    "idade_maxima_dados_min": 3,
+    "janela_calendario_min": 30
   },
   "mercados": [
     {
@@ -28,14 +29,11 @@
     },
     {
       "mercado": "forex",
-      "ativos": ["EURUSD", "GBPUSD", "USDJPY"],
+      "ativos": ["EURUSD", "EURGBP", "USDJPY", "EURJPY"],
       "modalidades": [
-        {"tipo": "expiracao_fixa", "candle": 1, "expiracao": 1, "payout": 0.85},
-        {"tipo": "expiracao_fixa", "candle": 1, "expiracao": 5, "payout": 0.85},
         {"tipo": "expiracao_fixa", "candle": 5, "expiracao": 5, "payout": 0.85},
         {"tipo": "expiracao_fixa", "candle": 5, "expiracao": 15, "payout": 0.85},
-        {"tipo": "expiracao_fixa", "candle": 15, "expiracao": 15, "payout": 0.85},
-        {"tipo": "com_stop", "candle": 5, "expiracao": 60, "custo_bps": 1.5, "stop_atr": 1.5, "alvo_atr": 3, "vende": true}
+        {"tipo": "expiracao_fixa", "candle": 15, "expiracao": 15, "payout": 0.85}
       ]
     },
     {

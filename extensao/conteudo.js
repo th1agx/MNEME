@@ -111,7 +111,7 @@
     const tempo = fase === "preparar" || fase === "andamento" ? `<div class="tempo">${L.contagem(sinal, fase, agora)}</div>` : "";
     const pedir = (fase === "entrar" || fase === "andamento") && !respondidos.has(sinal.id)
       ? `<div class="acoes"><input placeholder="payout %" inputmode="decimal"><button class="sim">entrei</button><button class="nao">não</button></div>` : "";
-    corpo.innerHTML = `<div class="linha"><span>${esc(sinal.ativo)}</span><span>${titulo}</span></div>${meio}
+    corpo.innerHTML = `<div class="linha"><span>${esc(sinal.ativo)} · ${esc(sinal.tempo_grafico || "?")}</span><span>${titulo}</span></div>${meio}
       <div class="linha"><span>expiração ${esc(sinal.expiracao_min)} min</span><span>entrada ${new Date(sinal.entrada_em).toLocaleTimeString().slice(0, 5)}</span></div>
       ${tempo}${pedir}<div class="msg">${esc(sinal.cenario)}</div>`;
     const sim = raiz.querySelector(".sim"), nao = raiz.querySelector(".nao");

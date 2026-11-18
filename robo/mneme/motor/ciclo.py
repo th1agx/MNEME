@@ -12,8 +12,10 @@ import pandas as pd
 
 from ..carteira_tecnicas import ultima_vela_fechada
 from ..dados.armazem import ArmazemVelas, agora_utc
-from ..laboratorio.confluencia import grade_de_sinais
-from .decisao import decidir_operacao
+from ..dados.eventos import ArmazemEventos
+from ..forex import eventos_altos_relevantes, moedas_do_par
+from ..laboratorio.confluencia import decidir as decidir_confluencia, grade_de_sinais
+from .decisao import bloqueio_multitempo, decidir_operacao
 from .diario import Diario
 from .execucao import criar_executor
 from .conhecimento import chave_da_estrategia
@@ -26,7 +28,10 @@ log = logging.getLogger("mneme.motor")
 DIAS_DE_JANELA = {1: 4, 5: 12, 15: 30, 60: 60}
 UM_MINUTO = pd.Timedelta(minutes=1)
 # A que assuntos da leitura de notícias cada ativo responde.
-ASSUNTOS = {"BTCUSDT": ("BTC",), "ETHUSDT": ("ETH",), "SOLUSDT": ("SOL",), "EURUSD": ("EURUSD", "USD", "JUROS_EUA"), "GBPUSD": ("USD", "JUROS_EUA"), "USDJPY": ("USD", "JUROS_EUA"), "XAUUSD": ("OURO", "USD", "JUROS_EUA")}
+ASSUNTOS = {"BTCUSDT": ("BTC",), "ETHUSDT": ("ETH",), "SOLUSDT": ("SOL",), "EURUSD": ("EURUSD", "EUR", "USD", "JUROS_EUA"),
+            "EURGBP": ("EURGBP", "EUR", "GBP", "JUROS_EUA", "JUROS_REINO_UNIDO"), "USDJPY": ("USDJPY", "USD", "JPY", "JUROS_EUA", "JUROS_JAPAO"),
+            "EURJPY": ("EURJPY", "EUR", "JPY", "JUROS_EUA", "JUROS_JAPAO"), "GBPUSD": ("GBP", "USD", "JUROS_EUA", "JUROS_REINO_UNIDO"),
+            "XAUUSD": ("OURO", "USD", "JUROS_EUA")}
 
 
 def carregar_modelos(pasta: Path) -> dict[str, dict]:
@@ -39,6 +44,7 @@ class Motor:
     def __init__(self, raiz: Path | str, configuracao: Configuracao | None, diario: Diario, pasta_modelos: Path, relogio: Callable[[], datetime] = agora_utc, velas=None, parar_em: Path | None = None):
         self.raiz, self.config, self.diario, self.pasta_modelos, self.relogio = Path(raiz), configuracao, diario, Path(pasta_modelos), relogio
         self.velas = velas or ArmazemVelas(raiz)
+        self.eventos = ArmazemEventos(raiz)
         self.batimento = self.raiz / "motor.batimento"
         self.parar_em = parar_em or self.raiz.parent / "PARAR"
         self.executor = criar_executor(configuracao.modo, diario) if configuracao else None
@@ -75,13 +81,19 @@ class Motor:
             sinais, v = grades[chave]
             if vela not in sinais.index or v.empty:
                 continue
-            feito = self._decidir(e, modelo, sinais.loc[vela], vela, v, agora)
+            feito = self._decidir(e, modelo, sinais.loc[vela], vela, v, agora, modelos)
             resumo[feito] += 1
         return resumo
 
-    def _decidir(self, e: Estrategia, modelo: dict, linha: pd.Series, vela: pd.Timestamp, v: pd.DataFrame, agora: pd.Timestamp) -> str:
+    def _decidir(self, e: Estrategia, modelo: dict, linha: pd.Series, vela: pd.Timestamp, v: pd.DataFrame, agora: pd.Timestamp, modelos: dict[str, dict]) -> str:
         contexto = self.diario.contexto_vigente(ASSUNTOS.get(e.ativo, ()) + (chave_da_estrategia(e),), agora)
-        d = decidir_operacao(e, modelo, linha, vela, self.config.min_operacoes_evidencia, contexto)
+        base = decidir_confluencia(modelo, linha)
+        bloqueios = list(self._bloqueios_calendario(e, agora))
+        if base is not None:
+            bloqueio = self._bloqueio_multitempo(e, v, vela, int(base["direcao"]), modelos)
+            if bloqueio:
+                bloqueios.append(bloqueio)
+        d = decidir_operacao(e, modelo, linha, vela, self.config.min_operacoes_evidencia, contexto, tuple(bloqueios))
         if d is None:
             return "sem_oportunidade"
         amplitude = amplitude_media(v, e.candle)
@@ -103,6 +115,50 @@ class Motor:
         # O resultado da sombra é por unidade: ela mede o que teria acontecido, sem pesar no risco da carteira.
         self.diario.registrar(**registro, motivos_recusa=motivos, tipo="sombra", tamanho=1.0)
         return "sombra"
+
+    def _bloqueio_multitempo(self, e: Estrategia, v: pd.DataFrame, vela: pd.Timestamp, direcao: int, modelos: dict[str, dict]) -> str | None:
+        """Para Forex, o próximo candle maior configurado confirma a entrada menor.
+
+        Com M5 e M15 na configuração, M5 só avança quando a última M15 fechada
+        também passa pelo seu corte aprendido e aponta o mesmo lado. M15 continua
+        como uma leitura de contexto por si só; os tempos vêm da configuração.
+        """
+        if e.mercado != "forex":
+            return None
+        maiores = sorted((outra for outra in self.config.estrategias if outra.ativo == e.ativo and outra.mercado == e.mercado
+                          and outra.modalidade.tipo == e.modalidade.tipo and outra.candle > e.candle), key=lambda outra: outra.candle)
+        if not maiores:
+            return None
+        maior = maiores[0]
+        modelo = modelos.get(maior.arquivo)
+        if modelo is None:
+            return f"{maior.candle}m: modelo não disponível"
+        grade = grade_de_sinais(v, maior.candle)
+        grade = grade.loc[grade.index <= vela]
+        confirmacao = decidir_confluencia(modelo, grade.iloc[-1]) if len(grade) else None
+        return bloqueio_multitempo(direcao, confirmacao, f"{maior.candle}m")
+
+    def _bloqueios_calendario(self, e: Estrategia, agora: pd.Timestamp) -> tuple[str, ...]:
+        """Bloqueia só o Forex configurado quando a agenda High torna o preço instável.
+
+        O filtro não aponta direção e nunca consulta a internet no caminho de tempo
+        real: lê a cópia local do calendário, com a hora em que cada evento chegou.
+        Sem uma política configurada, Forex fica em sombra para não fingir que a
+        agenda foi considerada.
+        """
+        if e.mercado != "forex" or not moedas_do_par(e.ativo):
+            return ()
+        janela = self.config.limites.janela_calendario_min
+        if janela is None:
+            return ("calendário: política não configurada",)
+        try:
+            agenda = self.eventos.ler("calendario", "GLOBAL", inicio=(agora - pd.Timedelta(minutes=janela)).to_pydatetime(),
+                                      fim=(agora + pd.Timedelta(minutes=janela + 1)).to_pydatetime())
+            relevantes = eventos_altos_relevantes(agenda, e.ativo, agora, janela)
+        except (OSError, ValueError, KeyError):
+            return ("calendário: indisponível",)
+        return tuple(f"calendário: {str(linha.nome)[:80]} em {pd.Timestamp(linha.ocorrido_em):%H:%M} UTC"
+                     for linha in relevantes.itertuples())
 
     def apurar(self, agora: pd.Timestamp) -> int:
         """Apura tudo o que já venceu, operado ou não. Sem preço depois de um dia, fica como sem_preco e nunca é contado como ganho ou perda."""

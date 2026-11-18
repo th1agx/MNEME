@@ -39,6 +39,12 @@ BRASILIA = timezone(timedelta(hours=-3))  # o dia do placar vira à meia-noite d
 CORRETORAS = {"quotex", "iqoption", "outra"}
 
 
+def tempo_grafico(estrategia: str) -> str:
+    """O timeframe faz parte da identidade do sinal e aparece no card da extensão."""
+    partes = estrategia.split("|")
+    return partes[2] if len(partes) == 4 and partes[2].endswith("m") else "?"
+
+
 class ErroPedido(Exception):
     def __init__(self, status: int, mensagem: str):
         super().__init__(mensagem)
@@ -83,7 +89,7 @@ class Servidor:
                 s = json.loads(l["sinal"])
                 if s.get("acao") not in ("CALL", "PUT"):
                     continue
-                item = {"id": l["chave"], "ativo": l["ativo"], "direcao": s["acao"], "expiracao_min": int(s["expiracao_min"]),
+                item = {"id": l["chave"], "ativo": l["ativo"], "tempo_grafico": tempo_grafico(l["estrategia"]), "direcao": s["acao"], "expiracao_min": int(s["expiracao_min"]),
                         "entrada_em": s["entrada_em"], "decidido_em": l["decidido_em"], "estrategia": l["estrategia"],
                         "cenario": str(cenario.get("cenario", ""))[:120], "preco_referencia": s.get("preco_referencia"),
                         "resultado": l["resultado"] if l["situacao"] == "encerrada" else None}

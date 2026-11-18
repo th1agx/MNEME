@@ -47,6 +47,7 @@ class Limites:
     max_perdas_seguidas: int | None = None
     drawdown_max_pct: float | None = None
     idade_maxima_dados_min: float | None = None
+    janela_calendario_min: int | None = None
 
 
 @dataclass(frozen=True)

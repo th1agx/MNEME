@@ -1,5 +1,5 @@
 {
-  "_nota": "Copie para dados/digitais/cenario.json na VPS. Só as estratégias listadas aparecem no card da extensão (serviço sinais).",
-  "estrategias": ["ETHUSDT|expiracao_fixa|5m|5m"],
-  "cenario": "ETH · vela de 5 min · expiração de 5 min"
+  "_nota": "Copie para dados/digitais/cenario.json na VPS depois de treinar e aprovar as estratégias. O card mostra só sinais manuais destas paridades; a M5 exige confirmação da M15 e a agenda High bloqueia a sugestão na janela configurada.",
+  "estrategias": ["EURUSD|expiracao_fixa|5m|5m", "EURUSD|expiracao_fixa|15m|15m", "EURGBP|expiracao_fixa|5m|5m", "EURGBP|expiracao_fixa|15m|15m", "USDJPY|expiracao_fixa|5m|5m", "USDJPY|expiracao_fixa|15m|15m", "EURJPY|expiracao_fixa|5m|5m", "EURJPY|expiracao_fixa|15m|15m"],
+  "cenario": "Forex · EURUSD, EURGBP, USDJPY e EURJPY · M5 confirmado por M15 · somente sugestão manual"
 }

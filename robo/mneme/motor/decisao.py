@@ -24,14 +24,28 @@ class Decisao:
     contexto: tuple[dict, ...] = field(default=())
 
 
-def decidir_operacao(estrategia: Estrategia, modelo: dict, linha: pd.Series, vela: pd.Timestamp, min_operacoes: int, contexto: tuple[dict, ...] = ()) -> Decisao | None:
+def bloqueio_multitempo(direcao: int, confirmacao: dict | None, tempo: str) -> str | None:
+    """A vela menor só dá entrada se o modelo da vela maior também tiver convicção.
+
+    O valor de ``tempo`` vem da estratégia configurada; esta função não escolhe
+    nem fixa um timeframe. A confirmação é técnica, não textual.
+    """
+    if confirmacao is None:
+        return f"{tempo}: sem confluência suficiente"
+    if int(confirmacao["direcao"]) != direcao:
+        return f"{tempo}: direção contrária"
+    return None
+
+
+def decidir_operacao(estrategia: Estrategia, modelo: dict, linha: pd.Series, vela: pd.Timestamp, min_operacoes: int, contexto: tuple[dict, ...] = (),
+                     bloqueios: tuple[str, ...] = ()) -> Decisao | None:
     """`None` quer dizer sem oportunidade. O contexto da LLM vai junto para o diário, mas só decide depois de provar utilidade."""
     base = decidir(modelo, linha)
     if base is None:
         return None
     evidencia = modelo.get("evidencia") or {}
     expectativa = estrategia.modalidade.expectativa(evidencia)
-    contra = []
+    contra = list(bloqueios)
     if not estrategia.modalidade.permite(base["direcao"]):
         contra.append("esta modalidade não permite vender")
     if evidencia.get("operacoes", 0) < min_operacoes:

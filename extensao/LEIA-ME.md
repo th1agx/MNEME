@@ -10,7 +10,7 @@ Tudo fica na VPS:
 3. Neste computador, um **túnel SSH** liga o `127.0.0.1:8787` local ao da VPS.
 4. A extensão consulta o túnel a cada 2 segundos.
 
-Só aparecem os sinais do cenário escolhido em `dados/digitais/cenario.json` na VPS (exemplo em `robo/digitais_cenario.exemplo.json`).
+Só aparecem os sinais do cenário escolhido em `dados/digitais/cenario.json` na VPS (exemplo em `robo/digitais_cenario.exemplo.json`). O card identifica a **paridade**, o **timeframe** e a ação sugerida; quando mais de uma paridade estiver configurada, só a que tiver um sinal válido no momento aparece.
 
 ## Instalar
 

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 PLATAFORMAS = {"iqoption": "IQ Option", "quotex": "Quotex"}
 
 # Ativo da plataforma → série de referência no armazém do MNEME (Binance para cripto, Dukascopy para moedas e ouro).
-REFERENCIA = {"EURUSD": "EURUSD", "GBPUSD": "GBPUSD", "USDJPY": "USDJPY", "XAUUSD": "XAUUSD",
+REFERENCIA = {"EURUSD": "EURUSD", "EURGBP": "EURGBP", "USDJPY": "USDJPY", "EURJPY": "EURJPY", "GBPUSD": "GBPUSD", "XAUUSD": "XAUUSD",
               "BTCUSD": "BTCUSDT", "BTCUSDT": "BTCUSDT", "ETHUSD": "ETHUSDT", "ETHUSDT": "ETHUSDT", "SOLUSD": "SOLUSDT", "SOLUSDT": "SOLUSDT"}
 
 

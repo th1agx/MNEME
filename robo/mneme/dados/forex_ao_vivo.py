@@ -27,7 +27,8 @@ from .velas import linha, tabela
 
 log = logging.getLogger("mneme.forex")
 YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart/{simbolo}"
-MOEDAS = {"EURUSD": "EURUSD=X", "GBPUSD": "GBPUSD=X", "USDJPY": "USDJPY=X", "USDCAD": "USDCAD=X"}
+MOEDAS = {"EURUSD": "EURUSD=X", "EURGBP": "EURGBP=X", "USDJPY": "USDJPY=X", "EURJPY": "EURJPY=X",
+          "GBPUSD": "GBPUSD=X", "USDCAD": "USDCAD=X"}
 OURO, PROXY_OURO = "XAUUSD", "PAXGUSDT"
 JANELA = timedelta(minutes=30)
 SEGUNDO_DO_CICLO = 8
