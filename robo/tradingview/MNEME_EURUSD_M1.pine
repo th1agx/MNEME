@@ -1,0 +1,276 @@
+//@version=6
+strategy("MNEME | EURUSD M1 | Fluxo e Scalp", overlay = true, initial_capital = 10000, currency = currency.USD, pyramiding = 0, default_qty_type = strategy.fixed, commission_type = strategy.commission.cash_per_contract, commission_value = 0, slippage = 3, margin_long = 100, margin_short = 100, calc_on_every_tick = true, calc_on_order_fills = false, process_orders_on_close = false)
+
+// Experimento independente do motor Python. Apenas emulador; sem corretora/alertas.
+// Custo hipotetico de 3 ticks adversos por preenchimento. Nao representa o spread BID/ASK real.
+// Sem comissao ou financiamento: configurar custos da corretora antes de avaliar rentabilidade.
+// O modo ao vivo inicia vazio a cada carga ou alteracao de parametros.
+// A sessao somente ao vivo reinicia na carga. Modelos Python sao avaliados separadamente; este Pine nao treina nem recebe seus resultados.
+string method = input.string("Fluxo combinado", "Estrategia", options = ["Fluxo combinado", "Bollinger reversao", "Fluxo pullback", "Fluxo rompimento", "Scalp combinado", "Pullback EMA 9/21", "RSI 4 saindo de 80/20", "Rompimento de 5 velas"], group = "Teste")
+bool enabled = input.bool(false, "Habilitar simulacao", group = "Teste")
+bool liveOnly = input.bool(true, "Somente sinais ao vivo (reinicia ao recarregar)", group = "Teste")
+int historyStart = input.time(timestamp("01 Nov 2026 00:00 +0000"), "Inicio do historico (modo historico)", group = "Teste")
+float riskPct = input.float(0.25, "Risco planejado por stop (%)", minval = 0.01, maxval = 1, group = "Risco")
+float exposurePct = input.float(25, "Exposicao nominal maxima (%)", minval = 1, maxval = 50, group = "Risco")
+float maxBaseUnits = input.float(1000, "Teto em unidades de EUR", minval = 1, group = "Risco")
+float stopAtr = input.float(1, "Stop em ATR14", minval = 0.1, group = "Saidas somente scalp")
+float targetAtr = input.float(1.2, "Alvo em ATR14", minval = 0.1, group = "Saidas somente scalp")
+int maxBars = input.int(3, "Maximo de minutos na posicao", minval = 1, maxval = 30, group = "Saidas somente scalp")
+int cooldown = input.int(1, "Velas de pausa apos saida", minval = 1, maxval = 30, group = "Risco")
+float flowStopAtr = input.float(1.5, "Fluxo: stop inicial ATR14", minval = 0.1, group = "Seguir tendencia")
+float trailAtr = input.float(2, "Fluxo: distancia do trailing ATR14", minval = 0.1, group = "Seguir tendencia")
+float trailActivation = input.float(1, "Fluxo: ativar trailing apos ATR14", minval = 0.1, group = "Seguir tendencia")
+bool isFlow = str.startswith(method, "Fluxo")
+bool isMean = method == "Bollinger reversao"
+int meanHold = input.int(15, "Reversao: maximo de minutos", minval = 1, group = "Reversao Bollinger")
+// Fluxo = inferencia pelo preco/medias. Nao representa book ou delta de agressores.
+bool showPanel = input.bool(true, "Mostrar placar compacto", group = "Visual")
+
+if barstate.isfirst
+    if timeframe.in_seconds() != 60 or not str.contains(str.upper(syminfo.ticker), "EURUSD") or syminfo.currency != "USD"
+        runtime.error("Use EURUSD em 1 minuto, com velas convencionais.")
+    if not chart.is_standard
+        runtime.error("Use velas convencionais.")
+
+// Camada visual independente das ordens: continua lendo velas com a simulacao pausada.
+string visualMode = input.string("Todas", "Desenhar estrategias", options = ["Todas", "Fimathe", "Bollinger + RSI", "EMA e VWAP", "Fluxo e Scalp"], group = "Estrategias no grafico")
+int signalWindow = input.int(90, "Ultimas velas com marcacoes", minval = 30, maxval = 1000, group = "Estrategias no grafico")
+int markSpacing = input.int(8, "Espacamento entre etiquetas (apenas visual)", minval = 1, maxval = 30, group = "Estrategias no grafico")
+bool drawSignals = input.bool(true, "Marcar sinais confirmados (nao sao ordens)", group = "Estrategias no grafico")
+bool drawFM = visualMode == "Todas" or visualMode == "Fimathe"
+bool drawBB = visualMode == "Todas" or visualMode == "Bollinger + RSI"
+bool drawEMA = visualMode == "Todas" or visualMode == "EMA e VWAP" or visualMode == "Fluxo e Scalp"
+int fmBars = input.int(4, "Fimathe: velas do canal", minval = 2, maxval = 20, group = "Estrategias no grafico")
+float fmRR = input.float(1.5, "Fimathe: alvo visual em R", minval = 0.1, group = "Estrategias no grafico")
+float ema9 = ta.ema(close, 9)
+float ema21 = ta.ema(close, 21)
+float ema50 = ta.ema(close, 50)
+float rsi4 = ta.rsi(close, 4)
+float atr = ta.atr(14)
+float previousHigh = ta.highest(high, 5)[1]
+float previousLow = ta.lowest(low, 5)[1]
+bool pullBuy = ema9 > ema21 and low <= ema9 and close > ema9 and close > open
+bool pullSell = ema9 < ema21 and high >= ema9 and close < ema9 and close < open
+bool rsiBuy = rsi4[1] < 20 and rsi4 >= 20
+bool rsiSell = rsi4[1] > 80 and rsi4 <= 80
+bool breakoutBuy = close > previousHigh and close[1] <= previousHigh
+bool breakoutSell = close < previousLow and close[1] >= previousLow
+bool trendUp = ema9 > ema21 and ema21 > ema50 and ema21 > ema21[3]
+bool trendDown = ema9 < ema21 and ema21 < ema50 and ema21 < ema21[3]
+bool flowBuy = trendUp and (method == "Fluxo pullback" ? pullBuy : method == "Fluxo rompimento" ? breakoutBuy : pullBuy or breakoutBuy)
+bool flowSell = trendDown and (method == "Fluxo pullback" ? pullSell : method == "Fluxo rompimento" ? breakoutSell : pullSell or breakoutSell)
+bool trendExitLong = ta.crossunder(ema9, ema21)
+bool trendExitShort = ta.crossover(ema9, ema21)
+float bbMean = ta.sma(close, 20)
+float bbDeviation = 2 * ta.stdev(close, 20, true)
+bool buySignal = isMean ? close <= bbMean - bbDeviation : isFlow ? flowBuy : method == "Pullback EMA 9/21" ? pullBuy : method == "RSI 4 saindo de 80/20" ? rsiBuy : method == "Rompimento de 5 velas" ? breakoutBuy : pullBuy or rsiBuy or breakoutBuy
+bool sellSignal = isMean ? close >= bbMean + bbDeviation : isFlow ? flowSell : method == "Pullback EMA 9/21" ? pullSell : method == "RSI 4 saindo de 80/20" ? rsiSell : method == "Rompimento de 5 velas" ? breakoutSell : pullSell or rsiSell or breakoutSell
+
+var int lastExit = na
+var int buyCount = 0
+var int sellCount = 0
+var int stopTicks = na
+var int targetTicks = na
+var float entryAtr = na
+var float trailingStop = na
+var float bestClose = na
+bool justClosed = ta.change(strategy.closedtrades) > 0
+if justClosed
+    lastExit := bar_index
+bool ready = enabled and barstate.isconfirmed and (liveOnly ? barstate.isrealtime : time >= historyStart) and strategy.position_size == 0 and (na(lastExit) or bar_index - lastExit >= cooldown) and not justClosed
+if ready and buySignal != sellSignal and not na(atr)
+    float distance = ((isFlow or isMean) ? flowStopAtr : stopAtr) * atr
+    float equity = math.max(strategy.equity, 0)
+    float byRisk = equity * riskPct / 100 / (distance * syminfo.pointvalue)
+    float byExposure = equity * exposurePct / 100 / (close * syminfo.pointvalue)
+    float step = syminfo.mincontract
+    float quantity = step > 0 ? math.floor(math.min(math.min(byRisk, byExposure), maxBaseUnits / syminfo.pointvalue) / step) * step : 0
+    if quantity >= syminfo.mincontract and distance > syminfo.mintick
+        stopTicks := int(math.ceil(distance / syminfo.mintick))
+        targetTicks := isFlow ? na : int(math.ceil((isMean ? 3.0 : targetAtr) * atr / syminfo.mintick))
+        entryAtr := atr
+        if buySignal
+            buyCount += 1
+            strategy.entry("Compra SIM", strategy.long, qty = quantity, disable_alert = true)
+            strategy.exit("Saida C", "Compra SIM", loss = stopTicks, profit = targetTicks, disable_alert = true)
+        else
+            sellCount += 1
+            strategy.entry("Venda SIM", strategy.short, qty = quantity, disable_alert = true)
+            strategy.exit("Saida V", "Venda SIM", loss = stopTicks, profit = targetTicks, disable_alert = true)
+if barstate.isconfirmed and strategy.position_size != 0
+    int entryBar = strategy.opentrades.entry_bar_index(0)
+    if not isFlow and bar_index - entryBar + 1 >= (isMean ? meanHold : maxBars)
+        strategy.close_all(comment = "Tempo M1", immediately = true, disable_alert = true)
+
+float direction = math.sign(strategy.position_size)
+float entry = strategy.position_size != 0 ? strategy.position_avg_price : na
+float initialStop = entry - direction * stopTicks * syminfo.mintick
+if strategy.position_size == 0
+    trailingStop := na
+    bestClose := na
+// Atualiza pelo fechamento confirmado, sem usar extremos anteriores ao preenchimento.
+// ATR congelado na entrada; o stop so aperta, nunca se afasta da posicao.
+if isFlow and barstate.isconfirmed and strategy.position_size != 0
+    bestClose := na(bestClose) ? entry : bestClose
+    bestClose := direction > 0 ? math.max(bestClose, close) : math.min(bestClose, close)
+    trailingStop := na(trailingStop) ? initialStop : trailingStop
+    if direction * (bestClose - entry) >= trailActivation * entryAtr
+        float candidate = math.round_to_mintick(bestClose - direction * trailAtr * entryAtr)
+        trailingStop := direction > 0 ? math.max(trailingStop, candidate) : math.min(trailingStop, candidate)
+    if direction > 0
+        strategy.exit("Saida C", "Compra SIM", stop = trailingStop, disable_alert = true)
+        if trendExitLong
+            strategy.close("Compra SIM", comment = "Virada EMA", immediately = true, disable_alert = true)
+    else
+        strategy.exit("Saida V", "Venda SIM", stop = trailingStop, disable_alert = true)
+        if trendExitShort
+            strategy.close("Venda SIM", comment = "Virada EMA", immediately = true, disable_alert = true)
+float stopPrice = isFlow ? nz(trailingStop, initialStop) : initialStop
+float targetPrice = entry + direction * targetTicks * syminfo.mintick
+bbTopPlot = plot(drawBB ? bbMean + bbDeviation : na, "Bollinger superior", color = color.new(color.blue, 50))
+bbBottomPlot = plot(drawBB ? bbMean - bbDeviation : na, "Bollinger inferior", color = color.new(color.blue, 50))
+fill(bbTopPlot, bbBottomPlot, color = color.new(color.blue, 95), title = "Faixa Bollinger")
+plot(drawEMA ? ema9 : na, "EMA 9", color = color.teal)
+plot(drawEMA ? ema21 : na, "EMA 21", color = color.orange)
+plot(drawEMA ? ema50 : na, "EMA 50 (fluxo)", color = color.purple)
+plot(entry, "Entrada aberta", color = color.blue, style = plot.style_linebr, linewidth = 2)
+plot(stopPrice, "Stop aberto", color = color.red, style = plot.style_linebr, linewidth = 2)
+plot(targetPrice, "Alvo aberto", color = color.lime, style = plot.style_linebr, linewidth = 2)
+
+var table panel = table.new(position.bottom_right, 2, 6, bgcolor = color.rgb(18, 23, 26))
+if barstate.islast or barstate.islastconfirmedhistory
+    table.clear(panel, 0, 0, 1, 5)
+    if showPanel
+        table.cell(panel, 0, 0, "MNEME M1 · SIM", text_color = color.orange, text_size = size.small)
+        table.cell(panel, 1, 0, not enabled ? "PAUSADO" : liveOnly ? "AO VIVO*" : "HISTORICO", text_color = color.white, text_size = size.small)
+        table.cell(panel, 0, 1, "Compras / vendas", text_color = color.white, text_size = size.small)
+        table.cell(panel, 1, 1, str.tostring(buyCount) + " / " + str.tostring(sellCount), text_color = color.white, text_size = size.small)
+        table.cell(panel, 0, 2, "Fechadas / bruto", text_color = color.white, text_size = size.small)
+        table.cell(panel, 1, 2, str.tostring(strategy.closedtrades) + " / " + str.tostring(strategy.netprofit, "#.##") + " USD", text_color = color.white, text_size = size.small)
+        table.cell(panel, 0, 3, "Aberta / flutuante", text_color = color.white, text_size = size.small)
+        table.cell(panel, 1, 3, strategy.position_size == 0 ? "Sem posicao" : (direction > 0 ? "Compra " : "Venda ") + str.tostring(strategy.openprofit, "#.##") + " USD", text_color = color.white, text_size = size.small)
+        table.cell(panel, 0, 4, isFlow ? "Tendencia por preco" : isMean ? "Reversao" : "Scalp", text_color = color.white, text_size = size.small)
+        table.cell(panel, 1, 4, not enabled ? "Pausado" : isFlow ? "Fluxo: sem prazo fixo" : "Ate " + str.tostring(isMean ? meanHold : maxBars) + " min", text_color = color.white, text_size = size.small)
+        table.cell(panel, 0, 5, "Custo: 3 ticks/fill*", text_color = color.orange, text_size = size.small)
+        table.cell(panel, 1, 5, "*Rever Propriedades", text_color = color.orange, text_size = size.small)
+
+// Fimathe experimental visual. Estado proprio para estudar canais, sem strategy.entry.
+// Canal inicial de N velas fechadas; remarca apos stop/alvo virtual. Nao calcula P&L.
+float fmRecentHigh = ta.highest(high, fmBars)
+float fmRecentLow = ta.lowest(low, fmBars)
+var int fmCollected = 0
+var float fmHigh = na
+var float fmLow = na
+var int fmAnchor = na
+var int fmSide = 0
+var int fmPending = 0
+var int fmSignalBar = na
+var float fmEntry = na
+var float fmStop = na
+var float fmTarget = na
+bool fmBuyMark = false
+bool fmSellMark = false
+bool fmExitMark = false
+if barstate.isconfirmed and time >= historyStart
+    if fmPending != 0 and bar_index > fmSignalBar
+        float distance = fmPending > 0 ? open - fmLow : fmHigh - open
+        if distance > syminfo.mintick
+            fmSide := fmPending
+            fmEntry := open
+            fmStop := fmSide > 0 ? fmLow : fmHigh
+            fmTarget := fmEntry + fmSide * distance * fmRR
+        fmPending := 0
+    if fmSide != 0
+        bool stopped = fmSide > 0 ? low <= fmStop : high >= fmStop
+        bool targeted = fmSide > 0 ? high >= fmTarget : low <= fmTarget
+        if stopped or targeted
+            fmExitMark := true
+            fmSide := 0
+            fmEntry := na
+            fmStop := na
+            fmTarget := na
+            fmHigh := fmRecentHigh
+            fmLow := fmRecentLow
+            fmAnchor := bar_index
+    if na(fmAnchor)
+        fmHigh := na(fmHigh) ? high : math.max(fmHigh, high)
+        fmLow := na(fmLow) ? low : math.min(fmLow, low)
+        fmCollected += 1
+        if fmCollected >= fmBars
+            fmAnchor := bar_index
+    float width = fmHigh - fmLow
+    if not na(fmAnchor) and bar_index > fmAnchor and fmSide == 0 and fmPending == 0 and not fmExitMark and width > syminfo.mintick
+        fmBuyMark := close > fmHigh + width and close[1] <= fmHigh + width
+        fmSellMark := close < fmLow - width and close[1] >= fmLow - width
+        if fmBuyMark or fmSellMark
+            fmPending := fmBuyMark ? 1 : -1
+            fmSignalBar := bar_index
+float fmWidth = fmHigh - fmLow
+fmTop = plot(drawFM and not na(fmAnchor) ? fmHigh : na, "Fimathe: CA superior", color = color.orange, linewidth = 2, style = plot.style_stepline, show_last = signalWindow)
+fmBottom = plot(drawFM and not na(fmAnchor) ? fmLow : na, "Fimathe: CA inferior", color = color.orange, linewidth = 2, style = plot.style_stepline, show_last = signalWindow)
+fill(fmTop, fmBottom, color = color.new(color.orange, 93), title = "Fimathe: canal de abertura")
+plot(drawFM ? fmHigh + fmWidth : na, "Fimathe: gatilho compra", color = color.new(color.lime, 20), style = plot.style_stepline, show_last = signalWindow)
+plot(drawFM ? fmLow - fmWidth : na, "Fimathe: gatilho venda", color = color.new(color.red, 20), style = plot.style_stepline, show_last = signalWindow)
+plot(drawFM ? fmEntry : na, "Fimathe: entrada virtual", color = color.blue, linewidth = 2, style = plot.style_linebr, show_last = signalWindow)
+plot(drawFM ? fmStop : na, "Fimathe: stop virtual", color = color.red, linewidth = 2, style = plot.style_linebr, show_last = signalWindow)
+plot(drawFM ? fmTarget : na, "Fimathe: alvo virtual", color = color.lime, linewidth = 2, style = plot.style_linebr, show_last = signalWindow)
+
+float vwapVisual = ta.vwap(hlc3)
+plot(drawEMA ? vwapVisual : na, "VWAP (volume da fonte, se disponivel)", color = color.new(color.fuchsia, 30))
+float visualRSI14 = ta.rsi(close, 14)
+bool visualBBBuy = close[1] < bbMean[1] - bbDeviation[1] and close >= bbMean - bbDeviation and visualRSI14 < 35
+bool visualBBSell = close[1] > bbMean[1] + bbDeviation[1] and close <= bbMean + bbDeviation and visualRSI14 > 65
+bool crossUp = ta.crossover(ema9, ema21)
+bool crossDown = ta.crossunder(ema9, ema21)
+bool showFX = visualMode == "Todas" or visualMode == "Fluxo e Scalp"
+bool marks = drawSignals and barstate.isconfirmed and time >= historyStart
+var int lastBBMark = na
+var int lastEMAMark = na
+var int lastRSIMark = na
+var int lastFlowMark = na
+bool bbTag = marks and (na(lastBBMark) or bar_index - lastBBMark >= markSpacing)
+bool emaTag = marks and (na(lastEMAMark) or bar_index - lastEMAMark >= markSpacing)
+bool rsiTag = marks and (na(lastRSIMark) or bar_index - lastRSIMark >= markSpacing)
+bool flowTag = marks and (na(lastFlowMark) or bar_index - lastFlowMark >= markSpacing)
+if bbTag and (visualBBBuy or visualBBSell)
+    lastBBMark := bar_index
+if emaTag and (crossUp or crossDown)
+    lastEMAMark := bar_index
+if rsiTag and (rsiBuy or rsiSell)
+    lastRSIMark := bar_index
+if flowTag and (flowBuy or flowSell)
+    lastFlowMark := bar_index
+
+plotshape(marks and drawFM and fmBuyMark ? low - .25 * atr : na, title = "Fimathe: sinal compra", style = shape.labelup, location = location.absolute, color = color.orange, text = "FM C", textcolor = color.black, size = size.tiny)
+plotshape(marks and drawFM and fmSellMark ? high + .25 * atr : na, title = "Fimathe: sinal venda", style = shape.labeldown, location = location.absolute, color = color.orange, text = "FM V", textcolor = color.black, size = size.tiny)
+plotshape(marks and drawFM and fmExitMark ? close : na, title = "Fimathe: saida virtual", style = shape.xcross, location = location.absolute, color = color.orange, size = size.tiny)
+plotshape(bbTag and drawBB and visualBBBuy ? low - .7 * atr : na, title = "Bollinger RSI: sinal compra", style = shape.labelup, location = location.absolute, color = color.blue, text = "BB C", textcolor = color.white, size = size.tiny, show_last = signalWindow)
+plotshape(bbTag and drawBB and visualBBSell ? high + .7 * atr : na, title = "Bollinger RSI: sinal venda", style = shape.labeldown, location = location.absolute, color = color.blue, text = "BB V", textcolor = color.white, size = size.tiny, show_last = signalWindow)
+plotshape(emaTag and drawEMA and crossUp ? low - 1.2 * atr : na, title = "EMA: cruzamento alta", style = shape.labelup, location = location.absolute, color = color.teal, text = "EMA C", textcolor = color.white, size = size.tiny, show_last = signalWindow)
+plotshape(emaTag and drawEMA and crossDown ? high + 1.2 * atr : na, title = "EMA: cruzamento baixa", style = shape.labeldown, location = location.absolute, color = color.teal, text = "EMA V", textcolor = color.white, size = size.tiny, show_last = signalWindow)
+plotshape(rsiTag and showFX and rsiBuy ? low - 1.7 * atr : na, title = "RSI4: sinal compra", style = shape.labelup, location = location.absolute, color = color.purple, text = "RSI C", textcolor = color.white, size = size.tiny, show_last = signalWindow)
+plotshape(rsiTag and showFX and rsiSell ? high + 1.7 * atr : na, title = "RSI4: sinal venda", style = shape.labeldown, location = location.absolute, color = color.purple, text = "RSI V", textcolor = color.white, size = size.tiny, show_last = signalWindow)
+plotshape(flowTag and showFX and flowBuy ? low - 2.2 * atr : na, title = "Fluxo: sinal compra", style = shape.labelup, location = location.absolute, color = color.green, text = "FL C", textcolor = color.white, size = size.tiny, show_last = signalWindow)
+plotshape(flowTag and showFX and flowSell ? high + 2.2 * atr : na, title = "Fluxo: sinal venda", style = shape.labeldown, location = location.absolute, color = color.red, text = "FL V", textcolor = color.white, size = size.tiny, show_last = signalWindow)
+
+// Nomes dos niveis atuais para reconhecer a Fimathe sem depender da legenda.
+f_fm_label(label previous, float level, string name, color ink) =>
+    if not na(previous)
+        label.delete(previous)
+    label result = na
+    if drawFM and not na(fmAnchor) and not na(level)
+        result := label.new(bar_index - 5, level, name, style = label.style_label_right, color = color.new(color.black, 15), textcolor = ink, size = size.tiny)
+    result
+var label fmChannelLabel = na
+var label fmBuyLabel = na
+var label fmSellLabel = na
+var label fmEntryLabel = na
+var label fmStopLabel = na
+var label fmTargetLabel = na
+if barstate.islast or barstate.islastconfirmedhistory
+    fmChannelLabel := f_fm_label(fmChannelLabel, (fmHigh + fmLow) / 2, "FM canal", color.orange)
+    fmBuyLabel := f_fm_label(fmBuyLabel, fmHigh + fmWidth, "FM gatilho C", color.lime)
+    fmSellLabel := f_fm_label(fmSellLabel, fmLow - fmWidth, "FM gatilho V", color.red)
+    fmEntryLabel := f_fm_label(fmEntryLabel, fmEntry, "FM entrada virtual", color.aqua)
+    fmStopLabel := f_fm_label(fmStopLabel, fmStop, "FM stop virtual", color.red)
+    fmTargetLabel := f_fm_label(fmTargetLabel, fmTarget, "FM alvo virtual", color.lime)

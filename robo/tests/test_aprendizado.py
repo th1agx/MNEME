@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mneme.aprendizado import FILTROS, Fila, ciclo, validar
+from mneme.aprendizado import FILTROS, PARES, Fila, ciclo, todas_as_combinacoes, validar
 from mneme.aprendizado import SETUPS_HIPOTESE as SETUPS
 
 AGORA = datetime(2026, 11, 7, 18, 0, tzinfo=timezone.utc)
@@ -29,6 +29,16 @@ def test_vocabulario_fechado_recusa_o_que_nao_existe():
                  {"setup": SETUP, "filtro": "tendencia_alta", "par": "ETHUSDT", "minutos": 7}):
         with pytest.raises(ValueError):
             validar(ruim, "llm")
+
+
+def test_eurusd_entra_na_fila_de_aprendizado_com_o_mesmo_vocabulario_fechado():
+    hipotese = validar({"setup": SETUP, "filtro": "sessao_americana", "par": "eurusd", "minutos": 5}, "pessoa")
+    assert hipotese.par == "EURUSD"
+    assert "EURUSD" in PARES
+    eurusd = [h for h in todas_as_combinacoes() if h.par == "EURUSD"]
+    assert eurusd and {h.minutos for h in eurusd} == {5, 15}
+    with pytest.raises(ValueError):
+        validar({"setup": SETUP, "filtro": "sessao_americana", "par": "EURUSD", "minutos": 60}, "pessoa")
 
 
 def test_filtros_nao_olham_o_futuro():

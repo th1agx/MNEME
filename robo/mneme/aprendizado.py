@@ -39,8 +39,13 @@ from .laboratorio.registro import commit_atual
 from .laboratorio.validacao import holm
 from .setups import NOME_FIMATHE, SETUPS
 
-PARES = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
+# Só entram pares cuja coleta de velas fechadas está ativa. EUR/USD é avaliado
+# na mesma régua de expiração fixa, mas permanece em sombra até aprovação humana.
+PARES = ("EURUSD", "BTCUSDT", "ETHUSDT", "SOLUSDT")
 MINUTOS = (5, 15, 60)
+# Forex está em pesquisa focada no intraday curto; a lista geral continua
+# disponível para os demais mercados sem abrir hipótese EUR/USD em H1.
+MINUTOS_POR_PAR = {"EURUSD": (5, 15)}
 PAYOUT = 0.85  # o mesmo empate de todos os estudos de direção; o payout real será medido por corretora
 # A Fimathe depende da configuração da tela; sem ela não gera sinal, então fica fora das hipóteses automáticas.
 SETUPS_HIPOTESE = {nome: funcao for nome, funcao in SETUPS.items() if nome != NOME_FIMATHE}
@@ -93,7 +98,8 @@ def validar(bruta: dict, origem: str) -> Hipotese:
         minutos = int(bruta.get("minutos", 0))
     except (TypeError, ValueError):
         minutos = 0
-    erros = [n for n, ok in (("setup", setup in SETUPS_HIPOTESE), ("filtro", filtro in FILTROS), ("par", par in PARES), ("minutos", minutos in MINUTOS)) if not ok]
+    tempos = MINUTOS_POR_PAR.get(par, MINUTOS)
+    erros = [n for n, ok in (("setup", setup in SETUPS_HIPOTESE), ("filtro", filtro in FILTROS), ("par", par in PARES), ("minutos", minutos in tempos)) if not ok]
     if erros:
         raise ValueError(f"Hipótese fora do vocabulário: {', '.join(erros)}")
     return Hipotese(setup, filtro, par, minutos, origem, str(bruta.get("motivo", ""))[:300])
@@ -179,10 +185,10 @@ class Fila:
 
 
 def todas_as_combinacoes(origem: str = "enumeracao", motivo: str = "próxima combinação sem teste"):
-    for minutos in (15, 60, 5):
-        for setup in SETUPS_HIPOTESE:
-            for filtro in FILTROS:
-                for par in PARES:
+    for setup in SETUPS_HIPOTESE:
+        for filtro in FILTROS:
+            for par in PARES:
+                for minutos in sorted(MINUTOS_POR_PAR.get(par, MINUTOS), reverse=True):
                     yield Hipotese(setup, filtro, par, minutos, origem, motivo)
 
 

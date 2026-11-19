@@ -1,0 +1,172 @@
+//@version=6
+//@strategy_alert_message {{strategy.order.alert_message}}
+strategy("MNEME | Comparador XAUUSD M5", overlay = true, initial_capital = 10000, currency = currency.USD, pyramiding = 0, default_qty_type = strategy.fixed, commission_type = strategy.commission.cash_per_contract, commission_value = 0, slippage = 0, margin_long = 100, margin_short = 100, calc_on_every_tick = false, calc_on_order_fills = false, process_orders_on_close = false)
+
+// Adaptador para o emulador do TradingView. Nao conecta a uma corretora.
+// Custos comecam zerados: resultados brutos, sem validacao de rentabilidade.
+// Configure comissao/slippage/margem em Propriedades antes de avaliar desempenho.
+// Os parametros abaixo sao hipoteses editaveis do teste, independentes do robo Python.
+string method = input.string("Bollinger + RSI", "Estrategia", options = ["Bollinger + RSI", "EMA 9/21 + VWAP", "Fimathe experimental"], group = "Teste")
+bool enabled = input.bool(false, "Habilitar simulacao", group = "Teste")
+int startTime = input.time(timestamp("01 Nov 2026 00:00 +0000"), "Inicio do teste (UTC)", group = "Teste")
+int endTime = input.time(timestamp("01 Jan 2099 00:00 +0000"), "Fim das novas entradas (UTC)", group = "Teste")
+bool bothSides = input.bool(true, "Testar compras e vendas simuladas", group = "Teste")
+float riskPct = input.float(1.0, "Risco pelo stop planejado (%)", minval = 0.01, maxval = 10, group = "Risco")
+// Reserva margem para oscilacoes, sobretudo nas vendas sem alavancagem.
+float maxExposure = input.float(50.0, "Exposicao nominal maxima (%)", minval = 1, maxval = 100, group = "Risco")
+float dailyProfit = input.float(0.0, "Meta diaria (%) - 0 desliga", minval = 0, maxval = 100, group = "Risco")
+float dailyLoss = input.float(0.0, "Limite diario (%) - 0 desliga", minval = 0, maxval = 100, group = "Risco")
+float stopAtr = input.float(2.0, "Stop em ATR (Bollinger / EMA)", minval = 0.1, group = "Saidas Bollinger / EMA")
+float targetAtr = input.float(2.0, "Alvo em ATR (Bollinger / EMA)", minval = 0.1, group = "Saidas Bollinger / EMA")
+int maxBars = input.int(12, "Maximo de velas na posicao (M5)", minval = 1, group = "Saidas Bollinger / EMA")
+int channelBars = input.int(4, "Velas do canal", minval = 2, maxval = 100, group = "Fimathe")
+bool useBodies = input.bool(false, "Marcar corpos em vez de pavios", group = "Fimathe")
+float rr = input.float(1.5, "Alvo / risco (R)", minval = 0.1, maxval = 20, group = "Fimathe")
+
+if barstate.isfirst
+    if timeframe.in_seconds() != 300 or not str.contains(str.upper(syminfo.ticker), "XAU") or syminfo.currency != "USD"
+        runtime.error("Use XAUUSD em 5 minutos, por exemplo OANDA:XAUUSD.")
+    if not chart.is_standard
+        runtime.error("Use velas convencionais; precos sinteticos nao sao aceitos.")
+    if startTime >= endTime
+        runtime.error("O inicio precisa ser anterior ao fim do teste.")
+
+// RSI com a inicializacao EWM adjust=False usada pelo setup Python.
+f_rsi_python(float source, int length) =>
+    float change = ta.change(source)
+    var float gain = na
+    var float loss = na
+    if not na(change)
+        gain := na(gain) ? math.max(change, 0) : gain * (1 - 1.0 / length) + math.max(change, 0) / length
+        loss := na(loss) ? math.max(-change, 0) : loss * (1 - 1.0 / length) + math.max(-change, 0) / length
+    loss > 0 ? 100 - 100 / (1 + gain / loss) : na
+
+float average = ta.sma(close, 20)
+float deviation = ta.stdev(close, 20, false)
+float lower = average - 2 * deviation
+float upper = average + 2 * deviation
+float rsi = f_rsi_python(close, 14)
+bool bbBuy = close[1] < lower[1] and close >= lower and rsi < 35
+bool bbSell = close[1] > upper[1] and close <= upper and rsi > 65
+float ema9 = ta.ema(close, 9)
+float ema21 = ta.ema(close, 21)
+bool utcDayChanged = ta.change(time("D", "0000-0000", "Etc/UTC")) != 0
+var float dailyPV = 0
+var float dailyVolume = 0
+if utcDayChanged or barstate.isfirst
+    dailyPV := 0
+    dailyVolume := 0
+dailyPV += hlc3 * nz(volume)
+dailyVolume += nz(volume)
+float vwapUTC = dailyVolume > 0 ? dailyPV / dailyVolume : na
+bool emaBuy = ema9[1] <= ema21[1] and ema9 > ema21 and close > vwapUTC
+bool emaSell = ema9[1] >= ema21[1] and ema9 < ema21 and close < vwapUTC
+float atr = ta.atr(14)
+
+bool inRange = time >= startTime and time < endTime
+bool justClosed = ta.change(strategy.closedtrades) > 0
+float refHigh = useBodies ? math.max(open, close) : high
+float refLow = useBodies ? math.min(open, close) : low
+float recentHigh = ta.highest(refHigh, channelBars)
+float recentLow = ta.lowest(refLow, channelBars)
+var int collected = 0
+var float buildingHigh = na
+var float buildingLow = na
+var float channelHigh = na
+var float channelLow = na
+var int anchorBar = na
+if barstate.isconfirmed and inRange
+    if na(channelHigh)
+        buildingHigh := na(buildingHigh) ? refHigh : math.max(buildingHigh, refHigh)
+        buildingLow := na(buildingLow) ? refLow : math.min(buildingLow, refLow)
+        collected += 1
+        if collected == channelBars
+            channelHigh := buildingHigh
+            channelLow := buildingLow
+            anchorBar := bar_index
+    else if justClosed
+        channelHigh := recentHigh
+        channelLow := recentLow
+        anchorBar := bar_index
+float amplitude = channelHigh - channelLow
+bool channelReady = not na(anchorBar) and bar_index > anchorBar and amplitude > syminfo.mintick
+bool fmBuy = channelReady and close > channelHigh + amplitude and close[1] <= channelHigh + amplitude
+bool fmSell = channelReady and close < channelLow - amplitude and close[1] >= channelLow - amplitude
+
+int brDay = time("D", "0000-0000", "America/Sao_Paulo")
+var float dayEquity = na
+var bool dayBlocked = false
+if barstate.isfirst or ta.change(brDay) != 0
+    dayEquity := strategy.equity
+    dayBlocked := false
+float dayReturn = dayEquity > 0 ? (strategy.equity / dayEquity - 1) * 100 : 0
+if (dailyProfit > 0 and dayReturn >= dailyProfit) or (dailyLoss > 0 and dayReturn <= -dailyLoss)
+    dayBlocked := true
+
+bool isFimathe = method == "Fimathe experimental"
+bool buySignal = method == "Bollinger + RSI" ? bbBuy : method == "EMA 9/21 + VWAP" ? emaBuy : fmBuy
+bool sellSignal = method == "Bollinger + RSI" ? bbSell : method == "EMA 9/21 + VWAP" ? emaSell : fmSell
+bool ready = enabled and inRange and barstate.isconfirmed and strategy.position_size == 0 and not justClosed and not dayBlocked
+var float activeStop = na
+var float activeTarget = na
+var int buySignals = 0
+var int sellSignals = 0
+if ready and (buySignal or (bothSides and sellSignal))
+    bool buy = buySignal
+    float distance = isFimathe ? (buy ? close - channelLow : channelHigh - close) : stopAtr * atr
+    float quantityStep = syminfo.mincontract
+    float budget = math.max(strategy.equity, 0) * riskPct / 100
+    float cap = math.max(strategy.equity, 0) * maxExposure / 100
+    float byRisk = distance > 0 ? budget / (distance * syminfo.pointvalue) : 0
+    float byExposure = cap / (close * syminfo.pointvalue)
+    float quantity = quantityStep > 0 ? math.floor(math.min(byRisk, byExposure) / quantityStep) * quantityStep : 0
+    if quantity >= syminfo.mincontract and distance > syminfo.mintick
+        float direction = buy ? 1 : -1
+        activeStop := close - direction * distance
+        activeTarget := close + direction * (isFimathe ? distance * rr : targetAtr * atr)
+        if buy
+            buySignals += 1
+            strategy.entry("Compra", strategy.long, qty = quantity, alert_message = "{\"strategy\":\"mneme-tv\",\"mode\":\"simulation\",\"side\":\"buy\"}")
+            if isFimathe
+                strategy.exit("Saida compra", "Compra", stop = math.round_to_mintick(activeStop), limit = math.round_to_mintick(activeTarget))
+            else
+                strategy.exit("Saida compra", "Compra", loss = math.ceil(distance / syminfo.mintick), profit = math.ceil(targetAtr * atr / syminfo.mintick))
+        else
+            sellSignals += 1
+            strategy.entry("Venda", strategy.short, qty = quantity, alert_message = "{\"strategy\":\"mneme-tv\",\"mode\":\"simulation\",\"side\":\"sell\"}")
+            if isFimathe
+                strategy.exit("Saida venda", "Venda", stop = math.round_to_mintick(activeStop), limit = math.round_to_mintick(activeTarget))
+            else
+                strategy.exit("Saida venda", "Venda", loss = math.ceil(distance / syminfo.mintick), profit = math.ceil(targetAtr * atr / syminfo.mintick))
+if not isFimathe and strategy.position_size != 0
+    int entryBar = strategy.opentrades.entry_bar_index(0)
+    if bar_index - entryBar + 1 >= maxBars
+        strategy.close_all(comment = "Tempo", immediately = true)
+
+plot(isFimathe ? channelHigh : na, "Canal superior", color = color.orange, style = plot.style_stepline)
+plot(isFimathe ? channelLow : na, "Canal inferior", color = color.orange, style = plot.style_stepline)
+plot(method == "Bollinger + RSI" ? upper : na, "Bollinger superior", color = color.new(color.blue, 30))
+plot(method == "Bollinger + RSI" ? lower : na, "Bollinger inferior", color = color.new(color.blue, 30))
+plot(method == "EMA 9/21 + VWAP" ? ema9 : na, "EMA 9", color = color.teal)
+plot(method == "EMA 9/21 + VWAP" ? ema21 : na, "EMA 21", color = color.orange)
+plot(method == "EMA 9/21 + VWAP" ? vwapUTC : na, "VWAP UTC (volume do feed)", color = color.purple)
+
+var table panel = table.new(position.top_right, 2, 8, bgcolor = color.rgb(18, 23, 26), frame_color = color.gray, frame_width = 1)
+// Mostra o resumo ao carregar, mesmo com a vela atual ainda em formacao.
+if barstate.islast or barstate.islastconfirmedhistory
+    table.cell(panel, 0, 0, "MNEME | SIMULACAO", text_color = color.orange)
+    table.cell(panel, 1, 0, method, text_color = color.white)
+    table.cell(panel, 0, 1, "Ativo / periodo", text_color = color.white)
+    table.cell(panel, 1, 1, syminfo.tickerid + " | M5", text_color = color.white)
+    table.cell(panel, 0, 2, "Estado", text_color = color.white)
+    table.cell(panel, 1, 2, not enabled ? "Pausado nas entradas" : dayBlocked ? "Limite diario" : strategy.position_size != 0 ? "Posicao virtual aberta" : "Aguardando sinal", text_color = color.white)
+    table.cell(panel, 0, 3, "Encerradas / acerto", text_color = color.white)
+    table.cell(panel, 1, 3, str.tostring(strategy.closedtrades) + " / " + (strategy.closedtrades > 0 ? str.tostring(100.0 * strategy.wintrades / strategy.closedtrades, "#.##") + "%" : "sem amostra"), text_color = color.white)
+    table.cell(panel, 0, 4, "Entradas C / V", text_color = color.white)
+    table.cell(panel, 1, 4, str.tostring(buySignals) + " / " + str.tostring(sellSignals), text_color = color.white)
+    table.cell(panel, 0, 5, "Resultado do emulador", text_color = color.white)
+    table.cell(panel, 1, 5, str.tostring(strategy.netprofit, "#.##") + " USD", text_color = color.white)
+    table.cell(panel, 0, 6, "Custos", text_color = color.white)
+    table.cell(panel, 1, 6, "Revisar Propriedades; padrao = zero", text_color = color.orange)
+    table.cell(panel, 0, 7, "Fonte VWAP", text_color = color.white)
+    table.cell(panel, 1, 7, "Volume/ticks do feed OANDA", text_color = color.white)

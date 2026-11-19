@@ -57,10 +57,12 @@
     som = L.somLigado(configuracao.som);
     mostrarSom();
   });
+  let audio = null;
   botaoSom.onclick = () => {
     som = !som;
     chrome.storage.local.set({ som });
     mostrarSom();
+    if (som) bip(true);
   };
   const botaoPares = raiz.querySelector(".topo .pares"), seletor = raiz.querySelector(".seletor");
   let ativoSelecionado = "", pares = [];
@@ -111,9 +113,12 @@
   function bip(alto) {
     if (!som) return;
     try {
-      const ctx = new AudioContext(), o = ctx.createOscillator(), g = ctx.createGain();
-      o.frequency.value = alto ? 880 : 520; o.connect(g); g.connect(ctx.destination); g.gain.value = 0.08;
-      o.start(); o.stop(ctx.currentTime + 0.18);
+      const Contexto = window.AudioContext || window.webkitAudioContext;
+      audio ||= new Contexto();
+      if (audio.state === "suspended") audio.resume();
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = alto ? 880 : 520; o.connect(g); g.connect(audio.destination); g.gain.value = 0.08;
+      o.start(); o.stop(audio.currentTime + 0.18);
     } catch (e) { /* sem som, segue */ }
   }
 
@@ -170,26 +175,28 @@
       return;
     }
     const { sinal, fase } = atual;
-    const chave = `${sinal.id}|${fase}`;
-    if (chave !== ultimaFase) {
-      ultimaFase = chave;
-      if (fase === "preparar" && ultimoAvisado !== sinal.id) { ultimoAvisado = sinal.id; bip(false); }
-      if (fase === "entrar") bip(true);
-    }
-    const lado = sinal.direcao === "CALL" ? "call" : "put";
-    const seta = sinal.direcao === "CALL" ? "▲ CALL" : "▼ PUT";
-    const titulo = { preparar: "prepare", entrar: "ENTRE AGORA", andamento: "em andamento", apurando: "apurando", resultado: "resultado" }[fase];
-    let meio = `<div class="grande ${lado}">${seta}</div>`;
-    if (fase === "resultado") {
-      const cor = sinal.resultado === "ganho" ? "call" : sinal.resultado === "perda" ? "put" : "neutro";
-      meio = `<div class="grande ${cor}">${esc(String(sinal.resultado).toUpperCase())}</div>`;
-    }
-    const tempo = fase === "preparar" || fase === "andamento" ? `<div class="tempo">${L.contagem(sinal, fase, agora)}</div>` : "";
-    const pedir = (fase === "entrar" || fase === "andamento") && !respondidos.has(sinal.id)
+      const observacao = /observa(?:ç|c)/i.test(String(sinal.cenario || ""));
+      const chave = `${sinal.id}|${fase}`;
+      if (chave !== ultimaFase) {
+        ultimaFase = chave;
+        if (fase === "preparar" && ultimoAvisado !== sinal.id) { ultimoAvisado = sinal.id; bip(false); }
+        if (fase === "entrar") bip(true);
+      }
+      const experimental = /sugest(?:ão|ao)|experimental/i.test(String(sinal.cenario || ""));
+      const lado = sinal.direcao === "CALL" ? "call" : "put";
+      const seta = observacao ? (sinal.direcao === "CALL" ? "VIÉS DE ALTA" : "VIÉS DE BAIXA") : (sinal.direcao === "CALL" ? "▲ CALL" : "▼ PUT");
+      const titulo = observacao ? "observação" : experimental ? (fase === "entrar" ? "sugestão agora" : "sugestão experimental") : { preparar: "prepare", entrar: "ENTRE AGORA", andamento: "em andamento", apurando: "apurando", resultado: "resultado" }[fase];
+      let meio = `<div class="grande ${lado}">${seta}</div>`;
+      if (fase === "resultado") {
+        const cor = sinal.resultado === "ganho" ? "call" : sinal.resultado === "perda" ? "put" : "neutro";
+        meio = `<div class="grande ${cor}">${esc(String(sinal.resultado).toUpperCase())}</div>`;
+      }
+      const tempo = fase === "preparar" || fase === "andamento" ? `<div class="tempo">${L.contagem(sinal, fase, agora)}</div>` : "";
+    const pedir = !observacao && (fase === "entrar" || fase === "andamento") && !respondidos.has(sinal.id)
       ? `<div class="acoes"><input placeholder="payout %" inputmode="decimal"><button class="sim">entrei</button><button class="nao">não</button></div>` : "";
     corpo.innerHTML = `<div class="linha"><span>${esc(sinal.ativo)} · ${esc(sinal.tempo_grafico || "?")}</span><span>${titulo}</span></div>${meio}
-      <div class="linha"><span>expiração ${esc(sinal.expiracao_min)} min</span><span>entrada ${new Date(sinal.entrada_em).toLocaleTimeString().slice(0, 5)}</span></div>
-      ${tempo}${pedir}<div class="msg">${esc(sinal.cenario)}</div>`;
+        <div class="linha"><span>expiração ${esc(sinal.expiracao_min)} min</span><span>entrada ${new Date(sinal.entrada_em).toLocaleTimeString().slice(0, 5)}</span></div>
+        ${tempo}${pedir}${observacao ? '<div class="msg">Estudo ativo — não operar.</div>' : experimental ? '<div class="msg">Sugestão para operação manual — valide antes de entrar.</div>' : ""}<div class="msg">${esc(sinal.cenario)}</div>`;
     const sim = raiz.querySelector(".sim"), nao = raiz.querySelector(".nao");
     if (sim) sim.onclick = () => registrar(sinal, true);
     if (nao) nao.onclick = () => registrar(sinal, false);

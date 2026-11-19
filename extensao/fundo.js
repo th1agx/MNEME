@@ -6,6 +6,23 @@ async function config() {
   return { site: (c.site || SITE_PADRAO).replace(/\/$/, ""), chave: c.chave || "", ativo: String(c.ativo || "").trim() };
 }
 
+// Uma URL salva nas opções pode ficar velha (por exemplo, depois de trocar de
+// computador). Nesse caso a extensão tenta uma vez o túnel local padrão. Não
+// faz fallback para respostas HTTP: 401/500 precisam aparecer para a pessoa,
+// pois indicam chave inválida ou problema no MNEME, não um endereço antigo.
+async function requisicao(site, caminho, opcoes) {
+  const destinos = site === SITE_PADRAO ? [SITE_PADRAO] : [site, SITE_PADRAO];
+  let ultimoErro;
+  for (const destino of destinos) {
+    try {
+      return await fetch(`${destino}${caminho}`, opcoes);
+    } catch (erro) {
+      ultimoErro = erro;
+    }
+  }
+  throw ultimoErro || new Error("sem conexão com o MNEME");
+}
+
 // Preço ao vivo da vela que está se formando, da API pública da Binance (sem chave). Só cripto por enquanto.
 async function velaAoVivo(ativo, candle) {
   if (!/USDT$/.test(ativo)) return { erro: "sem preço ao vivo para este ativo" };
@@ -31,20 +48,20 @@ chrome.runtime.onMessage.addListener((pedido, _remetente, responder) => {
     try {
       if (pedido.tipo === "sinais") {
         const paridade = ativo ? `?ativo=${encodeURIComponent(ativo)}` : "";
-        const r = await fetch(`${site}/api/sinais${paridade}`, { headers: { "x-mneme-chave": chave }, cache: "no-store" });
+        const r = await requisicao(site, `/api/sinais${paridade}`, { headers: { "x-mneme-chave": chave }, cache: "no-store" });
         return responder(r.ok ? await r.json() : { erro: `MNEME respondeu ${r.status}` });
       }
       if (pedido.tipo === "pares") {
-        const r = await fetch(`${site}/api/pares`, { headers: { "x-mneme-chave": chave }, cache: "no-store" });
+        const r = await requisicao(site, "/api/pares", { headers: { "x-mneme-chave": chave }, cache: "no-store" });
         return responder(r.ok ? await r.json() : { erro: `MNEME respondeu ${r.status}` });
       }
       if (pedido.tipo === "leitura") {
         const paridade = ativo ? `?ativo=${encodeURIComponent(ativo)}` : "";
-        const r = await fetch(`${site}/api/leitura${paridade}`, { headers: { "x-mneme-chave": chave }, cache: "no-store" });
+        const r = await requisicao(site, `/api/leitura${paridade}`, { headers: { "x-mneme-chave": chave }, cache: "no-store" });
         return responder(r.ok ? await r.json() : { erro: `MNEME respondeu ${r.status}` });
       }
       if (pedido.tipo === "entrada") {
-        const r = await fetch(`${site}/api/sinais/entrada`, { method: "POST", headers: { "x-mneme-chave": chave, "content-type": "application/json" },
+        const r = await requisicao(site, "/api/sinais/entrada", { method: "POST", headers: { "x-mneme-chave": chave, "content-type": "application/json" },
           body: JSON.stringify(pedido.entrada) });
         return responder(r.ok ? { ok: true } : { erro: `MNEME respondeu ${r.status}` });
       }

@@ -1,0 +1,97 @@
+//@version=6
+strategy("MNEME | Scalp XAUUSD M1", overlay = true, initial_capital = 10000, currency = currency.USD, pyramiding = 0, default_qty_type = strategy.fixed, commission_type = strategy.commission.cash_per_contract, commission_value = 0, slippage = 0, margin_long = 100, margin_short = 100, calc_on_every_tick = true, calc_on_order_fills = false, process_orders_on_close = false)
+
+// Experimento independente do motor Python. Apenas emulador; sem corretora/alertas.
+// Custos zerados por padrao: configurar spread/comissao/slippage antes de avaliar.
+// O modo ao vivo inicia vazio a cada carga ou alteracao de parametros.
+string method = input.string("Scalp combinado", "Estrategia", options = ["Scalp combinado", "Pullback EMA 9/21", "RSI 4 saindo de 80/20", "Rompimento de 5 velas"], group = "Teste")
+bool enabled = input.bool(false, "Habilitar simulacao", group = "Teste")
+bool liveOnly = input.bool(true, "Somente sinais ao vivo (reinicia ao recarregar)", group = "Teste")
+int historyStart = input.time(timestamp("01 Nov 2026 00:00 +0000"), "Inicio do historico (modo historico)", group = "Teste")
+float riskPct = input.float(0.25, "Risco planejado por stop (%)", minval = 0.01, maxval = 1, group = "Risco")
+float exposurePct = input.float(25, "Exposicao nominal maxima (%)", minval = 1, maxval = 50, group = "Risco")
+float stopAtr = input.float(1, "Stop em ATR14", minval = 0.1, group = "Saidas")
+float targetAtr = input.float(1.2, "Alvo em ATR14", minval = 0.1, group = "Saidas")
+int maxBars = input.int(3, "Maximo de minutos na posicao", minval = 1, maxval = 30, group = "Saidas")
+int cooldown = input.int(1, "Velas de pausa apos saida", minval = 1, maxval = 30, group = "Risco")
+bool showPanel = input.bool(true, "Mostrar placar compacto", group = "Visual")
+
+if barstate.isfirst
+    if timeframe.in_seconds() != 60 or not str.contains(str.upper(syminfo.ticker), "XAU") or syminfo.currency != "USD"
+        runtime.error("Use XAUUSD em 1 minuto, com velas convencionais.")
+    if not chart.is_standard
+        runtime.error("Use velas convencionais.")
+
+float ema9 = ta.ema(close, 9)
+float ema21 = ta.ema(close, 21)
+float rsi4 = ta.rsi(close, 4)
+float atr = ta.atr(14)
+float previousHigh = ta.highest(high, 5)[1]
+float previousLow = ta.lowest(low, 5)[1]
+bool pullBuy = ema9 > ema21 and low <= ema9 and close > ema9 and close > open
+bool pullSell = ema9 < ema21 and high >= ema9 and close < ema9 and close < open
+bool rsiBuy = rsi4[1] < 20 and rsi4 >= 20
+bool rsiSell = rsi4[1] > 80 and rsi4 <= 80
+bool breakoutBuy = close > previousHigh and close[1] <= previousHigh
+bool breakoutSell = close < previousLow and close[1] >= previousLow
+bool buySignal = method == "Pullback EMA 9/21" ? pullBuy : method == "RSI 4 saindo de 80/20" ? rsiBuy : method == "Rompimento de 5 velas" ? breakoutBuy : pullBuy or rsiBuy or breakoutBuy
+bool sellSignal = method == "Pullback EMA 9/21" ? pullSell : method == "RSI 4 saindo de 80/20" ? rsiSell : method == "Rompimento de 5 velas" ? breakoutSell : pullSell or rsiSell or breakoutSell
+
+var int lastExit = na
+var int buyCount = 0
+var int sellCount = 0
+var int stopTicks = na
+var int targetTicks = na
+bool justClosed = ta.change(strategy.closedtrades) > 0
+if justClosed
+    lastExit := bar_index
+bool ready = enabled and barstate.isconfirmed and (liveOnly ? barstate.isrealtime : time >= historyStart) and strategy.position_size == 0 and (na(lastExit) or bar_index - lastExit >= cooldown) and not justClosed
+if ready and buySignal != sellSignal and not na(atr)
+    float distance = stopAtr * atr
+    float equity = math.max(strategy.equity, 0)
+    float byRisk = equity * riskPct / 100 / (distance * syminfo.pointvalue)
+    float byExposure = equity * exposurePct / 100 / (close * syminfo.pointvalue)
+    float step = syminfo.mincontract
+    float quantity = step > 0 ? math.floor(math.min(byRisk, byExposure) / step) * step : 0
+    if quantity >= syminfo.mincontract and distance > syminfo.mintick
+        stopTicks := int(math.ceil(distance / syminfo.mintick))
+        targetTicks := int(math.ceil(targetAtr * atr / syminfo.mintick))
+        if buySignal
+            buyCount += 1
+            strategy.entry("Compra SIM", strategy.long, qty = quantity, disable_alert = true)
+            strategy.exit("Saida C", "Compra SIM", loss = stopTicks, profit = targetTicks, disable_alert = true)
+        else
+            sellCount += 1
+            strategy.entry("Venda SIM", strategy.short, qty = quantity, disable_alert = true)
+            strategy.exit("Saida V", "Venda SIM", loss = stopTicks, profit = targetTicks, disable_alert = true)
+if barstate.isconfirmed and strategy.position_size != 0
+    int entryBar = strategy.opentrades.entry_bar_index(0)
+    if bar_index - entryBar + 1 >= maxBars
+        strategy.close_all(comment = "Tempo M1", immediately = true, disable_alert = true)
+
+float direction = math.sign(strategy.position_size)
+float entry = strategy.position_size != 0 ? strategy.position_avg_price : na
+float stopPrice = entry - direction * stopTicks * syminfo.mintick
+float targetPrice = entry + direction * targetTicks * syminfo.mintick
+plot(ema9, "EMA 9", color = color.teal)
+plot(ema21, "EMA 21", color = color.orange)
+plot(entry, "Entrada aberta", color = color.blue, style = plot.style_linebr, linewidth = 2)
+plot(stopPrice, "Stop aberto", color = color.red, style = plot.style_linebr, linewidth = 2)
+plot(targetPrice, "Alvo aberto", color = color.lime, style = plot.style_linebr, linewidth = 2)
+
+var table panel = table.new(position.bottom_right, 2, 6, bgcolor = color.rgb(18, 23, 26))
+if barstate.islast or barstate.islastconfirmedhistory
+    table.clear(panel, 0, 0, 1, 5)
+    if showPanel
+        table.cell(panel, 0, 0, "MNEME M1 · SIM", text_color = color.orange, text_size = size.small)
+        table.cell(panel, 1, 0, liveOnly ? "AO VIVO*" : "HISTORICO", text_color = color.white, text_size = size.small)
+        table.cell(panel, 0, 1, "Compras / vendas", text_color = color.white, text_size = size.small)
+        table.cell(panel, 1, 1, str.tostring(buyCount) + " / " + str.tostring(sellCount), text_color = color.white, text_size = size.small)
+        table.cell(panel, 0, 2, "Fechadas / bruto", text_color = color.white, text_size = size.small)
+        table.cell(panel, 1, 2, str.tostring(strategy.closedtrades) + " / " + str.tostring(strategy.netprofit, "#.##") + " USD", text_color = color.white, text_size = size.small)
+        table.cell(panel, 0, 3, "Aberta / flutuante", text_color = color.white, text_size = size.small)
+        table.cell(panel, 1, 3, strategy.position_size == 0 ? "Sem posicao" : (direction > 0 ? "Compra " : "Venda ") + str.tostring(strategy.openprofit, "#.##") + " USD", text_color = color.white, text_size = size.small)
+        table.cell(panel, 0, 4, "Estado", text_color = color.white, text_size = size.small)
+        table.cell(panel, 1, 4, enabled ? "Sinais no fechamento" : "Pausado", text_color = color.white, text_size = size.small)
+        table.cell(panel, 0, 5, "Custos: padrao zero", text_color = color.orange, text_size = size.small)
+        table.cell(panel, 1, 5, "*Reinicia na carga", text_color = color.orange, text_size = size.small)
