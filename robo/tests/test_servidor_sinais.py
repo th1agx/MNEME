@@ -16,13 +16,13 @@ CHAVE = "k" * 32
 AGORA = pd.Timestamp("2026-11-16T14:03:00Z")
 
 
-def registrar(d: Diario, estrategia: str, vela: pd.Timestamp, acao: str = "CALL") -> str:
+def registrar(d: Diario, estrategia: str, vela: pd.Timestamp, acao: str = "CALL", tipo: str = "operada") -> str:
     chave = f"{estrategia}|{vela.isoformat()}"
     d.registrar(chave=chave, estrategia=estrategia, mercado="cripto", ativo=estrategia.split("|")[0], modalidade="expiracao_fixa", vela=vela,
                 decidido_em=vela + pd.Timedelta(minutes=5, seconds=5), latencia_s=5.0, direcao=1 if acao == "CALL" else -1, forca=0.1,
                 expectativa=0.02, evidencia={}, motivo="", motivos_recusa=(), contexto=(),
                 sinal={"acao": acao, "entrada_em": (vela + pd.Timedelta(minutes=6)).isoformat(), "expiracao_min": 5, "preco_referencia": 3100.0},
-                tipo="operada", tamanho=1.0)
+                tipo=tipo, tamanho=1.0)
     return chave
 
 
@@ -89,6 +89,18 @@ def test_placar_do_dia_e_ultimo_sinal(ambiente):
 def test_sem_sinais_o_dia_fica_zerado(ambiente):
     r = pedir(f"{ambiente[2]}/api/sinais")[1]
     assert r["dia"] == {"sinais": 0, "ganhos": 0, "perdas": 0, "abertos": 0} and r["ultimo"] is None
+
+
+def test_separa_testes_de_sombra_das_recomendacoes_e_do_placar(ambiente):
+    d, _, base, _ = ambiente
+    recomendado = registrar(d, "ETHUSDT|expiracao_fixa|5m|5m", pd.Timestamp("2026-11-16T13:55:00Z"))
+    teste = registrar(d, "ETHUSDT|expiracao_fixa|5m|5m", pd.Timestamp("2026-11-16T13:56:00Z"), "PUT", tipo="sombra")
+
+    _, r = pedir(f"{base}/api/sinais")
+
+    assert [s["id"] for s in r["sinais"]] == [recomendado]
+    assert [s["id"] for s in r["testes"]] == [teste]
+    assert r["dia"] == {"sinais": 1, "ganhos": 0, "perdas": 0, "abertos": 1}
 
 
 def test_lista_as_paridades_configuradas_e_filtra_os_sinais_no_hud(ambiente):

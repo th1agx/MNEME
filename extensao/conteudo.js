@@ -32,6 +32,10 @@
       .acoes button{flex:1;padding:7px;border:0;border-radius:8px;font:inherit;cursor:pointer;background:#2f6fed;color:#fff}
       .acoes button.nao{background:#3a4150}
       .msg{font-size:12px;color:#9aa4b2;text-align:center;margin-top:8px}
+      .teste{margin-top:12px;padding-top:10px;border-top:1px solid #6a5522}
+      .teste .rotulo{font-size:11px;color:#f6c85f;text-align:center;font-weight:800}
+      .teste .direcao{font-size:18px;font-weight:800;text-align:center;margin-top:6px}
+      .teste .acoes button{background:#7a5c19}
       .min .corpo{display:none}
     </style>
     <div class="card"><div class="topo"><span>MNEME · sinais</span><span><button class="pares" title="escolher paridade">Todas ▾</button><button class="som" title="desativar som" aria-pressed="true">🔔</button><button class="graf" title="leitura no gráfico">📈</button><button class="min" title="minimizar">–</button></span></div><div class="seletor" hidden></div><div class="corpo"></div></div>`;
@@ -113,19 +117,19 @@
     } catch (e) { /* sem som, segue */ }
   }
 
-  let sinais = [], ultimo = null, dia = null, erro = "", desvio = 0, ultimoAvisado = "", ultimaFase = "", respondidos = new Set();
+  let sinais = [], testes = [], ultimo = null, dia = null, erro = "", desvio = 0, ultimoAvisado = "", ultimaFase = "", ultimaFaseTeste = "", respondidos = new Set();
 
   function buscar() {
     enviar({ tipo: "sinais" }, (r) => {
       if (chrome.runtime.lastError || !r) { erro = "extensão sem resposta"; return; }
       if (r.erro) { erro = r.erro; return; }
-      erro = ""; sinais = r.sinais || []; ultimo = r.ultimo || null; dia = r.dia || null;
+      erro = ""; sinais = r.sinais || []; testes = r.testes || []; ultimo = r.ultimo || null; dia = r.dia || null;
       if (r.agora) desvio = Date.parse(r.agora) - Date.now(); // usa o relógio do servidor
     });
   }
 
-  function registrar(sinal, entrou) {
-    const campo = raiz.querySelector("input");
+  function registrar(sinal, entrou, seletor) {
+    const campo = raiz.querySelector(seletor || "input");
     const p = entrou ? L.payout(campo ? campo.value : "") : null;
     if (entrou && p === null) { campo && (campo.style.outline = "2px solid #e0384b"); return; }
     enviar({ tipo: "entrada", entrada: { sinal_id: sinal.id, entrou, payout: p, corretora: CORRETORA } }, () => {});
@@ -133,13 +137,36 @@
     desenhar();
   }
 
+  function blocoTeste(atual, agora) {
+    if (!atual) return "";
+    const { sinal, fase } = atual;
+    const chave = `teste|${sinal.id}|${fase}`;
+    if (chave !== ultimaFaseTeste) {
+      ultimaFaseTeste = chave;
+      if (fase === "preparar") bip(false);
+      if (fase === "entrar") bip(true);
+    }
+    const lado = sinal.direcao === "CALL" ? "▲ CALL" : "▼ PUT";
+    const estado = fase === "resultado" ? `resultado simulado: ${esc(String(sinal.resultado).toUpperCase())}` : fase === "entrar" ? "VALIDAR AGORA NO DEMO" : fase;
+    const tempo = fase === "preparar" || fase === "andamento" ? `<div class="tempo">${L.contagem(sinal, fase, agora)}</div>` : "";
+    const pedir = (fase === "entrar" || fase === "andamento") && !respondidos.has(sinal.id)
+      ? `<div class="acoes acoes-teste"><input placeholder="payout %" inputmode="decimal"><button class="validar">validei no demo</button><button class="ignorar">não entrei</button></div>` : "";
+    return `<div class="teste"><div class="rotulo">TESTE EM VALIDAÇÃO · CONTA DEMO</div><div class="linha"><span>${esc(sinal.ativo)} · ${esc(sinal.tempo_grafico || "?")}</span><span>${estado}</span></div><div class="direcao">${lado}</div>
+      <div class="linha"><span>expiração ${esc(sinal.expiracao_min)} min</span><span>entrada ${new Date(sinal.entrada_em).toLocaleTimeString().slice(0, 5)}</span></div>${tempo}${pedir}<div class="msg">Hipótese em estudo — fora do placar oficial.</div></div>`;
+  }
+
   function desenhar() {
     const agora = Date.now() + desvio;
     const atual = L.escolher(sinais, agora);
+    const testeAtual = L.escolher(testes, agora);
     if (!atual) {
       const extra = erro ? [] : L.espera(ultimo, dia, agora);
-      corpo.innerHTML = `<div class="grande neutro">aguardando</div><div class="msg">${esc(erro || "sem sinal no cenário escolhido agora")}</div>` +
+      corpo.innerHTML = `<div class="grande neutro">aguardando</div><div class="msg">${esc(erro || "sem recomendação aprovada agora")}</div>` +
         extra.map((x) => `<div class="msg" style="color:#cfd6e0;margin-top:6px">${esc(x)}</div>`).join("");
+      corpo.innerHTML += blocoTeste(testeAtual, agora);
+      const validar = raiz.querySelector(".validar"), ignorar = raiz.querySelector(".ignorar");
+      if (validar && testeAtual) validar.onclick = () => registrar(testeAtual.sinal, true, ".acoes-teste input");
+      if (ignorar && testeAtual) ignorar.onclick = () => registrar(testeAtual.sinal, false, ".acoes-teste input");
       return;
     }
     const { sinal, fase } = atual;
