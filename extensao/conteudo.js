@@ -17,6 +17,11 @@
         box-shadow:0 8px 28px rgba(0,0,0,.45);width:250px;overflow:hidden;user-select:none}
       .topo{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#11141a;cursor:move;font-size:12px;color:#9aa4b2}
       .topo button{background:none;border:0;color:#9aa4b2;font-size:14px;cursor:pointer}
+      .topo .pares{max-width:86px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#cfd6e0}
+      .seletor{padding:8px;border-bottom:1px solid #303744;background:#171b22;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+      .seletor[hidden]{display:none}
+      .seletor button{border:1px solid #3a4150;border-radius:6px;background:#262d38;color:#e2e8f0;padding:5px;font:600 11px -apple-system,Segoe UI,sans-serif;cursor:pointer}
+      .seletor button.ativo{border-color:#2f6fed;background:#1d3f7a}
       .corpo{padding:12px}
       .grande{font-size:30px;font-weight:800;letter-spacing:.5px;text-align:center;padding:10px;border-radius:10px;margin:6px 0}
       .call{background:#13a85b}.put{background:#e0384b}.neutro{background:#3a4150}
@@ -29,7 +34,7 @@
       .msg{font-size:12px;color:#9aa4b2;text-align:center;margin-top:8px}
       .min .corpo{display:none}
     </style>
-    <div class="card"><div class="topo"><span>MNEME · sinais</span><span><button class="graf" title="leitura no gráfico">📈</button><button class="min" title="minimizar">–</button></span></div><div class="corpo"></div></div>`;
+    <div class="card"><div class="topo"><span>MNEME · sinais</span><span><button class="pares" title="escolher paridade">Todas ▾</button><button class="som" title="desativar som" aria-pressed="true">🔔</button><button class="graf" title="leitura no gráfico">📈</button><button class="min" title="minimizar">–</button></span></div><div class="seletor" hidden></div><div class="corpo"></div></div>`;
   const card = raiz.querySelector(".card"), corpo = raiz.querySelector(".corpo");
   raiz.querySelector(".topo .min").onclick = () => card.classList.toggle("min");
   raiz.querySelector(".topo .graf").onclick = () => {
@@ -37,6 +42,49 @@
     const T = globalThis.MnemeTela, G = globalThis.MnemeGrafico;
     if (T && T.temGrafico()) T.alternar(); else if (G) G.alternar();
   };
+  let som = true;
+  const botaoSom = raiz.querySelector(".topo .som");
+  function mostrarSom() {
+    botaoSom.textContent = som ? "🔔" : "🔕";
+    botaoSom.title = som ? "desativar som" : "ativar som";
+    botaoSom.setAttribute("aria-pressed", String(som));
+  }
+  chrome.storage.local.get(["som"]).then((configuracao) => {
+    som = L.somLigado(configuracao.som);
+    mostrarSom();
+  });
+  botaoSom.onclick = () => {
+    som = !som;
+    chrome.storage.local.set({ som });
+    mostrarSom();
+  };
+  const botaoPares = raiz.querySelector(".topo .pares"), seletor = raiz.querySelector(".seletor");
+  let ativoSelecionado = "", pares = [];
+  function mostrarPares() {
+    botaoPares.textContent = ativoSelecionado || "Todas";
+    seletor.innerHTML = [{ ativo: "", tempo_grafico: "" }, ...pares].map((p) => {
+      const nome = p.ativo || "Todas";
+      const classe = p.ativo === ativoSelecionado ? "ativo" : "";
+      return `<button class="${classe}" data-ativo="${esc(p.ativo)}">${esc(nome)}${p.tempo_grafico ? ` · ${esc(p.tempo_grafico)}` : ""}</button>`;
+    }).join("");
+    seletor.querySelectorAll("button").forEach((botao) => {
+      botao.onclick = () => {
+        ativoSelecionado = botao.dataset.ativo || "";
+        enviar({ tipo: "selecionar_ativo", ativo: ativoSelecionado }, () => {});
+        seletor.hidden = true;
+        mostrarPares();
+        window.dispatchEvent(new Event("mneme:ativo"));
+        buscar();
+      };
+    });
+  }
+  botaoPares.onclick = () => {
+    if (!seletor.hidden) { seletor.hidden = true; return; }
+    enviar({ tipo: "pares" }, (r) => {
+      if (r && !r.erro) { pares = Array.isArray(r.pares) ? r.pares : []; mostrarPares(); seletor.hidden = false; }
+    });
+  };
+  enviar({ tipo: "configuracao" }, (r) => { ativoSelecionado = r && r.ativo ? r.ativo : ""; mostrarPares(); });
 
   // Arrastar pelo topo.
   let arrasto = null;
@@ -57,6 +105,7 @@
   }
 
   function bip(alto) {
+    if (!som) return;
     try {
       const ctx = new AudioContext(), o = ctx.createOscillator(), g = ctx.createGain();
       o.frequency.value = alto ? 880 : 520; o.connect(g); g.connect(ctx.destination); g.gain.value = 0.08;

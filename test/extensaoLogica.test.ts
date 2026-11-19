@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 type Sinal = { entrada_em: string; expiracao_min: number; resultado: string | null; id: string };
 let L: {
   fase(s: Sinal, agora: number): string; escolher(s: Sinal[], agora: number): { sinal: Sinal; fase: string } | null;
-  contagem(s: Sinal, f: string, agora: number): string; payout(t: string): number | null; corretora(h: string): string;
+  contagem(s: Sinal, f: string, agora: number): string; payout(t: string): number | null; corretora(h: string): string; somLigado(valor: unknown): boolean; chaveEstrutura(leitura: unknown): string;
 };
 
 beforeAll(async () => {
@@ -54,6 +54,17 @@ describe("card da extensão", () => {
     expect(L.payout("abc")).toBeNull();
     expect(L.corretora("qxbroker.com")).toBe("quotex");
     expect(L.corretora("iqoption.com")).toBe("iqoption");
+  });
+
+  it("mantém o som ligado por padrão e respeita quando a pessoa o desliga", () => {
+    expect(L.somLigado(undefined)).toBe(true);
+    expect(L.somLigado(false)).toBe(false);
+  });
+
+  it("mantém o mesmo traçado enquanto a vela atual apenas muda de preço", () => {
+    expect(L.chaveEstrutura({ previsao: { vela: "2026-11-18T12:00:00Z", preco: 91_000 } })).toBe("2026-11-18T12:00:00Z");
+    expect(L.chaveEstrutura({ previsao: { vela: "2026-11-18T12:00:00Z", preco: 91_250 } })).toBe("2026-11-18T12:00:00Z");
+    expect(L.chaveEstrutura({ previsao: { vela: "2026-11-18T12:15:00Z", preco: 91_250 } })).toBe("2026-11-18T12:15:00Z");
   });
 });
 

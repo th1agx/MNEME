@@ -2,8 +2,8 @@
 const SITE_PADRAO = "http://127.0.0.1:8787"; // o túnel SSH até a VPS (colaborar/tunel-sinais.sh)
 
 async function config() {
-  const c = await chrome.storage.local.get(["site", "chave"]);
-  return { site: (c.site || SITE_PADRAO).replace(/\/$/, ""), chave: c.chave || "" };
+  const c = await chrome.storage.local.get(["site", "chave", "ativo"]);
+  return { site: (c.site || SITE_PADRAO).replace(/\/$/, ""), chave: c.chave || "", ativo: String(c.ativo || "").trim() };
 }
 
 // Preço ao vivo da vela que está se formando, da API pública da Binance (sem chave). Só cripto por enquanto.
@@ -21,15 +21,26 @@ chrome.runtime.onMessage.addListener((pedido, _remetente, responder) => {
     return true;
   }
   (async () => {
-    const { site, chave } = await config();
+    const { site, chave, ativo } = await config();
+    if (pedido.tipo === "configuracao") return responder({ ativo });
+    if (pedido.tipo === "selecionar_ativo") {
+      await chrome.storage.local.set({ ativo: String(pedido.ativo || "").trim() });
+      return responder({ ok: true });
+    }
     if (!chave) return responder({ erro: "Configure a chave nas opções da extensão." });
     try {
       if (pedido.tipo === "sinais") {
-        const r = await fetch(`${site}/api/sinais`, { headers: { "x-mneme-chave": chave }, cache: "no-store" });
+        const paridade = ativo ? `?ativo=${encodeURIComponent(ativo)}` : "";
+        const r = await fetch(`${site}/api/sinais${paridade}`, { headers: { "x-mneme-chave": chave }, cache: "no-store" });
+        return responder(r.ok ? await r.json() : { erro: `MNEME respondeu ${r.status}` });
+      }
+      if (pedido.tipo === "pares") {
+        const r = await fetch(`${site}/api/pares`, { headers: { "x-mneme-chave": chave }, cache: "no-store" });
         return responder(r.ok ? await r.json() : { erro: `MNEME respondeu ${r.status}` });
       }
       if (pedido.tipo === "leitura") {
-        const r = await fetch(`${site}/api/leitura`, { headers: { "x-mneme-chave": chave }, cache: "no-store" });
+        const paridade = ativo ? `?ativo=${encodeURIComponent(ativo)}` : "";
+        const r = await fetch(`${site}/api/leitura${paridade}`, { headers: { "x-mneme-chave": chave }, cache: "no-store" });
         return responder(r.ok ? await r.json() : { erro: `MNEME respondeu ${r.status}` });
       }
       if (pedido.tipo === "entrada") {

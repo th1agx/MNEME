@@ -122,7 +122,7 @@
       if (chrome.runtime.lastError || !r) { erro = "extensão sem resposta"; return; }
       if (r.erro) { erro = r.erro; return; }
       erro = "";
-      const chave = r.previsao ? `${r.previsao.vela}|${r.previsao.preco}` : r.agora;
+      const chave = L.chaveEstrutura(r);
       if (chave !== chaveLeitura) { chaveLeitura = chave; inicioAnimacao = performance.now(); rastro = []; }  // nova leitura: desenha de novo
       leitura = r;
     });
@@ -138,6 +138,7 @@
     });
   }
   timers.push(setInterval(buscar, 15_000), setInterval(buscarAoVivo, 2_000));
+  addEventListener("mneme:ativo", () => { chaveLeitura = ""; buscar(); });
 
   // ---------- desenho ----------
   const facil = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);

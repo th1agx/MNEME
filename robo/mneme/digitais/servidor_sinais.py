@@ -25,6 +25,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
 
@@ -56,7 +57,7 @@ class Servidor:
                  mercado: Path | None = None, modelos: Path | None = None):
         self.diario, self.cenario, self.entradas, self.chave, self.relogio = Path(diario), Path(cenario), Path(entradas), chave, relogio
         self.mercado, self.modelos = (Path(mercado) if mercado else None), (Path(modelos) if modelos else None)
-        self._cache_leitura: tuple[str, dict] | None = None
+        self._cache_leitura: tuple[str, str, dict] | None = None
         self._trava = threading.Lock()
         self.entradas.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(self.entradas) as con:
@@ -70,10 +71,27 @@ class Servidor:
         con.row_factory = sqlite3.Row
         return con
 
-    def sinais(self) -> dict:
+    def pares(self) -> dict:
+        """Paridades que o cenário atual permite consultar no HUD."""
+        estrategias = json.loads(self.cenario.read_text(encoding="utf-8")).get("estrategias", [])
+        pares = []
+        for estrategia in estrategias:
+            partes = estrategia.split("|")
+            if len(partes) == 4 and partes[0].isalpha():
+                par = {"ativo": partes[0], "tempo_grafico": tempo_grafico(estrategia)}
+                if par not in pares:
+                    pares.append(par)
+        return {"pares": pares}
+
+    def sinais(self, ativo: str | None = None) -> dict:
         agora = self.relogio()
         cenario = json.loads(self.cenario.read_text(encoding="utf-8"))
         estrategias = list(cenario.get("estrategias", []))
+        paridade = "".join(c for c in str(ativo or "").upper() if c.isalpha())
+        if paridade:
+            estrategias = [e for e in estrategias if e.split("|")[0] == paridade]
+            if not estrategias:
+                raise ErroPedido(404, "paridade não configurada no cenário")
         saida, dia, ultimo = [], {"sinais": 0, "ganhos": 0, "perdas": 0, "abertos": 0}, None
         if estrategias:
             con = self._diario()
@@ -104,19 +122,22 @@ class Servidor:
                     saida.append(item)
         return {"agora": agora.isoformat(), "sinais": saida, "dia": dia, "ultimo": ultimo}
 
-    def leitura(self) -> dict:
-        """Velas, linhas e previsão da primeira estratégia do cenário, recalculadas no máximo uma vez por minuto."""
+    def leitura(self, ativo: str | None = None) -> dict:
+        """Velas, linhas e previsão da paridade pedida, recalculadas no máximo uma vez por minuto."""
         if not self.mercado or not self.modelos:
             raise ErroPedido(503, "leitura do gráfico não configurada")
         agora = pd.Timestamp(self.relogio())
         minuto = agora.floor("min").isoformat()
         with self._trava:
-            if self._cache_leitura and self._cache_leitura[0] == minuto:
-                return self._cache_leitura[1]
             estrategias = json.loads(self.cenario.read_text(encoding="utf-8")).get("estrategias", [])
             if not estrategias:
                 raise ErroPedido(404, "nenhuma estratégia no cenário")
-            estrategia = estrategias[0]
+            paridade = "".join(c for c in str(ativo or "").upper() if c.isalpha())
+            estrategia = next((e for e in estrategias if not paridade or e.split("|")[0] == paridade), None)
+            if estrategia is None:
+                raise ErroPedido(404, "paridade não configurada no cenário")
+            if self._cache_leitura and self._cache_leitura[:2] == (minuto, estrategia):
+                return self._cache_leitura[2]
             ativo, _, candle, expiracao = estrategia.split("|")
             candle, expiracao = int(candle.rstrip("m")), int(expiracao.rstrip("m"))
             modelo = json.loads((self.modelos / f"{estrategia.replace('|', '_')}.json").read_text(encoding="utf-8"))
@@ -125,7 +146,7 @@ class Servidor:
             if v.empty:
                 raise ErroPedido(404, f"sem velas de {ativo}")
             r = {"ativo": ativo, "estrategia": estrategia, **leitura(v, candle, expiracao, modelo, agora)}
-            self._cache_leitura = (minuto, r)
+            self._cache_leitura = (minuto, estrategia, r)
             return r
 
     def registrar_entrada(self, corpo: dict) -> None:
@@ -161,10 +182,15 @@ def criar_servidor(s: Servidor, endereco: str, porta: int) -> ThreadingHTTPServe
             try:
                 if not s.autorizado(self.headers.get("x-mneme-chave")):
                     raise ErroPedido(401, "chave inválida")
-                if metodo == "GET" and self.path.split("?")[0] == "/api/sinais":
-                    return self._responder(200, s.sinais())
-                if metodo == "GET" and self.path.split("?")[0] == "/api/leitura":
-                    return self._responder(200, s.leitura())
+                caminho = urlparse(self.path)
+                if metodo == "GET" and caminho.path == "/api/sinais":
+                    ativo = parse_qs(caminho.query).get("ativo", [None])[-1]
+                    return self._responder(200, s.sinais(ativo))
+                if metodo == "GET" and caminho.path == "/api/pares":
+                    return self._responder(200, s.pares())
+                if metodo == "GET" and caminho.path == "/api/leitura":
+                    ativo = parse_qs(caminho.query).get("ativo", [None])[-1]
+                    return self._responder(200, s.leitura(ativo))
                 if metodo == "POST" and self.path == "/api/sinais/entrada":
                     tamanho = min(int(self.headers.get("content-length") or 0), 4096)
                     try:

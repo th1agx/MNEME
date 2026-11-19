@@ -10,7 +10,7 @@ Tudo fica na VPS:
 3. Neste computador, um **túnel SSH** liga o `127.0.0.1:8787` local ao da VPS.
 4. A extensão consulta o túnel a cada 2 segundos.
 
-Só aparecem os sinais do cenário escolhido em `dados/digitais/cenario.json` na VPS (exemplo em `robo/digitais_cenario.exemplo.json`). O card identifica a **paridade**, o **timeframe** e a ação sugerida; quando mais de uma paridade estiver configurada, só a que tiver um sinal válido no momento aparece.
+Só aparecem os sinais do cenário escolhido em `dados/digitais/cenario.json` na VPS (exemplo em `robo/digitais_cenario.exemplo.json`). O card identifica a **paridade**, o **timeframe** e a ação sugerida; quando mais de uma paridade estiver configurada, só a que tiver um sinal válido no momento aparece. Nas opções, a pessoa pode escolher qual paridade configurada o gráfico do MNEME mostra (por exemplo, `EUR/USD` ou `EUR/JPY`); se deixar vazio, ele usa o cenário principal.
 
 ## Instalar
 
@@ -23,5 +23,5 @@ Só aparecem os sinais do cenário escolhido em `dados/digitais/cenario.json` na
 ## O card
 
 - **prepare** (até 1 min antes) → **ENTRE AGORA** (15 s a partir do minuto de entrada) → **em andamento** → **resultado**.
-- 🟢 CALL ou 🔴 PUT, ativo, expiração e contagem regressiva. Um som avisa o sinal e a hora de entrar.
+- 🟢 CALL ou 🔴 PUT, ativo, expiração e contagem regressiva. O botão 🔔 no topo liga ou desliga o som dos avisos.
 - **"entrei" + payout %**: registra na VPS (`dados/digitais/entradas.db`) o que a corretora mostrou. É a captura assistida do Motor 02, que mede o payout e o resultado reais.

@@ -57,7 +57,7 @@ def test_so_o_cenario_escolhido_e_so_com_a_chave(ambiente):
     status, r = pedir(f"{base}/api/sinais")
     assert status == 200 and r["agora"].startswith("2026-11-16T14:03")
     assert [s["id"] for s in r["sinais"]] == [eth]
-    assert r["sinais"][0] | {} == {"id": eth, "ativo": "ETHUSDT", "direcao": "CALL", "expiracao_min": 5, "entrada_em": "2026-11-16T14:01:00+00:00",
+    assert r["sinais"][0] | {} == {"id": eth, "ativo": "ETHUSDT", "tempo_grafico": "5m", "direcao": "CALL", "expiracao_min": 5, "entrada_em": "2026-11-16T14:01:00+00:00",
                                    "decidido_em": "2026-11-16T14:00:05+00:00", "estrategia": "ETHUSDT|expiracao_fixa|5m|5m", "cenario": "ETH 5 min",
                                    "preco_referencia": 3100.0, "resultado": None}
 
@@ -89,6 +89,19 @@ def test_placar_do_dia_e_ultimo_sinal(ambiente):
 def test_sem_sinais_o_dia_fica_zerado(ambiente):
     r = pedir(f"{ambiente[2]}/api/sinais")[1]
     assert r["dia"] == {"sinais": 0, "ganhos": 0, "perdas": 0, "abertos": 0} and r["ultimo"] is None
+
+
+def test_lista_as_paridades_configuradas_e_filtra_os_sinais_no_hud(ambiente):
+    d, _, base, pasta = ambiente
+    (pasta / "cenario.json").write_text(json.dumps({"estrategias": ["ETHUSDT|expiracao_fixa|5m|5m", "EURJPY|expiracao_fixa|5m|5m"], "cenario": "pares"}))
+    registrar(d, "ETHUSDT|expiracao_fixa|5m|5m", pd.Timestamp("2026-11-16T13:55:00Z"))
+    eur = registrar(d, "EURJPY|expiracao_fixa|5m|5m", pd.Timestamp("2026-11-16T13:55:00Z"), "PUT")
+
+    status_pares, pares = pedir(f"{base}/api/pares")
+    status_sinais, sinais = pedir(f"{base}/api/sinais?ativo=EUR/JPY")
+
+    assert status_pares == 200 and pares["pares"] == [{"ativo": "ETHUSDT", "tempo_grafico": "5m"}, {"ativo": "EURJPY", "tempo_grafico": "5m"}]
+    assert status_sinais == 200 and [s["id"] for s in sinais["sinais"]] == [eur]
 
 
 def test_guarda_o_entrei_e_recusa_o_que_nao_e_valido(ambiente):
@@ -128,12 +141,15 @@ def test_leitura_do_grafico_pelo_servidor(tmp_path):
     v = mercado(n=6000)
     v.index = v.index + (pd.Timestamp("2026-11-10", tz="UTC") - v.index[0])
     tabela = v.reset_index(names="abertura_em").assign(recebido_em=lambda d: d["abertura_em"] + pd.Timedelta(minutes=1), origem="teste", negocios=10)
-    ArmazemVelas(tmp_path / "mercado").gravar("ETHUSDT", tabela, pd.Timestamp("2026-12-01", tz="UTC").to_pydatetime())
+    armazem = ArmazemVelas(tmp_path / "mercado")
+    armazem.gravar("ETHUSDT", tabela, pd.Timestamp("2026-12-01", tz="UTC").to_pydatetime())
+    armazem.gravar("EURJPY", tabela, pd.Timestamp("2026-12-01", tz="UTC").to_pydatetime())
     (tmp_path / "modelos").mkdir()
     tecnicas = list(grade_de_sinais(v.head(3000), 5).columns)
     (tmp_path / "modelos" / "ETHUSDT_expiracao_fixa_5m_5m.json").write_text(json.dumps({"tecnicas": tecnicas, "pesos": [0.1] * len(tecnicas), "intercepto": 0.0, "corte": 0.02}))
+    (tmp_path / "modelos" / "EURJPY_expiracao_fixa_5m_5m.json").write_text(json.dumps({"tecnicas": tecnicas, "pesos": [0.1] * len(tecnicas), "intercepto": 0.0, "corte": 0.02}))
     cenario = tmp_path / "cenario.json"
-    cenario.write_text(json.dumps({"estrategias": ["ETHUSDT|expiracao_fixa|5m|5m"], "cenario": "ETH 5 min"}))
+    cenario.write_text(json.dumps({"estrategias": ["ETHUSDT|expiracao_fixa|5m|5m", "EURJPY|expiracao_fixa|5m|5m"], "cenario": "pares em M5"}))
     Diario(tmp_path / "diario.db")
     agora = v.index[-1] + pd.Timedelta(minutes=1, seconds=5)
     s = Servidor(tmp_path / "diario.db", cenario, tmp_path / "entradas.db", CHAVE, relogio=lambda: agora.to_pydatetime(),
@@ -142,7 +158,9 @@ def test_leitura_do_grafico_pelo_servidor(tmp_path):
     threading.Thread(target=http.serve_forever, daemon=True).start()
     try:
         status, r = pedir(f"http://127.0.0.1:{http.server_address[1]}/api/leitura")
+        status_par, r_par = pedir(f"http://127.0.0.1:{http.server_address[1]}/api/leitura?ativo=EUR/JPY")
     finally:
         http.shutdown()
     assert status == 200 and r["ativo"] == "ETHUSDT" and len(r["velas"]) > 10 and r["previsao"]["cone"]
+    assert status_par == 200 and r_par["ativo"] == "EURJPY" and len(r_par["velas"]) > 10
     assert s.leitura() is s.leitura()  # cache: o mesmo minuto não recalcula

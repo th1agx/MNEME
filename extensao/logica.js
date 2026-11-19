@@ -48,6 +48,16 @@
     return "outra";
   }
 
+  /** O aviso sonoro é ligado por padrão; só fica mudo quando a pessoa o desliga. */
+  function somLigado(valor) {
+    return valor !== false;
+  }
+
+  /** A estrutura só muda com uma vela nova, não a cada variação do preço dentro dela. */
+  function chaveEstrutura(leitura) {
+    return leitura && leitura.previsao ? String(leitura.previsao.vela || "") : "";
+  }
+
   /** Limites de preço e de tempo que cabem tudo: velas, linhas visíveis e o cone. */
   function limites(l) {
     const precos = [];
@@ -109,5 +119,5 @@
     return linhas;
   }
 
-  globalThis.MnemeLogica = { fase, escolher, contagem, payout, corretora, limites, escala, resumo, espera };
+  globalThis.MnemeLogica = { fase, escolher, contagem, payout, corretora, somLigado, chaveEstrutura, limites, escala, resumo, espera };
 })();
