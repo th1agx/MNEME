@@ -1,10 +1,16 @@
 // MNEME Sinais: o processo de fundo. É o único que fala com o MNEME (pelo túnel SSH); a página da corretora nunca recebe a chave.
 const SITE_PADRAO = "http://127.0.0.1:8787"; // o túnel SSH até a VPS (colaborar/tunel-sinais.sh)
+const FILTRO_VERSAO = 2;
 
 async function config() {
-  const c = await chrome.storage.local.get(["site", "chave", "ativo"]);
-  return { site: (c.site || SITE_PADRAO).replace(/\/$/, ""), chave: c.chave || "", ativo: String(c.ativo || "").trim() };
+  const c = await chrome.storage.local.get(["site", "chave", "ativo", "filtro_versao"]);
+  // O seletor passou a iniciar em Todas; limpa uma escolha herdada só nesta migração.
+  const ativo = c.filtro_versao === FILTRO_VERSAO ? String(c.ativo || "").trim() : "";
+  if (c.filtro_versao !== FILTRO_VERSAO) await chrome.storage.local.set({ ativo, filtro_versao: FILTRO_VERSAO });
+  return { site: (c.site || SITE_PADRAO).replace(/\/$/, ""), chave: c.chave || "", ativo };
 }
+
+globalThis.MnemeFundo = { config }; // contrato pequeno para testar a migração da preferência sem rede.
 
 // Uma URL salva nas opções pode ficar velha (por exemplo, depois de trocar de
 // computador). Nesse caso a extensão tenta uma vez o túnel local padrão. Não
@@ -41,7 +47,7 @@ chrome.runtime.onMessage.addListener((pedido, _remetente, responder) => {
     const { site, chave, ativo } = await config();
     if (pedido.tipo === "configuracao") return responder({ ativo });
     if (pedido.tipo === "selecionar_ativo") {
-      await chrome.storage.local.set({ ativo: String(pedido.ativo || "").trim() });
+      await chrome.storage.local.set({ ativo: String(pedido.ativo || "").trim(), filtro_versao: FILTRO_VERSAO });
       return responder({ ok: true });
     }
     if (!chave) return responder({ erro: "Configure a chave nas opções da extensão." });

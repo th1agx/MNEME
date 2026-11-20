@@ -24,6 +24,7 @@ Só aparecem os sinais do cenário escolhido em `dados/digitais/cenario.json` na
 
 - **prepare** (até 1 min antes) → **ENTRE AGORA** (15 s a partir do minuto de entrada) → **em andamento** → **resultado**.
 - 🟢 CALL ou 🔴 PUT, ativo, expiração e contagem regressiva. O botão 🔔 no topo liga ou desliga o som dos avisos; clique em **Todas ▾** para escolher a paridade dos sinais.
+- A primeira abertura desta versão começa em **Todas**: o motor continua acompanhando todos os pares e o card mostra qualquer indicação ativa. Escolher um par passa a filtrar apenas o que aparece no card.
 - **Recomendação aprovada**: só entra no placar e no alerta principal quando o Motor e o Risk Engine aprovaram o sinal em `paper`.
 - **Teste em validação · conta demo**: hipóteses em sombra aparecem separadas, com paridade, direção, horário e alerta próprio. Não contam no placar oficial nem são recomendação para dinheiro real.
 - **"entrei" + payout %**: registra na VPS (`dados/digitais/entradas.db`) o que a corretora mostrou. É a captura assistida do Motor 02, que mede o payout e o resultado reais.
