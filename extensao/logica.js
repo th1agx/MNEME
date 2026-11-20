@@ -58,6 +58,18 @@
     return leitura && leitura.previsao ? String(leitura.previsao.vela || "") : "";
   }
 
+  /** A primeira opção mostra tudo; cada par configurado aparece uma só vez no menu. */
+  function paresDoMenu(pares) {
+    const vistos = new Set();
+    const validos = (pares || []).filter((par) => {
+      const ativo = String(par && par.ativo || "");
+      if (!ativo || vistos.has(ativo)) return false;
+      vistos.add(ativo);
+      return true;
+    }).map((par) => ({ ativo: String(par.ativo), tempo_grafico: String(par.tempo_grafico || "") }));
+    return [{ ativo: "", tempo_grafico: "" }, ...validos];
+  }
+
   /** Limites de preço e de tempo que cabem tudo: velas, linhas visíveis e o cone. */
   function limites(l) {
     const precos = [];
@@ -124,5 +136,5 @@
     return linhas;
   }
 
-  globalThis.MnemeLogica = { fase, escolher, contagem, payout, corretora, somLigado, chaveEstrutura, limites, escala, resumo, espera };
+  globalThis.MnemeLogica = { fase, escolher, contagem, payout, corretora, somLigado, chaveEstrutura, paresDoMenu, limites, escala, resumo, espera };
 })();

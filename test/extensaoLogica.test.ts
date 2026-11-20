@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 type Sinal = { entrada_em: string; expiracao_min: number; resultado: string | null; id: string };
 let L: {
   fase(s: Sinal, agora: number): string; escolher(s: Sinal[], agora: number): { sinal: Sinal; fase: string } | null;
-  contagem(s: Sinal, f: string, agora: number): string; payout(t: string): number | null; corretora(h: string): string; somLigado(valor: unknown): boolean; chaveEstrutura(leitura: unknown): string;
+  contagem(s: Sinal, f: string, agora: number): string; payout(t: string): number | null; corretora(h: string): string; somLigado(valor: unknown): boolean; chaveEstrutura(leitura: unknown): string; paresDoMenu(pares: unknown[]): { ativo: string; tempo_grafico: string }[];
 };
 
 beforeAll(async () => {
@@ -65,6 +65,11 @@ describe("card da extensão", () => {
     expect(L.chaveEstrutura({ previsao: { vela: "2026-11-18T12:00:00Z", preco: 91_000 } })).toBe("2026-11-18T12:00:00Z");
     expect(L.chaveEstrutura({ previsao: { vela: "2026-11-18T12:00:00Z", preco: 91_250 } })).toBe("2026-11-18T12:00:00Z");
     expect(L.chaveEstrutura({ previsao: { vela: "2026-11-18T12:15:00Z", preco: 91_250 } })).toBe("2026-11-18T12:15:00Z");
+  });
+
+  it("oferece Todas e cada par configurado no menu do HUD", () => {
+    expect(L.paresDoMenu([{ ativo: "EURUSD", tempo_grafico: "5m" }, { ativo: "EURJPY", tempo_grafico: "5m" }, { ativo: "EURUSD", tempo_grafico: "5m" }]))
+      .toEqual([{ ativo: "", tempo_grafico: "" }, { ativo: "EURUSD", tempo_grafico: "5m" }, { ativo: "EURJPY", tempo_grafico: "5m" }]);
   });
 });
 
