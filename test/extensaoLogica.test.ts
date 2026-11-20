@@ -38,12 +38,12 @@ describe("card da extensão", () => {
     expect(L.contagem(x, "andamento", t("2026-11-16T14:02:00Z"))).toBe("4:00");
   });
 
-  it("mostra o último sinal e o placar enquanto espera", () => {
+  it("mostra apenas os placares enquanto espera por uma indicação ativa", () => {
     const E = (globalThis as unknown as { MnemeLogica: { espera(u: unknown, d: unknown, a: number): string[] } }).MnemeLogica.espera;
     const ultimo = { direcao: "PUT", entrada_em: "2026-11-16T22:11:00+00:00", resultado: "perda" };
     expect(E(ultimo, { aprovadas: { sinais: 20, ganhos: 11, perdas: 9, abertos: 0 }, testes: { sinais: 3, ganhos: 2, perdas: 1, abertos: 0 } }, t("2026-11-16T22:43:00Z")))
-      .toEqual(["Último: ▼ PUT às 19:11 · perda ✗ · há 32 min", "Hoje · aprovadas: 20 sinais · 11 ✓ · 9 ✗", "Hoje · testes demo: 3 sinais · 2 ✓ · 1 ✗"]);
-    expect(E(ultimo, null, t("2026-11-17T00:20:00Z"))[0]).toContain("há 2 h 09");
+      .toEqual(["Hoje · aprovadas: 20 sinais · 11 ✓ · 9 ✗", "Hoje · testes demo: 3 sinais · 2 ✓ · 1 ✗"]);
+    expect(E(ultimo, null, t("2026-11-17T00:20:00Z"))).toEqual([]);
     expect(E(null, { aprovadas: { sinais: 0, ganhos: 0, perdas: 0, abertos: 0 }, testes: { sinais: 0, ganhos: 0, perdas: 0, abertos: 0 } }, 0)).toEqual(["Hoje: nenhuma indicação aprovada", "Hoje · testes demo: nenhum"]);
   });
 

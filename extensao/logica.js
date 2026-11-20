@@ -117,16 +117,9 @@
     return linhas;
   }
 
-  /** O que o card mostra enquanto não há sinal: o último sinal (hora de Brasília) e o placar do dia. */
+  /** O que o card mostra enquanto não há sinal: só o placar, sem confundir histórico com indicação atual. */
   function espera(ultimo, dia, agora) {
     const linhas = [];
-    if (ultimo) {
-      const hora = new Date(Date.parse(ultimo.entrada_em) - 3 * 3_600_000).toISOString().slice(11, 16);
-      const min = Math.max(0, Math.round((agora - Date.parse(ultimo.entrada_em)) / 60_000));
-      const ha = min < 60 ? `há ${min} min` : `há ${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")}`;
-      const res = ultimo.resultado === "ganho" ? "ganho ✓" : ultimo.resultado === "perda" ? "perda ✗" : ultimo.resultado || "em andamento";
-      linhas.push(`Último: ${ultimo.direcao === "CALL" ? "▲ CALL" : "▼ PUT"} às ${hora} · ${res} · ${ha}`);
-    }
     if (dia) {
       const aprovado = dia.aprovadas || dia; // compatível com o servidor anterior enquanto ele atualiza
       const teste = dia.testes;
