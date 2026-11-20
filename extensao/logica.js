@@ -115,7 +115,12 @@
       const res = ultimo.resultado === "ganho" ? "ganho ✓" : ultimo.resultado === "perda" ? "perda ✗" : ultimo.resultado || "em andamento";
       linhas.push(`Último: ${ultimo.direcao === "CALL" ? "▲ CALL" : "▼ PUT"} às ${hora} · ${res} · ${ha}`);
     }
-    if (dia) linhas.push(dia.sinais ? `Hoje: ${dia.sinais} sinais · ${dia.ganhos} ✓ · ${dia.perdas} ✗${dia.abertos ? ` · ${dia.abertos} em andamento` : ""}` : "Hoje: nenhum sinal ainda");
+    if (dia) {
+      const aprovado = dia.aprovadas || dia; // compatível com o servidor anterior enquanto ele atualiza
+      const teste = dia.testes;
+      linhas.push(aprovado.sinais ? `Hoje · aprovadas: ${aprovado.sinais} sinais · ${aprovado.ganhos} ✓ · ${aprovado.perdas} ✗${aprovado.abertos ? ` · ${aprovado.abertos} em andamento` : ""}` : "Hoje: nenhuma indicação aprovada");
+      if (teste) linhas.push(teste.sinais ? `Hoje · testes demo: ${teste.sinais} sinais · ${teste.ganhos} ✓ · ${teste.perdas} ✗${teste.abertos ? ` · ${teste.abertos} em andamento` : ""}` : "Hoje · testes demo: nenhum");
+    }
     return linhas;
   }
 

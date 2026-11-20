@@ -82,13 +82,13 @@ def test_placar_do_dia_e_ultimo_sinal(ambiente):
     d.encerrar(tarde, {**fim, "resultado": "ganho"}, AGORA)
     r = pedir(f"{base}/api/sinais")[1]
     assert r["sinais"] == []
-    assert r["dia"] == {"sinais": 2, "ganhos": 1, "perdas": 1, "abertos": 0}
+    assert r["dia"] == {"aprovadas": {"sinais": 2, "ganhos": 1, "perdas": 1, "abertos": 0}, "testes": {"sinais": 0, "ganhos": 0, "perdas": 0, "abertos": 0}}
     assert r["ultimo"]["id"] == tarde and r["ultimo"]["direcao"] == "CALL" and r["ultimo"]["resultado"] == "ganho"
 
 
 def test_sem_sinais_o_dia_fica_zerado(ambiente):
     r = pedir(f"{ambiente[2]}/api/sinais")[1]
-    assert r["dia"] == {"sinais": 0, "ganhos": 0, "perdas": 0, "abertos": 0} and r["ultimo"] is None
+    assert r["dia"] == {"aprovadas": {"sinais": 0, "ganhos": 0, "perdas": 0, "abertos": 0}, "testes": {"sinais": 0, "ganhos": 0, "perdas": 0, "abertos": 0}} and r["ultimo"] is None
 
 
 def test_separa_testes_de_sombra_das_recomendacoes_e_do_placar(ambiente):
@@ -100,7 +100,7 @@ def test_separa_testes_de_sombra_das_recomendacoes_e_do_placar(ambiente):
 
     assert [s["id"] for s in r["sinais"]] == [recomendado]
     assert [s["id"] for s in r["testes"]] == [teste]
-    assert r["dia"] == {"sinais": 1, "ganhos": 0, "perdas": 0, "abertos": 1}
+    assert r["dia"] == {"aprovadas": {"sinais": 1, "ganhos": 0, "perdas": 0, "abertos": 1}, "testes": {"sinais": 1, "ganhos": 0, "perdas": 0, "abertos": 1}}
 
 
 def test_lista_as_paridades_configuradas_e_filtra_os_sinais_no_hud(ambiente):

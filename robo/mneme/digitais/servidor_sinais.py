@@ -92,7 +92,10 @@ class Servidor:
             estrategias = [e for e in estrategias if e.split("|")[0] == paridade]
             if not estrategias:
                 raise ErroPedido(404, "paridade não configurada no cenário")
-        saida, testes, dia, ultimo = [], [], {"sinais": 0, "ganhos": 0, "perdas": 0, "abertos": 0}, None
+        saida, testes = [], []
+        dia = {"aprovadas": {"sinais": 0, "ganhos": 0, "perdas": 0, "abertos": 0},
+               "testes": {"sinais": 0, "ganhos": 0, "perdas": 0, "abertos": 0}}
+        ultimo = None
         if estrategias:
             con = self._diario()
             try:
@@ -112,16 +115,18 @@ class Servidor:
                         "cenario": str(cenario.get("cenario", ""))[:120], "preco_referencia": s.get("preco_referencia"),
                         "resultado": l["resultado"] if l["situacao"] == "encerrada" else None}
                 entrada = datetime.fromisoformat(s["entrada_em"])
+                grupo = "testes" if l["tipo"] == "sombra" else "aprovadas"
+                if entrada >= inicio_dia:
+                    placar = dia[grupo]
+                    placar["sinais"] += 1
+                    chave = {"ganho": "ganhos", "perda": "perdas"}.get(item["resultado"] or "", "abertos" if item["resultado"] is None else None)
+                    if chave:
+                        placar[chave] += 1
                 if l["tipo"] == "sombra":
                     if entrada >= limite:
                         testes.append(item)
                     continue  # hipótese em estudo: não é recomendação nem entra no placar
                 ultimo = ultimo or item  # as linhas vêm da mais nova para a mais velha
-                if entrada >= inicio_dia:
-                    dia["sinais"] += 1
-                    chave = {"ganho": "ganhos", "perda": "perdas"}.get(item["resultado"] or "", "abertos" if item["resultado"] is None else None)
-                    if chave:
-                        dia[chave] += 1
                 if entrada >= limite:
                     saida.append(item)
         return {"agora": agora.isoformat(), "sinais": saida, "testes": testes, "dia": dia, "ultimo": ultimo}
